@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # IJED Learning Management System
 
 <p align="center">
@@ -499,3 +500,7 @@ This project is developed for **Infant Jesus Learning Academy** (Imelda Justice 
 ---
 
 <p align="center">Built with ❤️ for IJED · Infant Jesus Learning Academy</p>
+=======
+# IJED-Experiment
+IJED Frontend and Supabase 
+>>>>>>> 7f6ac052f5cac510a85a5bbcfb235c4511872e7c
