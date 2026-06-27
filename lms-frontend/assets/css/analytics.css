@@ -1,0 +1,477 @@
+/* ============================================================
+   assets/css/analytics.css
+   Performance Analytics tab — component styles.
+   Inherits all CSS variables from main.css (maroon theme).
+   ============================================================ */
+
+/* ── Section header ─────────────────────────────────────────── */
+.analytics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.analytics-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--maroon-dark);
+}
+
+.analytics-sub {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-top: 2px;
+}
+
+.analytics-filters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.analytics-select {
+  padding: 7px 12px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--gray-800);
+  background: var(--white);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.analytics-select:focus { border-color: var(--maroon); }
+
+/* ── Sub-tab navigation ─────────────────────────────────────── */
+.analytics-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--gray-100);
+  margin-bottom: 20px;
+}
+
+.analytics-tab {
+  padding: 9px 20px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-600);
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+  margin-bottom: -2px;
+}
+.analytics-tab:hover { color: var(--maroon); }
+.analytics-tab.active {
+  color: var(--maroon);
+  border-bottom-color: var(--maroon);
+}
+
+/* ── Tab panels ─────────────────────────────────────────────── */
+.analytics-panel { animation: fadeInUp .25s ease; }
+.analytics-panel.hidden { display: none; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Grid layout ────────────────────────────────────────────── */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+/* ── Cards ──────────────────────────────────────────────────── */
+.analytics-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--gray-100);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: box-shadow var(--transition);
+}
+.analytics-card:hover { box-shadow: var(--shadow); }
+
+.analytics-card-wide {
+  grid-column: 1 / -1;    /* always full width */
+}
+
+.analytics-card-header { display: flex; flex-direction: column; gap: 2px; }
+.analytics-card-title  { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+.analytics-card-sub    { font-size: 12px; color: var(--gray-400); }
+
+/* ── Chart canvas wrappers ──────────────────────────────────── */
+.chart-wrapper    { position: relative; height: 260px; width: 100%; }
+.chart-wrapper-sm { position: relative; height: 220px; width: 100%; }
+
+/* ── Skeleton loaders ───────────────────────────────────────── */
+.skeleton-title {
+  height: 16px;
+  width: 55%;
+  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius-sm);
+}
+.skeleton-chart {
+  height: 200px;
+  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius);
+  margin-top: 12px;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Empty / Error state ────────────────────────────────────── */
+.analytics-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 20px;
+  text-align: center;
+}
+.analytics-empty-icon  { font-size: 36px; }
+.analytics-empty-title { font-size: 15px; font-weight: 700; color: var(--gray-600); }
+.analytics-empty-sub   { font-size: 13px; color: var(--gray-400); max-width: 280px; }
+
+/* ══════════════════════════════════════════════════════════════
+   ATTENDANCE CALENDAR
+══════════════════════════════════════════════════════════════ */
+.att-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--gray-600);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.att-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 3px;
+  margin-right: 3px;
+}
+.att-dot.att-present  { background: #22c55e; }
+.att-dot.att-absent   { background: var(--red); }
+.att-dot.att-excused  { background: #f59e0b; }
+.att-dot.att-no-class { background: var(--gray-200); }
+
+.att-months-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.att-month-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-600);
+  margin-bottom: 6px;
+}
+.att-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.att-day-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gray-400);
+  text-align: center;
+  padding: 2px 0;
+}
+.att-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  cursor: default;
+  transition: transform .1s;
+}
+.att-cell:hover { transform: scale(1.15); }
+.att-cell.att-empty   { background: transparent; }
+.att-cell.att-present { background: #22c55e; }
+.att-cell.att-absent  { background: var(--red); }
+.att-cell.att-excused { background: #f59e0b; color: #fff; }
+.att-cell.att-late    { background: #a78bfa; }
+.att-cell.att-no-class{ background: var(--gray-200); color: var(--gray-400); }
+.att-cell.att-future  { background: var(--gray-50); color: var(--gray-200); }
+
+.att-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--gray-100);
+}
+.att-summary-rate  { font-size: 28px; font-weight: 800; }
+.att-summary-label { font-size: 12px; color: var(--gray-400); margin-top: -4px; }
+.att-summary-pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.att-pill {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.att-pill.att-present { background: #e6f4ea; color: var(--green); }
+.att-pill.att-absent  { background: var(--red-light); color: var(--red); }
+.att-pill.att-excused { background: #fff8e1; color: #b45309; }
+
+/* ══════════════════════════════════════════════════════════════
+   MODULE PROGRESS
+══════════════════════════════════════════════════════════════ */
+.mod-overall {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.mod-overall-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: var(--gray-100);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.mod-overall-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .5s ease;
+}
+.mod-overall-label { font-size: 12px; color: var(--gray-600); white-space: nowrap; }
+
+.mod-list { display: flex; flex-direction: column; gap: 8px; }
+.mod-subject-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 40px 50px;
+  align-items: center;
+  gap: 8px;
+}
+.mod-subject-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mod-bar-wrap {
+  height: 7px;
+  background: var(--gray-100);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.mod-bar { height: 100%; border-radius: 4px; transition: width .5s ease; }
+.mod-pct  { font-size: 12px; font-weight: 700; text-align: right; }
+.mod-count { font-size: 11px; color: var(--gray-400); }
+.mod-remaining { font-size: 12px; color: var(--gray-400); margin-top: 8px; text-align: center; }
+
+/* ══════════════════════════════════════════════════════════════
+   BAYESIAN — GAUGE
+══════════════════════════════════════════════════════════════ */
+.gauge-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.gauge-svg   { display: block; }
+.gauge-value {
+  font-size: 32px;
+  font-weight: 800;
+  margin-top: -20px;
+}
+.gauge-label { font-size: 12px; color: var(--gray-400); }
+.gauge-ci {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 0;
+  border-top: 1px solid var(--gray-100);
+}
+.gauge-ci-label { font-size: 12px; color: var(--gray-400); }
+.gauge-ci-range { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+.gauge-meta { font-size: 11px; color: var(--gray-400); text-align: center; }
+
+/* ══════════════════════════════════════════════════════════════
+   BAYESIAN — IMPROVEMENT PROBABILITY
+══════════════════════════════════════════════════════════════ */
+.improv-target-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.improv-label { font-size: 13px; font-weight: 600; color: var(--gray-600); }
+.improv-target-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+}
+.improv-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--maroon);
+  cursor: pointer;
+  padding: 0 4px;
+  font-weight: 700;
+}
+.improv-target-val { font-size: 15px; font-weight: 800; color: var(--gray-800); min-width: 44px; text-align: center; }
+.improv-meter-wrap {
+  height: 18px;
+  background: var(--gray-100);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.improv-meter-bar { height: 100%; border-radius: 9px; }
+.improv-prob-val  { font-size: 36px; font-weight: 800; text-align: center; }
+.improv-prob-label { font-size: 12px; color: var(--gray-600); text-align: center; }
+
+/* ══════════════════════════════════════════════════════════════
+   BAYESIAN — STUDENTS LIKE YOU
+══════════════════════════════════════════════════════════════ */
+.peer-percentile {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+.peer-pct-ring {
+  width: 100px; height: 100px;
+  border-radius: 50%;
+  border: 5px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+.peer-pct-val { font-size: 26px; font-weight: 800; line-height: 1; }
+.peer-pct-sub { font-size: 10px; color: var(--gray-400); font-weight: 600; }
+.peer-message {
+  font-size: 13px;
+  color: var(--gray-600);
+  text-align: center;
+  line-height: 1.5;
+}
+.peer-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.peer-profile-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+  padding: 10px 6px;
+}
+.peer-profile-val { font-size: 16px; font-weight: 800; color: var(--maroon); }
+.peer-profile-key { font-size: 10px; color: var(--gray-400); margin-top: 2px; text-align: center; }
+
+/* ══════════════════════════════════════════════════════════════
+   BAYESIAN — RISK ASSESSMENT
+══════════════════════════════════════════════════════════════ */
+.risk-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--radius-lg);
+}
+.risk-emoji { font-size: 28px; }
+.risk-label { font-size: 20px; font-weight: 800; }
+
+.risk-signals { display: flex; flex-direction: column; gap: 8px; }
+.risk-signal-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+}
+.risk-signal-label { font-size: 12px; font-weight: 600; color: var(--gray-600); }
+.risk-signal-bar-wrap {
+  height: 7px;
+  background: var(--gray-100);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.risk-signal-bar { height: 100%; border-radius: 4px; transition: width .5s ease; }
+.risk-signal-pct { font-size: 12px; font-weight: 700; text-align: right; }
+
+.risk-factors { border-top: 1px solid var(--gray-100); padding-top: 10px; }
+.risk-factors-title { font-size: 12px; font-weight: 700; color: var(--gray-600); margin-bottom: 6px; }
+.risk-factors-list {
+  list-style: disc;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.risk-factors-list li { font-size: 12px; color: var(--gray-600); line-height: 1.5; }
+
+/* ── Dark mode overrides ─────────────────────────────────────── */
+body.dark-mode .analytics-card {
+  background: #2a1a1e;
+  border-color: #4a2d33;
+}
+body.dark-mode .analytics-title   { color: #f5d0d8; }
+body.dark-mode .analytics-tab     { color: #c9a0a8; }
+body.dark-mode .analytics-tab.active { color: #f5d0d8; border-bottom-color: #b5002a; }
+body.dark-mode .analytics-select  { background: #2a1a1e; color: #f5e8ea; border-color: #4a2d33; }
+body.dark-mode .att-cell.att-future { background: #2a1a1e; }
+body.dark-mode .mod-subject-name  { color: #f5e8ea; }
+body.dark-mode .peer-profile-item { background: #341f24; }
+body.dark-mode .risk-badge        { border-color: currentColor; }
+body.dark-mode .skeleton-title,
+body.dark-mode .skeleton-chart    {
+  background: linear-gradient(90deg, #2a1a1e 25%, #341f24 50%, #2a1a1e 75%);
+  background-size: 200% 100%;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .analytics-grid { grid-template-columns: 1fr; }
+  .analytics-card-wide { grid-column: 1; }
+  .analytics-header { flex-direction: column; }
+  .analytics-tabs { overflow-x: auto; }
+  .analytics-tab  { white-space: nowrap; }
+  .mod-subject-row { grid-template-columns: 90px 1fr 36px 44px; }
+  .risk-signal-row { grid-template-columns: 110px 1fr 40px; }
+  .peer-profile-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .improv-target-row { flex-direction: column; gap: 10px; }
+}
+
+@media (max-width: 480px) {
+  .analytics-tab { font-size: 12px; padding: 8px 14px; }
+  .gauge-value   { font-size: 26px; }
+  .improv-prob-val { font-size: 28px; }
+}

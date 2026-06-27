@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LMS · Admin Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════
+   RESET + TOKENS
+═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink:      #0a0a0f;
+  --paper:    #f5f3ee;
+  --white:    #ffffff;
+  --accent:   #1a3cff;
+  --accent2:  #ff3c1a;
+  --success:  #0e9e6e;
+  --warn:     #f59e0b;
+  --danger:   #e02d3c;
+  --muted:    #8a8a9a;
+  --border:   #d8d5ce;
+  --sidebar-w: 240px;
+  --topbar-h:  60px;
+}
+
+html, body { height: 100%; font-family: 'DM Mono', monospace; background: var(--paper); color: var(--ink); }
+
+/* ═══════════════════════════════════════════════════════════
+   LAYOUT SHELL
+═══════════════════════════════════════════════════════════ */
+.shell { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--ink);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-right: 1px solid rgba(255,255,255,.06);
+}
+
+.sidebar-logo {
+  padding: 22px 20px 18px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  letter-spacing: -.3px;
+}
+.sidebar-logo span { color: var(--accent); }
+
+.sidebar-section {
+  padding: 20px 12px 6px;
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.3);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin: 1px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgba(255,255,255,.55);
+  transition: background .15s, color .15s;
+  user-select: none;
+}
+.nav-item:hover { background: rgba(255,255,255,.07); color: rgba(255,255,255,.9); }
+.nav-item.active { background: var(--accent); color: #fff; }
+
+.nav-item .icon { font-size: 15px; width: 20px; text-align: center; }
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 16px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.06);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.user-info { flex: 1; min-width: 0; }
+.user-name  { font-size: 12px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-role  { font-size: 10px; color: rgba(255,255,255,.4); margin-top: 1px; }
+
+.btn-logout {
+  background: none;
+  border: 1px solid rgba(255,255,255,.15);
+  color: rgba(255,255,255,.5);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  margin-top: 8px;
+  width: 100%;
+  font-family: 'DM Mono', monospace;
+  transition: background .15s, color .15s;
+}
+.btn-logout:hover { background: rgba(224,45,60,.2); color: var(--danger); border-color: var(--danger); }
+
+/* ── Main area ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Topbar ── */
+.topbar {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+}
+
+.page-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 17px; }
+
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+
+.badge-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--success);
+}
+.badge-live::before {
+  content: '';
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── Content area ── */
+.content { flex: 1; overflow-y: auto; padding: 28px; }
+
+/* ═══════════════════════════════════════════════════════════
+   PANELS (views)
+═══════════════════════════════════════════════════════════ */
+.panel { display: none; animation: fadeUp .3s ease both; }
+.panel.active { display: block; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STAT CARDS
+═══════════════════════════════════════════════════════════ */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 22px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow .2s;
+}
+.stat-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.07); }
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--accent);
+}
+.stat-card.t { --accent: #1a3cff; }
+.stat-card.te { --accent: #7c3aed; }
+.stat-card.s  { --accent: #0e9e6e; }
+.stat-card.m  { --accent: #f59e0b; }
+.stat-card.a  { --accent: #e02d3c; }
+.stat-card.c  { --accent: #0891b2; }
+
+.stat-label {
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.stat-value {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 36px;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.stat-icon {
+  position: absolute;
+  right: 16px; top: 18px;
+  font-size: 28px;
+  opacity: .12;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SECTION HEADERS
+═══════════════════════════════════════════════════════════ */
+.section-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-hdr h2 {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TABLE
+═══════════════════════════════════════════════════════════ */
+.tbl-wrap {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tbl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 180px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  background: var(--paper);
+  outline: none;
+  transition: border-color .15s;
+}
+.search-box:focus { border-color: var(--accent); }
+
+.filter-select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  background: var(--paper);
+  outline: none;
+  cursor: pointer;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--paper); }
+
+tbody td { padding: 12px 16px; vertical-align: middle; }
+
+.empty-row td {
+  text-align: center;
+  padding: 40px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BADGES + PILLS
+═══════════════════════════════════════════════════════════ */
+.pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  letter-spacing: .04em;
+  font-weight: 500;
+}
+
+.pill-admin   { background: rgba(26,60,255,.1); color: #1a3cff; }
+.pill-teacher { background: rgba(124,58,237,.1); color: #7c3aed; }
+.pill-student { background: rgba(14,158,110,.1); color: #0e9e6e; }
+.pill-active  { background: rgba(14,158,110,.1); color: #0e9e6e; }
+.pill-inactive { background: rgba(224,45,60,.1); color: #e02d3c; }
+.pill-published { background: rgba(14,158,110,.1); color: #0e9e6e; }
+.pill-draft   { background: rgba(245,158,11,.1); color: #d97706; }
+
+/* ═══════════════════════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 3px;
+  border: none;
+  font-family: 'DM Mono', monospace;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(.97); }
+
+.btn-primary  { background: var(--ink); color: #fff; }
+.btn-primary:hover { opacity: .85; }
+.btn-outline  { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+.btn-outline:hover { background: var(--paper); }
+.btn-danger   { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+.btn-danger:hover { background: rgba(224,45,60,.06); }
+.btn-sm { padding: 5px 10px; font-size: 11.5px; }
+.btn-icon { padding: 6px 8px; }
+
+/* ═══════════════════════════════════════════════════════════
+   MODALS
+═══════════════════════════════════════════════════════════ */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10,10,15,.55);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.open { display: flex; animation: bdfadeIn .2s; }
+@keyframes bdfadeIn { from{opacity:0} to{opacity:1} }
+
+.modal {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.2);
+  animation: modalIn .25s cubic-bezier(.16,1,.3,1) both;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+@keyframes modalIn {
+  from { opacity:0; transform:translateY(20px) scale(.97); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
+}
+
+.modal-header {
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+  padding: 2px;
+}
+.modal-close:hover { color: var(--ink); }
+
+.modal-body { padding: 24px; }
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* ── Form fields ── */
+.form-field { margin-bottom: 18px; }
+
+.form-label {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 7px;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: 'DM Mono', monospace;
+  font-size: 13.5px;
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.form-input:focus, .form-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(26,60,255,.1);
+  background: #fff;
+}
+
+.form-hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* ── Modal error ── */
+.modal-error {
+  background: #fff5f5;
+  border: 1px solid #fcd0d3;
+  border-left: 3px solid var(--danger);
+  border-radius: 3px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--danger);
+  margin-bottom: 16px;
+  display: none;
+}
+.modal-error.show { display: block; }
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════════════ */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--ink);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 4px;
+  font-size: 13px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+  animation: toastIn .3s cubic-bezier(.16,1,.3,1) both;
+  max-width: 320px;
+}
+.toast.success { border-left: 3px solid var(--success); }
+.toast.error   { border-left: 3px solid var(--danger); }
+.toast.warn    { border-left: 3px solid var(--warn); }
+
+@keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:none} }
+@keyframes toastOut { to{opacity:0;transform:translateX(20px)} }
+
+/* ═══════════════════════════════════════════════════════════
+   LOADING SKELETON
+═══════════════════════════════════════════════════════════ */
+.skeleton {
+  background: linear-gradient(90deg, var(--border) 25%, #e8e6e0 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 3px;
+  display: inline-block;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ═══════════════════════════════════════════════════════════
+   TEACHER / STUDENT DETAIL CARD
+═══════════════════════════════════════════════════════════ */
+.detail-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail-item label { font-size: 10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+.detail-item p { font-size: 14px; margin-top: 3px; }
+
+/* ═══════════════════════════════════════════════════════════
+   MODULE CARD GRID
+═══════════════════════════════════════════════════════════ */
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+
+.module-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 20px;
+  transition: box-shadow .2s;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.module-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.07); }
+
+.module-card h3 {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.module-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.module-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ SHELL ═══════════════════════ -->
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">LMS<span>.</span>Admin</div>
+
+    <div class="sidebar-section">Overview</div>
+    <div class="nav-item active" onclick="navigate('dashboard')">
+      <span class="icon">◈</span> Dashboard
+    </div>
+
+    <div class="sidebar-section">People</div>
+    <div class="nav-item" onclick="navigate('users')">
+      <span class="icon">◎</span> All Users
+    </div>
+    <div class="nav-item" onclick="navigate('teachers')">
+      <span class="icon">◐</span> Teachers
+    </div>
+    <div class="nav-item" onclick="navigate('students')">
+      <span class="icon">◑</span> Students
+    </div>
+
+    <div class="sidebar-section">Content</div>
+    <div class="nav-item" onclick="navigate('modules')">
+      <span class="icon">▣</span> Modules
+    </div>
+    <div class="nav-item" onclick="navigate('activities')">
+      <span class="icon">◫</span> Activities
+    </div>
+
+    <div class="sidebar-section">Setup</div>
+    <div class="nav-item" onclick="navigate('classes')">
+      <span class="icon">▤</span> Classes
+    </div>
+    <div class="nav-item" onclick="navigate('subjects')">
+      <span class="icon">▧</span> Subjects
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="user-chip">
+        <div class="user-avatar" id="avatarInitials">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebarName">Admin</div>
+          <div class="user-role">Administrator</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="handleLogout()">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <div class="page-title" id="pageTitle">Dashboard</div>
+      <div class="topbar-right">
+        <div class="badge-live">API Connected</div>
+        <button class="btn btn-primary btn-sm" id="quickAddBtn" onclick="openQuickAdd()">+ Quick Add</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ══════════ DASHBOARD PANEL ══════════ -->
+      <div class="panel active" id="panel-dashboard">
+        <div class="stats-grid" id="statsGrid">
+          <!-- injected by JS -->
+        </div>
+
+        <div class="section-hdr">
+          <h2>Recent Registrations</h2>
+          <button class="btn btn-outline btn-sm" onclick="navigate('users')">View All →</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th><th>Email</th><th>Role</th><th>Joined</th>
+              </tr>
+            </thead>
+            <tbody id="recentBody">
+              <tr class="empty-row"><td colspan="4">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ USERS PANEL ══════════ -->
+      <div class="panel" id="panel-users">
+        <div class="section-hdr">
+          <h2>User Management</h2>
+          <button class="btn btn-primary btn-sm" onclick="openCreateUser()">+ New User</button>
+        </div>
+        <div class="tbl-wrap">
+          <div class="tbl-toolbar">
+            <input class="search-box" id="userSearch" placeholder="Search name or email…" oninput="debounce(loadUsers, 350)()" />
+            <select class="filter-select" id="roleFilter" onchange="loadUsers()">
+              <option value="">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="teacher">Teacher</option>
+              <option value="student">Student</option>
+            </select>
+            <select class="filter-select" id="activeFilter" onchange="loadUsers()">
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersBody">
+              <tr class="empty-row"><td colspan="7">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ TEACHERS PANEL ══════════ -->
+      <div class="panel" id="panel-teachers">
+        <div class="section-hdr">
+          <h2>Teacher Management</h2>
+          <button class="btn btn-primary btn-sm" onclick="openAssignClass()">+ Assign Class</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Name</th><th>Employee ID</th><th>Specialization</th><th>Classes</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="teachersBody">
+              <tr class="empty-row"><td colspan="6">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ STUDENTS PANEL ══════════ -->
+      <div class="panel" id="panel-students">
+        <div class="section-hdr">
+          <h2>Student Management</h2>
+          <button class="btn btn-primary btn-sm" onclick="openAssignSection()">+ Assign Section</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Name</th><th>Student No.</th><th>Section</th><th>Guardian</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="studentsBody">
+              <tr class="empty-row"><td colspan="6">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ MODULES PANEL ══════════ -->
+      <div class="panel" id="panel-modules">
+        <div class="section-hdr">
+          <h2>Modules</h2>
+          <button class="btn btn-primary btn-sm" onclick="openCreateModule()">+ New Module</button>
+        </div>
+        <div class="module-grid" id="moduleGrid">
+          <div style="color:var(--muted);font-size:13px">Loading modules…</div>
+        </div>
+      </div>
+
+      <!-- ══════════ ACTIVITIES PANEL ══════════ -->
+      <div class="panel" id="panel-activities">
+        <div class="section-hdr">
+          <h2>Activities</h2>
+          <button class="btn btn-primary btn-sm" onclick="openCreateActivity()">+ New Activity</button>
+        </div>
+        <div class="tbl-wrap">
+          <div class="tbl-toolbar">
+            <select class="filter-select" id="actModuleFilter" onchange="loadActivities()" style="min-width:200px">
+              <option value="">Select a module…</option>
+            </select>
+          </div>
+          <table>
+            <thead>
+              <tr><th>#</th><th>Title</th><th>Type</th><th>Max Score</th><th>Due Date</th><th>Published</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="activitiesBody">
+              <tr class="empty-row"><td colspan="7">Select a module above to view activities.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ CLASSES PANEL ══════════ -->
+      <div class="panel" id="panel-classes">
+        <div class="section-hdr">
+          <h2>Classes & Sections</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm" onclick="openCreateSection()">+ Section</button>
+            <button class="btn btn-primary btn-sm" onclick="openCreateClass()">+ Class</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Class Name</th><th>Grade Level</th><th>School Year</th><th>Status</th></tr>
+            </thead>
+            <tbody id="classesBody">
+              <tr class="empty-row"><td colspan="5">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ SUBJECTS PANEL ══════════ -->
+      <div class="panel" id="panel-subjects">
+        <div class="section-hdr">
+          <h2>Subjects</h2>
+          <button class="btn btn-primary btn-sm" onclick="openCreateSubject()">+ New Subject</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Subject Name</th><th>Description</th></tr>
+            </thead>
+            <tbody id="subjectsBody">
+              <tr class="empty-row"><td colspan="3">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- ═══════════════════════ MODALS ═══════════════════════ -->
+
+<!-- Create User -->
+<div class="modal-backdrop" id="modalCreateUser">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="userModalTitle">Create New User</div>
+      <button class="modal-close" onclick="closeModal('modalCreateUser')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-error" id="userModalError"></div>
+      <input type="hidden" id="editUserId" />
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">First Name</label>
+          <input class="form-input" id="uFirstName" placeholder="Juan" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Last Name</label>
+          <input class="form-input" id="uLastName" placeholder="Dela Cruz" />
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Email Address</label>
+        <input class="form-input" id="uEmail" type="email" placeholder="juan@lms.edu" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Password <span id="pwdHint" style="color:var(--muted)">(required)</span></label>
+        <input class="form-input" id="uPassword" type="password" placeholder="Min 8 chars, 1 digit" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Role</label>
+        <select class="form-select" id="uRoleId">
+          <option value="1">Admin</option>
+          <option value="2">Teacher</option>
+          <option value="3" selected>Student</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCreateUser')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitUser()">Save User</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign Teacher to Class -->
+<div class="modal-backdrop" id="modalAssignClass">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Assign Teacher to Class</div>
+      <button class="modal-close" onclick="closeModal('modalAssignClass')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-error" id="assignClassError"></div>
+      <div class="form-field">
+        <label class="form-label">Teacher</label>
+        <select class="form-select" id="acTeacherId"></select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Class</label>
+        <select class="form-select" id="acClassId"></select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Subject</label>
+        <select class="form-select" id="acSubjectId"></select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Schedule (optional)</label>
+        <input class="form-input" id="acSchedule" placeholder="MWF 8:00-9:00 AM" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalAssignClass')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAssignClass()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign Student to Section -->
+<div class="modal-backdrop" id="modalAssignSection">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Assign Student to Section</div>
+      <button class="modal-close" onclick="closeModal('modalAssignSection')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-error" id="assignSectionError"></div>
+      <div class="form-field">
+        <label class="form-label">Student</label>
+        <select class="form-select" id="asStuId"></select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Section</label>
+        <select class="form-select" id="asSectionId"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalAssignSection')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAssignSection()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Module -->
+<div class="modal-backdrop" id="modalCreateModule">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="moduleModalTitle">New Module</div>
+      <button class="modal-close" onclick="closeModal('modalCreateModule')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-error" id="moduleModalError"></div>
+      <input type="hidden" id="editModuleId" />
+      <div class="form-field">
+        <label class="form-label">Title</label>
+        <input class="form-input" id="mTitle" placeholder="Introduction to Algebra" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Description</label>
+        <input class="form-input" id="mDesc" placeholder="Optional description…" />
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Class</label>
+          <select class="form-select" id="mClassId"><option value="">— None —</option></select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Subject</label>
+          <select class="form-select" id="mSubjectId"><option value="">— None —</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Order</label>
+          <input class="form-input" id="mOrder" type="number" value="0" />
+        </div>
+        <div class="form-field" style="display:flex;align-items:flex-end;padding-bottom:2px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+            <input type="checkbox" id="mPublished" /> Publish immediately
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCreateModule')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitModule()">Save Module</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Activity -->
+<div class="modal-backdrop" id="modalCreateActivity">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">New Activity</div>
+      <button class="modal-close" onclick="closeModal('modalCreateActivity')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-error" id="actModalError"></div>
+      <div class="form-field">
+        <label class="form-label">Title</label>
+        <input class="form-input" id="aTitle" placeholder="Quiz 1: Chapter 1-3" />
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Module</label>
+          <select class="form-select" id="aModuleId"></select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Type</label>
+          <select class="form-select" id="aType">
+            <option value="assignment">Assignment</option>
+            <option value="quiz">Quiz</option>
+            <option value="reading">Reading</option>
+            <option value="project">Project</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Max Score</label>
+          <input class="form-input" id="aMaxScore" type="number" placeholder="100" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Due Date</label>
+          <input class="form-input" id="aDueDate" type="datetime-local" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCreateActivity')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitActivity()">Create Activity</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Class -->
+<div class="modal-backdrop" id="modalCreateClass">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">New Class</div>
+      <button class="modal-close" onclick="closeModal('modalCreateClass')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-error" id="classModalError"></div>
+      <div class="form-field"><label class="form-label">Class Name</label>
+        <input class="form-input" id="clsName" placeholder="Grade 10 - Rizal" /></div>
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Grade Level</label>
+          <input class="form-input" id="clsGrade" placeholder="10" /></div>
+        <div class="form-field"><label class="form-label">School Year</label>
+          <input class="form-input" id="clsYear" placeholder="2024-2025" /></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCreateClass')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitClass()">Create Class</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Section -->
+<div class="modal-backdrop" id="modalCreateSection">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">New Section</div>
+      <button class="modal-close" onclick="closeModal('modalCreateSection')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-error" id="sectionModalError"></div>
+      <div class="form-field"><label class="form-label">Section Name</label>
+        <input class="form-input" id="secName" placeholder="Section A" /></div>
+      <div class="form-field"><label class="form-label">Class</label>
+        <select class="form-select" id="secClassId"></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCreateSection')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitSection()">Create Section</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Subject -->
+<div class="modal-backdrop" id="modalCreateSubject">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">New Subject</div>
+      <button class="modal-close" onclick="closeModal('modalCreateSubject')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-error" id="subjectModalError"></div>
+      <div class="form-field"><label class="form-label">Subject Name</label>
+        <input class="form-input" id="subjName" placeholder="Mathematics" /></div>
+      <div class="form-field"><label class="form-label">Description</label>
+        <input class="form-input" id="subjDesc" placeholder="Optional…" /></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCreateSubject')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitSubject()">Create Subject</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══════════════════════ SCRIPTS ═══════════════════════ -->
+<script src="lms-admin-api.js"></script>
+<script>
+/* ════════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════════ */
+const api = new LMSAdminAPI("http://localhost:8000");
+if (!api.isLoggedIn()) { window.location.href = "login.html"; }
+
+const user = api.getCurrentUser();
+if (user) {
+  document.getElementById("sidebarName").textContent = user.full_name;
+  document.getElementById("avatarInitials").textContent = user.full_name.charAt(0).toUpperCase();
+}
+
+/* ════════════════════════════════════════════════════════
+   NAVIGATION
+════════════════════════════════════════════════════════ */
+const panelTitles = {
+  dashboard:'Dashboard', users:'User Management', teachers:'Teacher Management',
+  students:'Student Management', modules:'Modules', activities:'Activities',
+  classes:'Classes & Sections', subjects:'Subjects'
+};
+
+function navigate(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelector(`.nav-item[onclick="navigate('${name}')"]`).classList.add('active');
+  document.getElementById('pageTitle').textContent = panelTitles[name];
+
+  const loaders = { dashboard:loadDashboard, users:loadUsers, teachers:loadTeachers,
+    students:loadStudents, modules:loadModules, activities:loadActivitiesPanel,
+    classes:loadClasses, subjects:loadSubjects };
+  loaders[name]?.();
+}
+
+/* ════════════════════════════════════════════════════════
+   TOAST
+════════════════════════════════════════════════════════ */
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  const c = document.getElementById('toastContainer');
+  c.appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'toastOut .3s forwards';
+    setTimeout(() => el.remove(), 300);
+  }, 3200);
+}
+
+/* ════════════════════════════════════════════════════════
+   MODAL HELPERS
+════════════════════════════════════════════════════════ */
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showModalError(errorElId, msg) {
+  const el = document.getElementById(errorElId);
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function clearModalError(errorElId) {
+  document.getElementById(errorElId).classList.remove('show');
+}
+
+/* ════════════════════════════════════════════════════════
+   DEBOUNCE
+════════════════════════════════════════════════════════ */
+const timers = {};
+function debounce(fn, ms) {
+  return (...args) => {
+    clearTimeout(timers[fn]);
+    timers[fn] = setTimeout(() => fn(...args), ms);
+  };
+}
+
+/* ════════════════════════════════════════════════════════
+   HELPERS
+════════════════════════════════════════════════════════ */
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' });
+}
+
+function rolePill(role) {
+  const r = role?.name || role;
+  return `<span class="pill pill-${r}">${r}</span>`;
+}
+
+function statusPill(is_active) {
+  return is_active
+    ? `<span class="pill pill-active">Active</span>`
+    : `<span class="pill pill-inactive">Inactive</span>`;
+}
+
+function emptyRow(cols, msg = 'No records found.') {
+  return `<tr class="empty-row"><td colspan="${cols}">${msg}</td></tr>`;
+}
+
+/* ════════════════════════════════════════════════════════
+   DASHBOARD
+════════════════════════════════════════════════════════ */
+async function loadDashboard() {
+  try {
+    const s = await api.getDashboardStats();
+
+    const cards = [
+      { label:'Total Users',     val:s.total_users,     cls:'t',  icon:'👥' },
+      { label:'Teachers',        val:s.total_teachers,  cls:'te', icon:'🎓' },
+      { label:'Students',        val:s.total_students,  cls:'s',  icon:'📚' },
+      { label:'Classes',         val:s.total_classes,   cls:'c',  icon:'🏫' },
+      { label:'Modules',         val:s.total_modules,   cls:'m',  icon:'▣' },
+      { label:'Activities',      val:s.total_activities,cls:'a',  icon:'◫' },
+    ];
+
+    document.getElementById('statsGrid').innerHTML = cards.map(c => `
+      <div class="stat-card ${c.cls}">
+        <div class="stat-label">${c.label}</div>
+        <div class="stat-value">${c.val}</div>
+        <div class="stat-icon">${c.icon}</div>
+      </div>
+    `).join('');
+
+    const tbody = document.getElementById('recentBody');
+    if (!s.recent_users?.length) {
+      tbody.innerHTML = emptyRow(4, 'No users registered yet.');
+      return;
+    }
+    tbody.innerHTML = s.recent_users.map(u => `
+      <tr>
+        <td>${u.first_name} ${u.last_name}</td>
+        <td>${u.email}</td>
+        <td>${rolePill(u.role)}</td>
+        <td>${fmtDate(u.created_at)}</td>
+      </tr>
+    `).join('');
+  } catch(e) { toast('Failed to load dashboard: ' + e.message, 'error'); }
+}
+
+/* ════════════════════════════════════════════════════════
+   USERS
+════════════════════════════════════════════════════════ */
+async function loadUsers() {
+  const search = document.getElementById('userSearch').value;
+  const role   = document.getElementById('roleFilter').value;
+  const active = document.getElementById('activeFilter').value;
+  const body   = document.getElementById('usersBody');
+  body.innerHTML = `<tr class="empty-row"><td colspan="7">Loading…</td></tr>`;
+  try {
+    const params = {};
+    if (search) params.search = search;
+    if (role)   params.role = role;
+    if (active) params.is_active = active;
+    const res = await api.getUsers(params);
+    if (!res.items.length) { body.innerHTML = emptyRow(7); return; }
+    body.innerHTML = res.items.map((u, i) => `
+      <tr>
+        <td>${u.id}</td>
+        <td>${u.first_name} ${u.last_name}</td>
+        <td>${u.email}</td>
+        <td>${rolePill(u.role)}</td>
+        <td>${statusPill(u.is_active)}</td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>
+          <button class="btn btn-outline btn-sm btn-icon" onclick="openEditUser(${u.id})" title="Edit">✏️</button>
+          ${u.is_active ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteUser(${u.id})" title="Deactivate">🗑</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) { toast('Failed to load users: ' + e.message, 'error'); }
+}
+
+function openCreateUser() {
+  document.getElementById('userModalTitle').textContent = 'Create New User';
+  document.getElementById('editUserId').value = '';
+  ['uFirstName','uLastName','uEmail','uPassword'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('uRoleId').value = '3';
+  document.getElementById('pwdHint').textContent = '(required)';
+  clearModalError('userModalError');
+  openModal('modalCreateUser');
+}
+
+async function openEditUser(id) {
+  try {
+    const u = await api.getUser(id);
+    document.getElementById('userModalTitle').textContent = 'Edit User';
+    document.getElementById('editUserId').value = u.id;
+    document.getElementById('uFirstName').value = u.first_name;
+    document.getElementById('uLastName').value  = u.last_name;
+    document.getElementById('uEmail').value     = u.email;
+    document.getElementById('uPassword').value  = '';
+    document.getElementById('uRoleId').value    = u.role.id;
+    document.getElementById('pwdHint').textContent = '(leave blank to keep)';
+    clearModalError('userModalError');
+    openModal('modalCreateUser');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function submitUser() {
+  clearModalError('userModalError');
+  const id        = document.getElementById('editUserId').value;
+  const firstName = document.getElementById('uFirstName').value.trim();
+  const lastName  = document.getElementById('uLastName').value.trim();
+  const email     = document.getElementById('uEmail').value.trim();
+  const password  = document.getElementById('uPassword').value;
+  const role_id   = parseInt(document.getElementById('uRoleId').value);
+
+  try {
+    if (id) {
+      const data = { first_name:firstName, last_name:lastName, email, role_id };
+      if (password) data.password = password;
+      await api.updateUser(id, data);
+      toast('User updated successfully.');
+    } else {
+      await api.createUser({ first_name:firstName, last_name:lastName, email, password, role_id });
+      toast('User created successfully.');
+    }
+    closeModal('modalCreateUser');
+    loadUsers();
+  } catch(e) { showModalError('userModalError', e.message); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Deactivate this user? They can be reactivated later.')) return;
+  try {
+    await api.deleteUser(id);
+    toast('User deactivated.', 'warn');
+    loadUsers();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function openQuickAdd() { navigate('users'); openCreateUser(); }
+
+/* ════════════════════════════════════════════════════════
+   TEACHERS
+════════════════════════════════════════════════════════ */
+async function loadTeachers() {
+  const body = document.getElementById('teachersBody');
+  body.innerHTML = `<tr class="empty-row"><td colspan="6">Loading…</td></tr>`;
+  try {
+    const res = await api.getTeachers();
+    if (!res.items.length) { body.innerHTML = emptyRow(6, 'No teachers found. Create a user with role "teacher" first.'); return; }
+    body.innerHTML = res.items.map(t => `
+      <tr>
+        <td>${t.id}</td>
+        <td>${t.user.first_name} ${t.user.last_name}</td>
+        <td>${t.employee_id || '—'}</td>
+        <td>${t.specialization || '—'}</td>
+        <td>${t.class_assignments.length} class(es)</td>
+        <td><button class="btn btn-outline btn-sm" onclick="viewTeacher(${t.id})">Detail →</button></td>
+      </tr>
+    `).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function viewTeacher(id) {
+  toast('Teacher detail: open /admin/teachers/' + id + ' in Swagger for now.', 'warn');
+}
+
+async function openAssignClass() {
+  clearModalError('assignClassError');
+  try {
+    const [teachers, classes, subjects] = await Promise.all([
+      api.getTeachers(), api.getClasses(), api.getSubjects()
+    ]);
+    document.getElementById('acTeacherId').innerHTML =
+      teachers.items.map(t => `<option value="${t.id}">${t.user.first_name} ${t.user.last_name}</option>`).join('');
+    document.getElementById('acClassId').innerHTML =
+      classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    document.getElementById('acSubjectId').innerHTML =
+      subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    document.getElementById('acSchedule').value = '';
+    openModal('modalAssignClass');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function submitAssignClass() {
+  clearModalError('assignClassError');
+  try {
+    await api.assignTeacherToClass({
+      teacher_id: parseInt(document.getElementById('acTeacherId').value),
+      class_id:   parseInt(document.getElementById('acClassId').value),
+      subject_id: parseInt(document.getElementById('acSubjectId').value),
+      schedule:   document.getElementById('acSchedule').value || null,
+    });
+    toast('Teacher assigned successfully!');
+    closeModal('modalAssignClass');
+    loadTeachers();
+  } catch(e) { showModalError('assignClassError', e.message); }
+}
+
+/* ════════════════════════════════════════════════════════
+   STUDENTS
+════════════════════════════════════════════════════════ */
+async function loadStudents() {
+  const body = document.getElementById('studentsBody');
+  body.innerHTML = `<tr class="empty-row"><td colspan="6">Loading…</td></tr>`;
+  try {
+    const res = await api.getStudents();
+    if (!res.items.length) { body.innerHTML = emptyRow(6, 'No students found.'); return; }
+    body.innerHTML = res.items.map(s => {
+      const section = s.section_assignments?.[0]?.section?.name || '—';
+      return `
+        <tr>
+          <td>${s.id}</td>
+          <td>${s.user.first_name} ${s.user.last_name}</td>
+          <td>${s.student_number || '—'}</td>
+          <td>${section}</td>
+          <td>${s.guardian_name || '—'}</td>
+          <td>${statusPill(s.user.is_active)}</td>
+        </tr>`;
+    }).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function openAssignSection() {
+  clearModalError('assignSectionError');
+  try {
+    const [students, sections] = await Promise.all([api.getStudents(), api.getSections()]);
+    document.getElementById('asStuId').innerHTML =
+      students.items.map(s => `<option value="${s.id}">${s.user.first_name} ${s.user.last_name}</option>`).join('');
+    document.getElementById('asSectionId').innerHTML =
+      sections.map(s => `<option value="${s.id}">${s.name} (class #${s.class_id})</option>`).join('');
+    openModal('modalAssignSection');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function submitAssignSection() {
+  clearModalError('assignSectionError');
+  try {
+    await api.assignStudentToSection({
+      student_id: parseInt(document.getElementById('asStuId').value),
+      section_id: parseInt(document.getElementById('asSectionId').value),
+    });
+    toast('Student assigned to section!');
+    closeModal('modalAssignSection');
+    loadStudents();
+  } catch(e) { showModalError('assignSectionError', e.message); }
+}
+
+/* ════════════════════════════════════════════════════════
+   MODULES
+════════════════════════════════════════════════════════ */
+let _modules = [];
+
+async function loadModules() {
+  const grid = document.getElementById('moduleGrid');
+  grid.innerHTML = '<div style="color:var(--muted);font-size:13px">Loading…</div>';
+  try {
+    _modules = await api.getModules();
+    if (!_modules.length) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:13px">No modules yet. Create your first one!</div>';
+      return;
+    }
+    grid.innerHTML = _modules.map(m => `
+      <div class="module-card">
+        <div>
+          <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">
+            Module #${m.order || m.id}
+          </div>
+          <h3>${m.title}</h3>
+          ${m.description ? `<p style="font-size:12px;color:var(--muted);margin-top:6px">${m.description}</p>` : ''}
+        </div>
+        <div class="module-meta">
+          <span>${m.activity_count} activit${m.activity_count===1?'y':'ies'}</span>
+          <span>${m.is_published ? '<span class="pill pill-published">Published</span>' : '<span class="pill pill-draft">Draft</span>'}</span>
+        </div>
+        <div class="module-actions">
+          <button class="btn btn-outline btn-sm" onclick="openEditModule(${m.id})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteModule(${m.id})">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function openCreateModule() {
+  clearModalError('moduleModalError');
+  document.getElementById('moduleModalTitle').textContent = 'New Module';
+  document.getElementById('editModuleId').value = '';
+  ['mTitle','mDesc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('mOrder').value = '0';
+  document.getElementById('mPublished').checked = false;
+  await populateModuleSelects();
+  openModal('modalCreateModule');
+}
+
+async function openEditModule(id) {
+  clearModalError('moduleModalError');
+  const m = _modules.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('moduleModalTitle').textContent = 'Edit Module';
+  document.getElementById('editModuleId').value = m.id;
+  document.getElementById('mTitle').value = m.title;
+  document.getElementById('mDesc').value = m.description || '';
+  document.getElementById('mOrder').value = m.order;
+  document.getElementById('mPublished').checked = m.is_published;
+  await populateModuleSelects(m.class_id, m.subject_id);
+  openModal('modalCreateModule');
+}
+
+async function populateModuleSelects(selClass, selSubject) {
+  try {
+    const [classes, subjects] = await Promise.all([api.getClasses(), api.getSubjects()]);
+    document.getElementById('mClassId').innerHTML =
+      '<option value="">— None —</option>' +
+      classes.map(c => `<option value="${c.id}" ${c.id==selClass?'selected':''}>${c.name}</option>`).join('');
+    document.getElementById('mSubjectId').innerHTML =
+      '<option value="">— None —</option>' +
+      subjects.map(s => `<option value="${s.id}" ${s.id==selSubject?'selected':''}>${s.name}</option>`).join('');
+  } catch(e) {}
+}
+
+async function submitModule() {
+  clearModalError('moduleModalError');
+  const id = document.getElementById('editModuleId').value;
+  const data = {
+    title:        document.getElementById('mTitle').value.trim(),
+    description:  document.getElementById('mDesc').value.trim() || null,
+    class_id:     parseInt(document.getElementById('mClassId').value) || null,
+    subject_id:   parseInt(document.getElementById('mSubjectId').value) || null,
+    order:        parseInt(document.getElementById('mOrder').value) || 0,
+    is_published: document.getElementById('mPublished').checked,
+  };
+  try {
+    if (id) { await api.updateModule(id, data); toast('Module updated!'); }
+    else    { await api.createModule(data);      toast('Module created!'); }
+    closeModal('modalCreateModule');
+    loadModules();
+  } catch(e) { showModalError('moduleModalError', e.message); }
+}
+
+async function deleteModule(id) {
+  if (!confirm('Delete this module and all its activities? This cannot be undone.')) return;
+  try {
+    await api.deleteModule(id);
+    toast('Module deleted.', 'warn');
+    loadModules();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+/* ════════════════════════════════════════════════════════
+   ACTIVITIES
+════════════════════════════════════════════════════════ */
+async function loadActivitiesPanel() {
+  try {
+    const modules = await api.getModules();
+    const sel = document.getElementById('actModuleFilter');
+    sel.innerHTML = '<option value="">Select a module…</option>' +
+      modules.map(m => `<option value="${m.id}">${m.title}</option>`).join('');
+
+    // also populate activity modal module dropdown
+    document.getElementById('aModuleId').innerHTML =
+      modules.map(m => `<option value="${m.id}">${m.title}</option>`).join('');
+  } catch(e) {}
+}
+
+async function loadActivities() {
+  const moduleId = document.getElementById('actModuleFilter').value;
+  const body = document.getElementById('activitiesBody');
+  if (!moduleId) { body.innerHTML = `<tr class="empty-row"><td colspan="7">Select a module above.</td></tr>`; return; }
+  body.innerHTML = `<tr class="empty-row"><td colspan="7">Loading…</td></tr>`;
+  try {
+    const acts = await api.getActivities(moduleId);
+    if (!acts.length) { body.innerHTML = emptyRow(7, 'No activities in this module.'); return; }
+    body.innerHTML = acts.map(a => `
+      <tr>
+        <td>${a.id}</td>
+        <td>${a.title}</td>
+        <td><span class="pill pill-draft">${a.activity_type}</span></td>
+        <td>${a.max_score ?? '—'}</td>
+        <td>${fmtDate(a.due_date)}</td>
+        <td>${a.is_published ? '<span class="pill pill-published">Yes</span>' : '<span class="pill pill-inactive">No</span>'}</td>
+        <td>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteActivity(${a.id})">🗑</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function openCreateActivity() {
+  clearModalError('actModalError');
+  ['aTitle','aMaxScore','aDueDate'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('aType').value = 'assignment';
+  openModal('modalCreateActivity');
+}
+
+async function submitActivity() {
+  clearModalError('actModalError');
+  const due = document.getElementById('aDueDate').value;
+  const data = {
+    title:         document.getElementById('aTitle').value.trim(),
+    activity_type: document.getElementById('aType').value,
+    module_id:     parseInt(document.getElementById('aModuleId').value),
+    max_score:     parseInt(document.getElementById('aMaxScore').value) || null,
+    due_date:      due ? new Date(due).toISOString() : null,
+    is_published:  false,
+  };
+  try {
+    await api.createActivity(data);
+    toast('Activity created!');
+    closeModal('modalCreateActivity');
+    loadActivities();
+  } catch(e) { showModalError('actModalError', e.message); }
+}
+
+async function deleteActivity(id) {
+  if (!confirm('Delete this activity?')) return;
+  try {
+    await api.deleteActivity(id);
+    toast('Activity deleted.', 'warn');
+    loadActivities();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+/* ════════════════════════════════════════════════════════
+   CLASSES
+════════════════════════════════════════════════════════ */
+async function loadClasses() {
+  const body = document.getElementById('classesBody');
+  body.innerHTML = `<tr class="empty-row"><td colspan="5">Loading…</td></tr>`;
+  try {
+    const classes = await api.getClasses();
+    if (!classes.length) { body.innerHTML = emptyRow(5); return; }
+    body.innerHTML = classes.map(c => `
+      <tr>
+        <td>${c.id}</td>
+        <td>${c.name}</td>
+        <td>${c.grade_level || '—'}</td>
+        <td>${c.school_year || '—'}</td>
+        <td>${statusPill(c.is_active)}</td>
+      </tr>
+    `).join('');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function openCreateClass() {
+  clearModalError('classModalError');
+  ['clsName','clsGrade','clsYear'].forEach(id => document.getElementById(id).value = '');
+  openModal('modalCreateClass');
+}
+
+async function submitClass() {
+  clearModalError('classModalError');
+  try {
+    await api.createClass({
+      name:        document.getElementById('clsName').value.trim(),
+      grade_level: document.getElementById('clsGrade').value.trim() || null,
+      school_year: document.getElementById('clsYear').value.trim() || null,
+    });
+    toast('Class created!');
+    closeModal('modalCreateClass');
+    loadClasses();
+  } catch(e) { showModalError('classModalError', e.message); }
+}
+
+async function openCreateSection() {
+  clearModalError('sectionModalError');
+  document.getElementById('secName').value = '';
+  const classes = await api.getClasses();
+  document.getElementById('secClassId').innerHTML =
+    classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  openModal('modalCreateSection');
+}
+
+async function submitSection() {
+  clearModalError('sectionModalError');
+  try {
+    await api.createSection({
+      name:     document.getElementById('secName').value.trim(),
+      class_id: parseInt(document.getElementById('secClassId').value),
+    });
+    toast('Section created!');
+    closeModal('modalCreateSection');
+  } catch(e) { showModalError('sectionModalError', e.message); }
+}
+
+/* ════════════════════════════════════════════════════════
+   SUBJECTS
+════════════════════════════════════════════════════════ */
+async function loadSubjects() {
+  const body = document.getElementById('subjectsBody');
+  body.innerHTML = `<tr class="empty-row"><td colspan="3">Loading…</td></tr>`;
+  try {
+    const subjects = await api.getSubjects();
+    if (!subjects.length) { body.innerHTML = emptyRow(3); return; }
+    body.innerHTML = subjects.map(s => `
+      <tr>
+        <td>${s.id}</td>
+        <td>${s.name}</td>
+        <td>${s.description || '—'}</td>
+      </tr>
+    `).join('');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function openCreateSubject() {
+  clearModalError('subjectModalError');
+  ['subjName','subjDesc'].forEach(id => document.getElementById(id).value = '');
+  openModal('modalCreateSubject');
+}
+
+async function submitSubject() {
+  clearModalError('subjectModalError');
+  try {
+    await api.createSubject({
+      name:        document.getElementById('subjName').value.trim(),
+      description: document.getElementById('subjDesc').value.trim() || null,
+    });
+    toast('Subject created!');
+    closeModal('modalCreateSubject');
+    loadSubjects();
+  } catch(e) { showModalError('subjectModalError', e.message); }
+}
+
+/* ════════════════════════════════════════════════════════
+   LOGOUT
+════════════════════════════════════════════════════════ */
+function handleLogout() {
+  api.logout();
+  window.location.href = "login.html";
+}
+
+/* ════════════════════════════════════════════════════════
+   BOOTSTRAP
+════════════════════════════════════════════════════════ */
+loadDashboard();
+</script>
+</body>
+</html>

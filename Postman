@@ -1,0 +1,196 @@
+Sure! Here's how to set it up in Postman.
+
+## 1 — Create a Collection
+
+1. Open Postman → click **New** → **Collection**
+2. Name it `LMS Admin API`
+
+## 2 — Set a Base URL Variable
+
+1. Click your collection → **Variables** tab
+2. Add a variable:
+   - Variable: `base_url`
+   - Initial value: `http://localhost:8000`
+3. Click **Save**
+
+Now use `{{base_url}}` in all requests instead of typing the full URL every time.
+
+## 3 — Login first (get the token)
+
+Add a request to your collection:
+
+| Field | Value |
+|---|---|
+| Method | POST |
+| URL | `{{base_url}}/auth/login` |
+| Body | raw → JSON |
+
+```json
+{
+  "email": "admin@lms.edu",
+  "password": "Admin@1234"
+}
+```
+
+Then in the **Tests** tab of this request, paste this script so the token saves automatically:
+
+```javascript
+const res = pm.response.json();
+pm.collectionVariables.set("token", res.access_token);
+```
+
+This means every time you run login, the token is saved — you don't have to copy-paste it manually.
+
+## 4 — Set Auth for the whole collection
+
+1. Click the collection → **Authorization** tab
+2. Type: **Bearer Token**
+3. Token: `{{token}}`
+
+Now every request in the collection automatically sends the JWT.
+
+## 5 — Add all endpoints
+
+Create folders inside the collection to organize them:
+
+---
+
+### 📁 Auth
+| Name | Method | URL |
+|---|---|---|
+| Login | POST | `{{base_url}}/auth/login` |
+
+---
+
+### 📁 Dashboard
+| Name | Method | URL |
+|---|---|---|
+| Get Stats | GET | `{{base_url}}/admin/dashboard/stats` |
+
+---
+
+### 📁 Users
+| Name | Method | URL |
+|---|---|---|
+| List Users | GET | `{{base_url}}/admin/users` |
+| Get User | GET | `{{base_url}}/admin/users/1` |
+| Recent Users | GET | `{{base_url}}/admin/users/recent` |
+| Create User | POST | `{{base_url}}/admin/users` |
+| Update User | PUT | `{{base_url}}/admin/users/1` |
+| Delete User | DELETE | `{{base_url}}/admin/users/1` |
+
+**Create User body:**
+```json
+{
+  "email": "newteacher@lms.edu",
+  "password": "Teacher@1234",
+  "first_name": "Juan",
+  "last_name": "dela Cruz",
+  "role_id": 2
+}
+```
+
+**List Users query params** (optional filters):
+- `role` = `teacher` / `student` / `admin`
+- `is_active` = `true` / `false`
+- `search` = any name/email
+- `page` = `1`
+- `page_size` = `20`
+
+---
+
+### 📁 Teachers
+| Name | Method | URL |
+|---|---|---|
+| List Teachers | GET | `{{base_url}}/admin/teachers` |
+| Get Teacher | GET | `{{base_url}}/admin/teachers/1` |
+| Create Teacher Profile | POST | `{{base_url}}/admin/teachers` |
+| Assign to Class | POST | `{{base_url}}/admin/teachers/assign-class` |
+
+**Create Teacher Profile body:**
+```json
+{
+  "user_id": 2,
+  "employee_id": "EMP-001",
+  "specialization": "Mathematics",
+  "contact_number": "09171234567"
+}
+```
+
+---
+
+### 📁 Students
+| Name | Method | URL |
+|---|---|---|
+| List Students | GET | `{{base_url}}/admin/students` |
+| Get Student | GET | `{{base_url}}/admin/students/1` |
+| Create Student Profile | POST | `{{base_url}}/admin/students` |
+| By Section | GET | `{{base_url}}/admin/students/by-section/1` |
+| Assign to Section | POST | `{{base_url}}/admin/students/assign-section` |
+
+---
+
+### 📁 Classes
+| Name | Method | URL |
+|---|---|---|
+| List Classes | GET | `{{base_url}}/admin/classes` |
+| Create Class | POST | `{{base_url}}/admin/classes` |
+
+**Create Class body:**
+```json
+{
+  "name": "Grade 7 - Sampaguita",
+  "grade_level": "Grade 7",
+  "school_year": "2024-2025"
+}
+```
+
+---
+
+### 📁 Sections
+| Name | Method | URL |
+|---|---|---|
+| List Sections | GET | `{{base_url}}/admin/sections` |
+| Create Section | POST | `{{base_url}}/admin/sections` |
+
+---
+
+### 📁 Subjects
+| Name | Method | URL |
+|---|---|---|
+| List Subjects | GET | `{{base_url}}/admin/subjects` |
+| Create Subject | POST | `{{base_url}}/admin/subjects` |
+
+---
+
+### 📁 Modules
+| Name | Method | URL |
+|---|---|---|
+| List Modules | GET | `{{base_url}}/admin/modules` |
+| Get Module | GET | `{{base_url}}/admin/modules/1` |
+| Create Module | POST | `{{base_url}}/admin/modules` |
+| Update Module | PUT | `{{base_url}}/admin/modules/1` |
+| Delete Module | DELETE | `{{base_url}}/admin/modules/1` |
+
+---
+
+### 📁 Activities
+| Name | Method | URL |
+|---|---|---|
+| List Activities | GET | `{{base_url}}/admin/activities?module_id=1` |
+| Create Activity | POST | `{{base_url}}/admin/activities` |
+| Update Activity | PUT | `{{base_url}}/admin/activities/1` |
+| Delete Activity | DELETE | `{{base_url}}/admin/activities/1` |
+
+---
+
+## 6 — Workflow to test
+
+Always run these in order:
+1. **Login** first → token saves automatically
+2. Run any other request — auth is already attached
+
+The role IDs for creating users are:
+- `1` = admin
+- `2` = teacher  
+- `3` = student

@@ -1,0 +1,236 @@
+/* ============================================================
+   assets/css/loading.css
+   Visual loading indicators for IJED LMS.
+   Add <link rel="stylesheet" href="assets/css/loading.css">
+   to index.html AFTER main.css.
+   ============================================================ */
+
+/* ── 1. Top Progress Bar ────────────────────────────────────
+   A thin maroon bar that runs across the very top of the
+   .main-content area while any section is fetching data.
+   Controlled by Loader.start() / Loader.done().
+   ─────────────────────────────────────────────────────────── */
+#ijed-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 9990;
+  pointer-events: none;
+  background: transparent;
+  overflow: hidden;
+}
+#ijed-progress-bar::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--maroon) 0%, var(--gold) 60%, var(--maroon-light) 100%);
+  border-radius: 0 2px 2px 0;
+  transition: width .35s cubic-bezier(.4,0,.2,1), opacity .3s ease;
+  opacity: 0;
+}
+#ijed-progress-bar.loading::after {
+  opacity: 1;
+  animation: ijed-progress-run 1.6s cubic-bezier(.4,0,.6,1) infinite;
+}
+#ijed-progress-bar.done::after {
+  width: 100% !important;
+  opacity: 0;
+  transition: width .2s ease, opacity .4s ease .1s;
+}
+@keyframes ijed-progress-run {
+  0%   { width: 0%;   margin-left: 0%;   }
+  40%  { width: 60%;  margin-left: 0%;   }
+  100% { width: 20%;  margin-left: 100%; }
+}
+
+/* ── 2. Full-section overlay spinner ────────────────────────
+   Overlays #content-area while data loads.
+   Loader.overlay(true/false) toggles this.
+   ─────────────────────────────────────────────────────────── */
+#ijed-section-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(250, 248, 248, 0.7);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+}
+#ijed-section-overlay.active {
+  display: flex;
+}
+.ijed-spin-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.ijed-spinner-lg {
+  width: 44px;
+  height: 44px;
+  border: 4px solid var(--rose-mid);
+  border-top-color: var(--maroon);
+  border-radius: 50%;
+  animation: ijed-spin .75s linear infinite;
+}
+.ijed-spin-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-600);
+  letter-spacing: .3px;
+}
+
+/* ── 3. Inline Spinner (button / small contexts) ────────────
+   <span class="ijed-spinner"></span> inside a button or cell.
+   ─────────────────────────────────────────────────────────── */
+.ijed-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ijed-spin .65s linear infinite;
+  vertical-align: middle;
+  opacity: .75;
+}
+.ijed-spinner-sm {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+.ijed-spinner-white {
+  border-color: rgba(255,255,255,.5);
+  border-top-color: transparent;
+}
+@keyframes ijed-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── 4. Skeleton / shimmer blocks ──────────────────────────
+   Use .skel on any element that should shimmer.
+   ─────────────────────────────────────────────────────────── */
+@keyframes ijed-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skel {
+  background: linear-gradient(
+    90deg,
+    var(--gray-100) 25%,
+    var(--rose-mid)  50%,
+    var(--gray-100) 75%
+  );
+  background-size: 600px 100%;
+  animation: ijed-shimmer 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+  display: block;
+  color: transparent !important;
+  pointer-events: none;
+  user-select: none;
+}
+.skel-text  { height: 14px; border-radius: 4px; }
+.skel-title { height: 20px; border-radius: 6px; }
+.skel-circle{ border-radius: 50%; }
+.skel-btn   { height: 34px; border-radius: var(--radius-sm); }
+.skel-card  {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Dark mode adjustments */
+body.dark-mode .skel {
+  background: linear-gradient(
+    90deg,
+    #2f1c22 25%,
+    #3e2530 50%,
+    #2f1c22 75%
+  );
+  background-size: 600px 100%;
+  animation: ijed-shimmer 1.4s ease infinite;
+}
+body.dark-mode #ijed-section-overlay {
+  background: rgba(30, 12, 16, 0.75);
+}
+
+/* ── 5. Pre-built skeleton layouts ─────────────────────────
+   Ready-made skeleton screens injected by Loader.skeleton().
+   ─────────────────────────────────────────────────────────── */
+
+/* Generic stat cards row (dashboard) */
+.skel-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.skel-stat-card {
+  height: 96px;
+  border-radius: var(--radius);
+}
+
+/* Generic table rows */
+.skel-table-wrap { display: flex; flex-direction: column; gap: 10px; }
+.skel-table-row  { height: 44px; border-radius: var(--radius-sm); }
+.skel-table-row:first-child { height: 38px; opacity: .6; }
+
+/* Generic list cards */
+.skel-list { display: flex; flex-direction: column; gap: 12px; }
+.skel-list-card { height: 72px; border-radius: var(--radius); }
+
+/* Page header bar (title + button) */
+.skel-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.skel-page-header .skel-title { width: 200px; }
+.skel-page-header .skel-btn   { width: 110px; margin-left: auto; }
+
+/* Calendar grid placeholder */
+.skel-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+.skel-cal-cell { height: 38px; border-radius: var(--radius-sm); }
+
+/* ── 6. Button loading state ────────────────────────────────
+   Loader.btn(el, true/false) toggles this on a button.
+   ─────────────────────────────────────────────────────────── */
+.btn-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: .75;
+}
+.btn-loading .btn-text { visibility: hidden; }
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ijed-spin .65s linear infinite;
+}
+
+/* ── 7. Content-area relative positioning ───────────────────
+   Needed for the #ijed-section-overlay (position:absolute)
+   to anchor inside the content area.
+   NOTE: layout.css also sets this; kept here as a safety net.
+   ─────────────────────────────────────────────────────────── */
+.content-area {
+  position: relative;
+}

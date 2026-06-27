@@ -1,0 +1,847 @@
+/**
+ * lms-supabase-api.js
+ * Drop-in replacement for lms-admin-api.js.
+ *
+ * SAME PUBLIC METHOD NAMES as the old class — your controllers
+ * (admin.controller.js, teacher.controller.js, etc.) do NOT need to change.
+ * Just swap the <script> tag in index.html and update the two constants below.
+ *
+ * Requires the Supabase JS SDK loaded first:
+ *   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+ *   <script defer src="assets/js/lms-supabase-api.js"></script>
+ *
+ * Analytics methods (getDescriptiveAnalytics / getBayesianAnalytics /
+ * getPredictedGrade / getImprovementProbability / getRiskAssessment) are
+ * Phase 2 — see MIGRATION_GUIDE.md. They throw a clear "not yet ported"
+ * error for now so the UI fails loudly instead of silently.
+ */
+
+const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+
+class LMSAdminAPI {
+  constructor() {
+    this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    this._cache = new Map();
+    this._session = null;
+    this._restoreSession();
+  }
+
+  // ── Internal: session restore on page load ─────────────────────────────
+  async _restoreSession() {
+    const { data } = await this.sb.auth.getSession();
+    if (data?.session) await this._hydrateSessionUser(data.session);
+  }
+
+  async _hydrateSessionUser(session) {
+    const { data: profile } = await this.sb
+      .from("users")
+      .select("id, email, first_name, last_name, role_id, roles(name)")
+      .eq("auth_uid", session.user.id)
+      .single();
+    if (!profile) return null;
+
+    const userPayload = {
+      id: profile.id,
+      role: profile.roles.name,
+      full_name: `${profile.first_name} ${profile.last_name}`,
+      name: `${profile.first_name} ${profile.last_name}`,
+      email: profile.email,
+      _token: session.access_token,
+    };
+    localStorage.setItem("lms_user", JSON.stringify(userPayload));
+    localStorage.setItem("ijla_session", JSON.stringify(userPayload));
+    this._session = userPayload;
+    return userPayload;
+  }
+
+  clearCache(pathPattern = null) {
+    if (!pathPattern) { this._cache.clear(); return; }
+    for (const key of this._cache.keys()) {
+      if (key.includes(pathPattern)) this._cache.delete(key);
+    }
+  }
+
+  async _cached(key, ttlMs, fn) {
+    const cached = this._cache.get(key);
+    if (cached && (Date.now() - cached.ts) < ttlMs) return cached.data;
+    if (typeof Loader !== "undefined") Loader.start();
+    try {
+      const data = await fn();
+      this._cache.set(key, { data, ts: Date.now() });
+      return data;
+    } finally {
+      if (typeof Loader !== "undefined") Loader.done();
+    }
+  }
+
+  _throwIfError(res) {
+    if (res.error) throw new Error(res.error.message || "Request failed");
+    return res.data;
+  }
+
+  // ── Auth ─────────────────────────────────────────────────────────────────
+
+  async login(email, password) {
+    const { data, error } = await this.sb.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message || "Invalid email or password");
+    const userPayload = await this._hydrateSessionUser(data.session);
+    if (!userPayload) {
+      await this.sb.auth.signOut();
+      throw new Error("Account not provisioned. Contact an administrator.");
+    }
+    return {
+      access_token: data.session.access_token,
+      user_id: userPayload.id,
+      role: userPayload.role,
+      full_name: userPayload.full_name,
+    };
+  }
+
+  logout() {
+    this.sb.auth.signOut();
+    localStorage.removeItem("lms_user");
+    localStorage.removeItem("ijla_session");
+    this._session = null;
+    this.clearCache();
+  }
+
+  getCurrentUser() {
+    const raw = localStorage.getItem("lms_user");
+    return raw ? JSON.parse(raw) : null;
+  }
+
+  isLoggedIn() {
+    return !!this.getCurrentUser();
+  }
+
+  // ── Dashboard (admin) ────────────────────────────────────────────────────
+
+  async getDashboardStats() {
+    return this._cached("dash:admin", 20_000, async () =>
+      this._throwIfError(await this.sb.rpc("get_dashboard_stats"))
+    );
+  }
+
+  // ── Users (admin) ────────────────────────────────────────────────────────
+
+  async getUsers(params = {}) {
+    let q = this.sb.from("users").select("id, email, first_name, last_name, role_id, is_active, created_at, roles(name)");
+    if (params.role_id) q = q.eq("role_id", params.role_id);
+    if (params.is_active !== undefined) q = q.eq("is_active", params.is_active);
+    return this._throwIfError(await q);
+  }
+
+  async getUser(id) {
+    return this._throwIfError(
+      await this.sb.from("users").select("*, roles(name)").eq("id", id).single()
+    );
+  }
+
+  /**
+   * Admin creates a teacher/student/admin login account.
+   * Requires the `admin-create-user` Supabase Edge Function (service role) —
+   * see MIGRATION_GUIDE.md Step 5. Cannot be done with the anon key alone.
+   */
+  async createUser({ email, password, first_name, last_name, role_id }) {
+    const { data, error } = await this.sb.functions.invoke("admin-create-user", {
+      body: { email, password, first_name, last_name, role_id },
+    });
+    if (error) throw new Error(error.message || "Failed to create user");
+    this.clearCache("users");
+    return data;
+  }
+
+  async updateUser(id, fields) {
+    return this._throwIfError(await this.sb.from("users").update(fields).eq("id", id).select().single());
+  }
+
+  async deleteUser(id) {
+    return this._throwIfError(await this.sb.from("users").delete().eq("id", id));
+  }
+
+  async getRecentUsers(limit = 10) {
+    return this._throwIfError(
+      await this.sb.from("users").select("*").order("created_at", { ascending: false }).limit(limit)
+    );
+  }
+
+  // ── Teachers (admin) ─────────────────────────────────────────────────────
+
+  async getTeachers() {
+    return this._cached("teachers:all", 60_000, async () =>
+      this._throwIfError(await this.sb.from("teachers").select("*, users(first_name, last_name, email)"))
+    );
+  }
+
+  async getTeacher(id) {
+    return this._throwIfError(
+      await this.sb.from("teachers").select("*, users(first_name, last_name, email)").eq("id", id).single()
+    );
+  }
+
+  async createTeacherProfile({ user_id, employee_id, specialization, contact_number }) {
+    const result = this._throwIfError(
+      await this.sb.from("teachers").insert({ user_id, employee_id, specialization, contact_number }).select().single()
+    );
+    this.clearCache("teachers");
+    return result;
+  }
+
+  async assignTeacherToClass({ teacher_id, class_id, subject_id, schedule }) {
+    const result = this._throwIfError(
+      await this.sb.from("teacher_class_assignments").insert({ teacher_id, class_id, subject_id, schedule }).select().single()
+    );
+    this.clearCache("teachers");
+    return result;
+  }
+
+  async getTeacherByUserId(userId) {
+    return this._throwIfError(await this.sb.from("teachers").select("*").eq("user_id", userId).single());
+  }
+
+  async updateTeacherProfile(teacherId, data) {
+    const result = this._throwIfError(await this.sb.from("teachers").update(data).eq("id", teacherId).select().single());
+    this.clearCache("teachers");
+    return result;
+  }
+
+  async updateTeacherAssignment(assignmentId, data) {
+    const result = this._throwIfError(
+      await this.sb.from("teacher_class_assignments").update(data).eq("id", assignmentId).select().single()
+    );
+    this.clearCache("teachers");
+    return result;
+  }
+
+  async deleteTeacherAssignment(assignmentId) {
+    const result = this._throwIfError(
+      await this.sb.from("teacher_class_assignments").delete().eq("id", assignmentId)
+    );
+    this.clearCache("teachers");
+    return result;
+  }
+
+  // ── Students (admin) ─────────────────────────────────────────────────────
+
+  async getStudents() {
+    return this._cached("students:all", 60_000, async () =>
+      this._throwIfError(await this.sb.from("students").select("*, users(first_name, last_name, email)"))
+    );
+  }
+
+  async getStudent(id) {
+    return this._throwIfError(
+      await this.sb.from("students").select("*, users(first_name, last_name, email)").eq("id", id).single()
+    );
+  }
+
+  async createStudentProfile({ user_id, student_number, contact_number, guardian_name, guardian_contact }) {
+    const result = this._throwIfError(
+      await this.sb.from("students")
+        .insert({ user_id, student_number, contact_number, guardian_name, guardian_contact })
+        .select().single()
+    );
+    this.clearCache("students");
+    return result;
+  }
+
+  async getStudentsBySection(sectionId) {
+    return this._cached(`students:section:${sectionId}`, 60_000, async () =>
+      this._throwIfError(
+        await this.sb.from("student_section_assignments")
+          .select("students(*, users(first_name, last_name, email))")
+          .eq("section_id", sectionId)
+      )
+    );
+  }
+
+  async assignStudentToSection({ student_id, section_id }) {
+    const result = this._throwIfError(
+      await this.sb.from("student_section_assignments").insert({ student_id, section_id }).select().single()
+    );
+    this.clearCache("students");
+    return result;
+  }
+
+  async getStudentSubjectEnrollments(studentId) {
+    return this._throwIfError(
+      await this.sb.from("student_subject_enrollments").select("*, subjects(*)").eq("student_id", studentId)
+    );
+  }
+
+  async enrollStudentSubjects(studentId, subjectIds) {
+    const result = this._throwIfError(
+      await this.sb.rpc("enroll_student_subjects", { p_student_id: studentId, p_subject_ids: subjectIds })
+    );
+    this.clearCache("students");
+    return result;
+  }
+
+  async unenrollStudentSubject(studentId, subjectId) {
+    const result = this._throwIfError(
+      await this.sb.rpc("unenroll_student_subject", { p_student_id: studentId, p_subject_id: subjectId })
+    );
+    this.clearCache("students");
+    return result;
+  }
+
+  // ── Classes (admin) ──────────────────────────────────────────────────────
+
+  async getClasses() {
+    return this._cached("classes:all", 60_000, async () =>
+      this._throwIfError(await this.sb.from("classes").select("*").eq("is_active", true))
+    );
+  }
+
+  async createClass({ name, grade_level, school_year }) {
+    const result = this._throwIfError(
+      await this.sb.from("classes").insert({ name, grade_level, school_year }).select().single()
+    );
+    this.clearCache("classes");
+    return result;
+  }
+
+  // ── Sections (admin) ─────────────────────────────────────────────────────
+
+  async getSections() {
+    return this._cached("sections:all", 60_000, async () =>
+      this._throwIfError(await this.sb.from("sections").select("*"))
+    );
+  }
+
+  async getSection(id) {
+    return this._throwIfError(await this.sb.from("sections").select("*").eq("id", id).single());
+  }
+
+  async createSection({ name, class_id }) {
+    const result = this._throwIfError(await this.sb.from("sections").insert({ name, class_id }).select().single());
+    this.clearCache("sections");
+    return result;
+  }
+
+  async updateSection(id, data) {
+    const result = this._throwIfError(await this.sb.from("sections").update(data).eq("id", id).select().single());
+    this.clearCache("sections");
+    return result;
+  }
+
+  async deleteSection(id) {
+    const result = this._throwIfError(await this.sb.from("sections").delete().eq("id", id));
+    this.clearCache("sections");
+    return result;
+  }
+
+  // ── Subjects (admin) ─────────────────────────────────────────────────────
+
+  async getSubjects() {
+    return this._cached("subjects:all", 60_000, async () =>
+      this._throwIfError(await this.sb.from("subjects").select("*"))
+    );
+  }
+
+  async createSubject({ name, description }) {
+    const result = this._throwIfError(await this.sb.from("subjects").insert({ name, description }).select().single());
+    this.clearCache("subjects");
+    return result;
+  }
+
+  // ── Modules (admin) ──────────────────────────────────────────────────────
+
+  async getModules({ class_id, subject_id } = {}) {
+    return this._cached(`modules:${class_id || ""}:${subject_id || ""}`, 60_000, async () => {
+      let q = this.sb.from("modules").select("*");
+      if (class_id) q = q.eq("class_id", class_id);
+      if (subject_id) q = q.eq("subject_id", subject_id);
+      return this._throwIfError(await q);
+    });
+  }
+
+  async getModule(id) {
+    return this._throwIfError(await this.sb.from("modules").select("*").eq("id", id).single());
+  }
+
+  async createModule({ title, description, class_id, subject_id, order, is_published }) {
+    const result = this._throwIfError(
+      await this.sb.from("modules")
+        .insert({ title, description, class_id, subject_id, order, is_published })
+        .select().single()
+    );
+    this.clearCache("modules");
+    return result;
+  }
+
+  async updateModule(id, fields) {
+    const result = this._throwIfError(await this.sb.from("modules").update(fields).eq("id", id).select().single());
+    this.clearCache("modules");
+    return result;
+  }
+
+  async deleteModule(id) {
+    const result = this._throwIfError(await this.sb.from("modules").delete().eq("id", id));
+    this.clearCache("modules");
+    return result;
+  }
+
+  // ── Activities (admin) ───────────────────────────────────────────────────
+
+  async getActivities(module_id) {
+    return this._cached(`activities:${module_id}`, 60_000, async () =>
+      this._throwIfError(await this.sb.from("activities").select("*").eq("module_id", module_id))
+    );
+  }
+
+  async createActivity({ title, description, activity_type, module_id, max_score, due_date, is_published }) {
+    const result = this._throwIfError(
+      await this.sb.from("activities")
+        .insert({ title, description, activity_type, module_id, max_score, due_date, is_published })
+        .select().single()
+    );
+    this.clearCache("activities");
+    return result;
+  }
+
+  async updateActivity(id, fields) {
+    const result = this._throwIfError(await this.sb.from("activities").update(fields).eq("id", id).select().single());
+    this.clearCache("activities");
+    return result;
+  }
+
+  async deleteActivity(id) {
+    const result = this._throwIfError(await this.sb.from("activities").delete().eq("id", id));
+    this.clearCache("activities");
+    return result;
+  }
+
+  // ── Teacher Portal ───────────────────────────────────────────────────────
+
+  async getMySubjects() {
+    return this._cached("teacher:mysubjects", 60_000, async () =>
+      this._throwIfError(
+        await this.sb.from("teacher_class_assignments")
+          .select("*, subjects(*), classes(*)")
+          .eq("teacher_id", (await this._myTeacherId()))
+      )
+    );
+  }
+
+  async _myTeacherId() {
+    const user = this.getCurrentUser();
+    const { data } = await this.sb.from("teachers").select("id").eq("user_id", user.id).single();
+    return data?.id;
+  }
+
+  async _myStudentId() {
+    const user = this.getCurrentUser();
+    const { data } = await this.sb.from("students").select("id").eq("user_id", user.id).single();
+    return data?.id;
+  }
+
+  async getClassStudents(classId) {
+    return this._cached(`teacher:classstudents:${classId}`, 60_000, async () =>
+      this._throwIfError(
+        await this.sb.from("student_section_assignments")
+          .select("students(*, users(first_name, last_name)), sections!inner(class_id)")
+          .eq("sections.class_id", classId)
+      )
+    );
+  }
+
+  async getClassModuleReads(classId) {
+    return this._cached(`teacher:modreads:${classId}`, 30_000, async () =>
+      this._throwIfError(
+        await this.sb.from("student_module_reads")
+          .select("*, modules!inner(class_id)")
+          .eq("modules.class_id", classId)
+      )
+    );
+  }
+
+  /** Uploads a file to the `module-files` Storage bucket, returns { file_url, file_name }. */
+  async uploadModuleFile(file) {
+    const path = `${Date.now()}_${file.name}`;
+    const { error } = await this.sb.storage.from("module-files").upload(path, file);
+    if (error) throw new Error(error.message);
+    const { data } = this.sb.storage.from("module-files").getPublicUrl(path);
+    return { file_url: data.publicUrl, file_name: file.name };
+  }
+
+  async uploadSubjectMaterial(subjectId, formData) {
+    const file = formData.get("file");
+    const upload = await this.uploadModuleFile(file);
+    const result = await this.createMyModule({
+      title: file.name, subject_id: subjectId,
+      file_url: upload.file_url, file_name: upload.file_name,
+    });
+    return result;
+  }
+
+  async getMyModules(subject_id = null) {
+    return this._cached(`teacher:mymodules:${subject_id || ""}`, 60_000, async () => {
+      let q = this.sb.from("modules").select("*").eq("teacher_id", await this._myTeacherId());
+      if (subject_id) q = q.eq("subject_id", subject_id);
+      return this._throwIfError(await q);
+    });
+  }
+
+  async deleteMyModule(id) {
+    const result = this._throwIfError(await this.sb.from("modules").delete().eq("id", id));
+    this.clearCache("teacher:mymodules");
+    return result;
+  }
+
+  async createMyModule({ title, subject_id, description, term, file_url, file_name, is_published = true }) {
+    const teacher_id = await this._myTeacherId();
+    const result = this._throwIfError(
+      await this.sb.from("modules")
+        .insert({ title, subject_id, description, term, file_url, file_name, is_published, teacher_id })
+        .select().single()
+    );
+    this.clearCache("teacher:mymodules");
+    return result;
+  }
+
+  // ── Teacher Activities (full quiz builder) ──────────────────────────────
+
+  /**
+   * payload: { title, module_id, subject_id, activity_type, format_type,
+   *            grading_mode, instructions, start_date, due_date,
+   *            questions: [{ question_text, question_type, points,
+   *                          correct_answer, choices: [{choice_text, order}] }] }
+   */
+  async createTeacherActivity(payload) {
+    const teacher_id = await this._myTeacherId();
+    const { questions, ...activityFields } = payload;
+
+    const activity = this._throwIfError(
+      await this.sb.from("activities").insert({ ...activityFields, teacher_id }).select().single()
+    );
+
+    for (const [i, q] of (questions || []).entries()) {
+      const { choices, ...qFields } = q;
+      const question = this._throwIfError(
+        await this.sb.from("activity_questions")
+          .insert({ ...qFields, activity_id: activity.id, order: q.order ?? i })
+          .select().single()
+      );
+      if (choices?.length) {
+        await this.sb.from("activity_question_choices").insert(
+          choices.map((c, j) => ({ ...c, question_id: question.id, order: c.order ?? j }))
+        );
+      }
+    }
+    this.clearCache("teacher:activities");
+    return activity;
+  }
+
+  async getTeacherActivities({ module_id, subject_id } = {}) {
+    return this._cached(`teacher:activities:${module_id || ""}:${subject_id || ""}`, 60_000, async () => {
+      let q = this.sb.from("activities").select("*").eq("teacher_id", await this._myTeacherId());
+      if (module_id) q = q.eq("module_id", module_id);
+      if (subject_id) q = q.eq("subject_id", subject_id);
+      return this._throwIfError(await q);
+    });
+  }
+
+  async getTeacherActivity(id) {
+    return this._cached(`teacher:activity:${id}`, 60_000, async () =>
+      this._throwIfError(
+        await this.sb.from("activities")
+          .select("*, activity_questions(*, activity_question_choices(*))")
+          .eq("id", id).single()
+      )
+    );
+  }
+
+  /** Pass `questions` to fully replace all questions/choices (delete + reinsert). */
+  async updateTeacherActivity(id, payload) {
+    const { questions, ...fields } = payload;
+    const result = this._throwIfError(
+      await this.sb.from("activities").update(fields).eq("id", id).select().single()
+    );
+    if (questions) {
+      await this.sb.from("activity_questions").delete().eq("activity_id", id);
+      for (const [i, q] of questions.entries()) {
+        const { choices, ...qFields } = q;
+        const question = this._throwIfError(
+          await this.sb.from("activity_questions")
+            .insert({ ...qFields, activity_id: id, order: q.order ?? i }).select().single()
+        );
+        if (choices?.length) {
+          await this.sb.from("activity_question_choices").insert(
+            choices.map((c, j) => ({ ...c, question_id: question.id, order: c.order ?? j }))
+          );
+        }
+      }
+    }
+    this.clearCache("teacher:activit");
+    return result;
+  }
+
+  async deleteTeacherActivity(id) {
+    const result = this._throwIfError(await this.sb.from("activities").delete().eq("id", id));
+    this.clearCache("teacher:activit");
+    return result;
+  }
+
+  async getActivitySubmissions(activityId) {
+    return this._throwIfError(
+      await this.sb.from("activity_submissions")
+        .select("*, students(*, users(first_name, last_name)), activity_answers(*)")
+        .eq("activity_id", activityId)
+    );
+  }
+
+  async manualGradeSubmission(activityId, submissionId, gradeData) {
+    return this._throwIfError(
+      await this.sb.rpc("manual_grade_submission", {
+        p_activity_id: activityId, p_submission_id: submissionId,
+        p_score: gradeData.score, p_grade: gradeData.grade || null, p_remarks: gradeData.remarks || null,
+      })
+    );
+  }
+
+  // ── Student Portal ───────────────────────────────────────────────────────
+
+  async getStudentSubjects() {
+    return this._cached("student:mysubjects", 60_000, async () =>
+      this._throwIfError(
+        await this.sb.from("student_subject_enrollments")
+          .select("*, subjects(*)").eq("student_id", await this._myStudentId())
+      )
+    );
+  }
+
+  async getStudentModules(subject_id = null) {
+    return this._cached(`student:modules:${subject_id || ""}`, 60_000, async () => {
+      const studentId = await this._myStudentId();
+      const { data: enrollments } = await this.sb
+        .from("student_subject_enrollments").select("subject_id").eq("student_id", studentId);
+      const subjectIds = subject_id ? [subject_id] : (enrollments || []).map(e => e.subject_id);
+      if (!subjectIds.length) return [];
+      return this._throwIfError(
+        await this.sb.from("modules").select("*").in("subject_id", subjectIds).eq("is_published", true)
+      );
+    });
+  }
+
+  async getStudentActivities(subject_id = null) {
+    return this._cached(`student:activities:${subject_id || ""}`, 30_000, async () => {
+      const studentId = await this._myStudentId();
+      const { data: enrollments } = await this.sb
+        .from("student_subject_enrollments").select("subject_id").eq("student_id", studentId);
+      const subjectIds = subject_id ? [subject_id] : (enrollments || []).map(e => e.subject_id);
+      if (!subjectIds.length) return [];
+      const activities = this._throwIfError(
+        await this.sb.from("activities").select("*").in("subject_id", subjectIds).eq("is_published", true)
+      );
+      const { data: submissions } = await this.sb
+        .from("activity_submissions").select("*").eq("student_id", studentId);
+      const subByActivity = new Map((submissions || []).map(s => [s.activity_id, s]));
+      const now = new Date();
+      return activities.map(a => {
+        const sub = subByActivity.get(a.id);
+        let status = { status: "open", label: "Open" };
+        if (sub) status = sub.is_graded ? { status: "graded", label: "Graded" } : { status: "submitted", label: "Submitted – Pending Grade" };
+        else if (a.due_date && now > new Date(a.due_date)) status = { status: "past_due", label: "Past Due – No Submission" };
+        return { ...a, submission: sub || null, ...status };
+      });
+    });
+  }
+
+  /** Returns the activity with questions, WITHOUT correct_answer (uses the student_safe_questions view). */
+  async getStudentActivity(id) {
+    const activity = this._throwIfError(await this.sb.from("activities").select("*").eq("id", id).single());
+    const questions = this._throwIfError(
+      await this.sb.from("student_safe_questions")
+        .select("*, activity_question_choices(*)").eq("activity_id", id).order("order")
+    );
+    return { ...activity, questions };
+  }
+
+  async submitActivityAnswers(activityId, answers) {
+    const result = this._throwIfError(
+      await this.sb.rpc("submit_activity", { p_activity_id: activityId, p_answers: answers })
+    );
+    this.clearCache("student:activities");
+    this.clearCache("student:dashboard");
+    return result;
+  }
+
+  async getMyActivityResult(activityId) {
+    const studentId = await this._myStudentId();
+    return this._throwIfError(
+      await this.sb.from("activity_submissions")
+        .select("*, activity_answers(*)")
+        .eq("activity_id", activityId).eq("student_id", studentId).single()
+    );
+  }
+
+  async getStudentDashboardStats() {
+    return this._cached("student:dashboard", 20_000, async () =>
+      this._throwIfError(await this.sb.rpc("get_student_dashboard_stats"))
+    );
+  }
+
+  async markModuleRead(moduleId) {
+    const result = this._throwIfError(await this.sb.rpc("mark_module_read", { p_module_id: moduleId }));
+    this.clearCache("student:dashboard");
+    return result;
+  }
+
+  async getMyAttendance() {
+    return this._cached("student:attendance", 30_000, async () =>
+      this._throwIfError(
+        await this.sb.from("attendance_records")
+          .select("*, attendance_sessions(*, subjects(name), classes(name))")
+          .eq("student_id", await this._myStudentId())
+      )
+    );
+  }
+
+  // ── Notifications ────────────────────────────────────────────────────────
+  // TIP: for live push (replacing the old SSE), subscribe to Realtime:
+  //   api.sb.channel('notifications').on('postgres_changes',
+  //     { event: 'INSERT', schema: 'public', table: 'notifications',
+  //       filter: `target_user_id=eq.${userId}` }, callback).subscribe();
+
+  async getNotifications(limit = 20, offset = 0, unreadOnly = false) {
+    let q = this.sb.from("notifications").select("*")
+      .order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+    if (unreadOnly) q = q.eq("is_read", false);
+    return this._throwIfError(await q);
+  }
+
+  async markNotificationRead(notifId) {
+    return this._throwIfError(
+      await this.sb.from("notifications").update({ is_read: true }).eq("id", notifId).select().single()
+    );
+  }
+
+  async markAllNotificationsRead() {
+    const user = this.getCurrentUser();
+    return this._throwIfError(
+      await this.sb.from("notifications").update({ is_read: true }).eq("target_user_id", user.id)
+    );
+  }
+
+  async deleteNotification(notifId) {
+    return this._throwIfError(await this.sb.from("notifications").delete().eq("id", notifId));
+  }
+
+  /** Admin broadcast. target: "all" | "teachers" | "students" */
+  async sendAnnouncement(title, message, target = "all") {
+    let roleFilter = null;
+    if (target === "teachers") roleFilter = "teacher";
+    if (target === "students") roleFilter = "student";
+    let q = this.sb.from("users").select("id, role_id, roles(name)").eq("is_active", true);
+    const { data: users } = await q;
+    const targets = (users || []).filter(u => !roleFilter || u.roles.name === roleFilter).map(u => u.id);
+    const me = this.getCurrentUser();
+    const rows = targets.map(uid => ({
+      target_user_id: uid, actor_user_id: me.id, notification_type: "announcement",
+      title, message,
+    }));
+    if (rows.length) await this.sb.from("notifications").insert(rows);
+    return { message: `Announcement sent to ${rows.length} user(s).` };
+  }
+
+  // ── Attendance (teacher) ────────────────────────────────────────────────
+
+  async getAttendanceSections() {
+    return this._throwIfError(
+      await this.sb.from("teacher_class_assignments")
+        .select("*, classes(*, sections(*))").eq("teacher_id", await this._myTeacherId())
+    );
+  }
+
+  async getAttendanceSectionStudents(classId, { subjectId = null, term = null } = {}) {
+    return this._throwIfError(
+      await this.sb.from("student_section_assignments")
+        .select("students(*, users(first_name, last_name)), sections!inner(class_id)")
+        .eq("sections.class_id", classId)
+    );
+  }
+
+  async getAttendanceSessions(classId, { subjectId = null, term = null } = {}) {
+    let q = this.sb.from("attendance_sessions").select("*").eq("class_id", classId);
+    if (subjectId) q = q.eq("subject_id", subjectId);
+    if (term) q = q.eq("term", term);
+    return this._throwIfError(await q);
+  }
+
+  async getAttendanceSession(sessionId) {
+    return this._throwIfError(
+      await this.sb.from("attendance_sessions")
+        .select("*, attendance_records(*, students(*, users(first_name, last_name)))")
+        .eq("id", sessionId).single()
+    );
+  }
+
+  async createAttendanceSession(payload) {
+    return this._throwIfError(
+      await this.sb.rpc("create_attendance_session", {
+        p_class_id: payload.class_id, p_subject_id: payload.subject_id, p_term: payload.term,
+        p_session_date: payload.session_date, p_has_class: payload.has_class,
+        p_notes: payload.notes || null, p_records: payload.records || [],
+      })
+    );
+  }
+
+  async updateAttendanceSession(sessionId, payload) {
+    const { records, ...sessionFields } = payload;
+    const result = this._throwIfError(
+      await this.sb.from("attendance_sessions").update(sessionFields).eq("id", sessionId).select().single()
+    );
+    if (records) {
+      for (const r of records) {
+        await this.sb.from("attendance_records")
+          .upsert({ session_id: sessionId, student_id: r.student_id, status: r.status, remarks: r.remarks },
+                  { onConflict: "session_id,student_id" });
+      }
+    }
+    return result;
+  }
+
+  async deleteAttendanceSession(sessionId) {
+    return this._throwIfError(await this.sb.from("attendance_sessions").delete().eq("id", sessionId));
+  }
+
+  // ── Student Analytics — backed by analytics.engine.js (Phase 2 port) ─────
+  // Make sure assets/js/analytics.engine.js is loaded BEFORE this file.
+
+  async getDescriptiveAnalytics(subjectId = null) {
+    const studentId = await this._myStudentId();
+    const [grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar] = await Promise.all([
+      AnalyticsEngine.getGradeProgress(this.sb, studentId, subjectId),
+      AnalyticsEngine.getAttendanceCalendar(this.sb, studentId, subjectId),
+      AnalyticsEngine.getScoreVsClassAverage(this.sb, studentId, subjectId),
+      AnalyticsEngine.getModuleReadingProgress(this.sb, studentId, subjectId),
+      AnalyticsEngine.getSubjectRadar(this.sb, studentId),
+    ]);
+    return { grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar };
+  }
+
+  async getBayesianAnalytics(targetGrade = 90, subjectId = null) {
+    const studentId = await this._myStudentId();
+    const [predicted_grade, improvement_probability, students_like_you, risk_assessment] = await Promise.all([
+      AnalyticsEngine.getPredictedFinalGrade(this.sb, studentId, subjectId),
+      AnalyticsEngine.getImprovementProbability(this.sb, studentId, targetGrade, subjectId),
+      AnalyticsEngine.getStudentsLikeYou(this.sb, studentId),
+      AnalyticsEngine.getRiskAssessment(this.sb, studentId),
+    ]);
+    return { predicted_grade, improvement_probability, students_like_you, risk_assessment };
+  }
+
+  async getPredictedGrade(subjectId = null) {
+    return AnalyticsEngine.getPredictedFinalGrade(this.sb, await this._myStudentId(), subjectId);
+  }
+
+  async getImprovementProbability(targetGrade = 90, subjectId = null) {
+    return AnalyticsEngine.getImprovementProbability(this.sb, await this._myStudentId(), targetGrade, subjectId);
+  }
+
+  async getRiskAssessment() {
+    return AnalyticsEngine.getRiskAssessment(this.sb, await this._myStudentId());
+  }
+}

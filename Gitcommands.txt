@@ -1,0 +1,37 @@
+Simple 3-command workflow every time you make changes:
+
+```powershell
+git add .
+git commit -m "describe what you changed"
+git push
+```
+
+That's it! For example:
+
+```powershell
+# After fixing the ijla → ijed storage keys
+git add .
+git commit -m "fix: rename ijla storage keys to ijed"
+git push
+
+# After adding a new feature
+git add .
+git commit -m "feat: add student grades export"
+git push
+```
+
+---
+
+**Good commit message habits:**
+
+| Prefix | When to use |
+|--------|-------------|
+| `feat:` | adding a new feature |
+| `fix:` | fixing a bug |
+| `update:` | updating existing code |
+| `style:` | CSS/UI changes only |
+| `docs:` | README or documentation changes |
+
+---
+
+After the first `git push -u origin main`, future pushes only need `git push` — no need to repeat the full command. Git remembers where to push. 👍

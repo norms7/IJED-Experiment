@@ -1,0 +1,8 @@
+cd lms-admin-backend
+
+# Make sure your virtual environment is active
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # Mac/Linux
+
+# Start it
+uvicorn app.main:app --reload --port 8000

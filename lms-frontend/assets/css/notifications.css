@@ -1,0 +1,186 @@
+/* ============================================================
+   assets/css/notifications.css
+   Bell icon, badge, dropdown, and notification item styles.
+   ============================================================ */
+
+/* ── Wrapper ─────────────────────────────────────────────── */
+.notif-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Bell button ─────────────────────────────────────────── */
+.notif-bell-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background var(--transition), transform 0.15s;
+  color: var(--gray-600);
+}
+.notif-bell-btn:hover {
+  background: var(--rose-tint);
+  color: var(--maroon);
+  transform: scale(1.08);
+}
+
+/* ── Unread badge ────────────────────────────────────────── */
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--maroon);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  animation: badge-pop 0.25s ease;
+}
+@keyframes badge-pop {
+  0%   { transform: scale(0); }
+  70%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* ── Dropdown panel ──────────────────────────────────────── */
+.notif-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 360px;
+  max-height: 480px;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.14);
+  border: 1px solid var(--gray-100);
+  z-index: 1000;
+  flex-direction: column;
+  overflow: hidden;
+  animation: dropdown-in 0.18s ease;
+}
+.notif-dropdown.open {
+  display: flex;
+}
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Dropdown header ─────────────────────────────────────── */
+.notif-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--gray-100);
+  flex-shrink: 0;
+}
+.notif-dropdown-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--maroon-dark);
+}
+.notif-mark-all-btn {
+  font-size: 11px;
+  color: var(--maroon);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background var(--transition);
+}
+.notif-mark-all-btn:hover {
+  background: var(--rose-tint);
+}
+
+/* ── Scrollable list ─────────────────────────────────────── */
+.notif-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ── Empty state ─────────────────────────────────────────── */
+.notif-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--gray-400);
+  font-size: 13px;
+}
+
+/* ── Notification item ───────────────────────────────────── */
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background var(--transition);
+  border-bottom: 1px solid var(--gray-100);
+  position: relative;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--gray-50); }
+.notif-item.notif-unread { background: #fdf4f5; }
+.notif-item.notif-unread:hover { background: #fce8eb; }
+
+.notif-item-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-100);
+  border-radius: 8px;
+}
+.notif-unread .notif-item-icon { background: var(--rose-tint); }
+
+.notif-item-body  { flex: 1; min-width: 0; }
+.notif-item-title { font-size: 13px; font-weight: 600; color: var(--gray-800); margin-bottom: 2px; }
+.notif-item-msg   { font-size: 12px; color: var(--gray-500); line-height: 1.4;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notif-item-time  { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
+
+/* ── Unread dot ──────────────────────────────────────────── */
+.notif-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--maroon);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+/* ── Dark mode ───────────────────────────────────────────── */
+body.dark-mode .notif-bell-btn        { background: #2a1a1f; color: #e0b0b8; }
+body.dark-mode .notif-bell-btn:hover  { background: #3d1e26; color: #f5d0d8; }
+body.dark-mode .notif-dropdown        { background: #1e1118; border-color: #3a2030; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+body.dark-mode .notif-dropdown-header { border-color: #3a2030; }
+body.dark-mode .notif-dropdown-title  { color: #f5d0d8; }
+body.dark-mode .notif-item            { border-color: #3a2030; }
+body.dark-mode .notif-item:hover      { background: #2a1a1f; }
+body.dark-mode .notif-item.notif-unread       { background: #2d1520; }
+body.dark-mode .notif-item.notif-unread:hover { background: #3a1a24; }
+body.dark-mode .notif-item-icon  { background: #2a1a1f; }
+body.dark-mode .notif-item-title { color: #f0d0d8; }
+body.dark-mode .notif-item-msg   { color: #b09098; }
+body.dark-mode .notif-item-time  { color: #806070; }
+body.dark-mode .notif-badge      { border-color: #1e1118; }

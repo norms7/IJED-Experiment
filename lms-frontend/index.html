@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Infant Jesus Learning Academy — Learning Management System" />
+  <title>Infant Jesus Learning Academy — LMS</title>
+
+  <!-- ── Stylesheets (load order matters) ─────────────────── -->
+  <link rel="icon" type="image/png" href="assets/images/logo.png" />
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <link rel="stylesheet" href="assets/css/layout.css" />
+  <link rel="stylesheet" href="assets/css/components.css" />
+  <link rel="stylesheet" href="assets/css/notifications.css">
+  <link rel="stylesheet" href="assets/css/analytics.css">
+  <link rel="stylesheet" href="assets/css/loading.css" />
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════
+     TOAST NOTIFICATION CONTAINER
+     ════════════════════════════════════════════════════════════ -->
+<div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+<!-- ════════════════════════════════════════════════════════════
+     MODAL CONTAINER (rendered dynamically by Modal utility)
+     ════════════════════════════════════════════════════════════ -->
+<div id="modal-container"></div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SIDEBAR MOBILE OVERLAY
+     ════════════════════════════════════════════════════════════ -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     PAGE: LANDING
+     ════════════════════════════════════════════════════════════ -->
+<div id="page-landing">
+
+  <!-- Navbar -->
+  <nav class="landing-nav" role="navigation" aria-label="Main navigation">
+    <div class="nav-brand">
+      <img src="assets/images/logo.png" alt="IJED Logo" class="nav-brand-logo" style="width:40px;height:40px;object-fit:contain;border-radius:50%;" />
+      <div>
+        <div class="nav-brand-name">IJED</div>
+        <div class="nav-brand-sub">Learning Management System</div>
+      </div>
+    </div>
+    <button class="nav-hamburger" aria-label="Open menu"
+      onclick="this.closest('nav').classList.toggle('nav-open')">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-links">
+      <a href="#features"  class="nav-link">Features</a>
+      <a href="#roles"     class="nav-link">Roles</a>
+      <a href="#about"     class="nav-link">About Us</a>
+      <a href="#contact"   class="nav-link">Contact</a>
+      <button class="btn btn-gold btn-sm" onclick="App.showPage('login')">Login</button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero" id="home" aria-label="Hero section">
+    <div class="hero-badge">🎓 Welcome to IJED Learning Portal</div>
+    <h1 class="hero-title">
+      Empowering <span>Learners</span>,<br />
+      Inspiring <span>Excellence</span>
+    </h1>
+    <p class="hero-desc">
+      A comprehensive learning management system designed for students, teachers, and
+      administrators of Infant Jesus Learning Academy.
+    </p>
+    <div class="hero-actions">
+      <button class="btn btn-gold" style="padding:12px 32px;font-size:15px;"
+        onclick="App.showPage('login')">Get Started →</button>
+      <button class="btn btn-outline hero-btn-secondary"
+        style="padding:12px 24px;font-size:15px;"
+        onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">
+        Learn More
+      </button>
+    </div>
+    <!-- Decorative wave -->
+    <div class="hero-wave" aria-hidden="true">
+      <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="none" width="100%" height="60">
+        <path d="M0,40 C360,80 1080,0 1440,40 L1440,60 L0,60 Z" fill="#faf8f8"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features" aria-label="Features">
+    <div class="section-label">Why Choose IJED LMS</div>
+    <h2 class="section-title">Everything you need to learn &amp; teach</h2>
+    <p class="section-desc">
+      A unified platform that brings together all aspects of education management in one place.
+    </p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📚</div>
+        <div class="feature-title">Rich Module Library</div>
+        <div class="feature-desc">
+          Teachers upload organized modules with descriptions and files. Students access them anytime, anywhere.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📝</div>
+        <div class="feature-title">Activities &amp; Quizzes</div>
+        <div class="feature-desc">
+          Create, assign, and manage activities and quizzes. Students submit work and receive timely feedback.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Grade Management</div>
+        <div class="feature-desc">
+          Track academic performance with detailed grade records, reports, and progress indicators.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">User Management</div>
+        <div class="feature-desc">
+          Admins efficiently manage teachers and students, assign roles, and maintain user accounts.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔔</div>
+        <div class="feature-title">Toast Notifications</div>
+        <div class="feature-desc">
+          Stay informed with real-time notifications for all important actions across the system.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <div class="feature-title">Fully Responsive</div>
+        <div class="feature-desc">
+          Accessible on desktop, tablet, and mobile. A consistent experience across all devices.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Roles -->
+  <section class="roles-section" id="roles" aria-label="User roles">
+    <div class="roles-inner">
+      <div class="section-label" style="color:var(--gold-light)">Three Roles, One Platform</div>
+      <h2 class="section-title" style="color:#fff">Built for Everyone in the Academy</h2>
+      <div class="roles-grid">
+        <div class="role-card">
+          <div class="role-emoji">👨‍💼</div>
+          <div class="role-name">Administrator</div>
+          <div class="role-desc">
+            Manage users, assign roles, oversee the entire system and keep everything running smoothly.
+          </div>
+        </div>
+        <div class="role-card">
+          <div class="role-emoji">👩‍🏫</div>
+          <div class="role-name">Teacher</div>
+          <div class="role-desc">
+            Upload modules, create activities, manage quizzes, and grade student performance effortlessly.
+          </div>
+        </div>
+        <div class="role-card">
+          <div class="role-emoji">🎓</div>
+          <div class="role-name">Student</div>
+          <div class="role-desc">
+            View subjects, access learning modules, submit activities, and track your own grades.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── About Us ─────────────────────────────────────────────── -->
+  <section class="about-section" id="about" aria-label="About Us">
+    <div class="about-inner">
+      <div class="section-label">WHO WE ARE</div>
+      <h2 class="section-title">About Infant Jesus Learning Academy</h2>
+      <p class="about-desc">
+        Infant Jesus Learning Academy (IJED) is a Catholic educational institution committed to
+        forming well-rounded individuals rooted in faith, excellence, and service. Founded with
+        the mission of providing quality education, IJED nurtures students in a caring and
+        disciplined environment.
+      </p>
+      <div class="about-cards">
+        <div class="about-card">
+          <div class="about-card-icon">⛪</div>
+          <div class="about-card-title">Our Mission</div>
+          <div class="about-card-desc">
+            To provide holistic, values-based education that empowers every learner to achieve
+            academic excellence and become a responsible member of society.
+          </div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">👁️</div>
+          <div class="about-card-title">Our Vision</div>
+          <div class="about-card-desc">
+            To be a leading Catholic learning institution that produces globally competitive,
+            morally upright, and socially responsible graduates.
+          </div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">✝️</div>
+          <div class="about-card-title">Our Values</div>
+          <div class="about-card-desc">
+            Faith, integrity, excellence, compassion, and service are the core values that
+            guide every student, teacher, and staff member of IJED.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Contact ───────────────────────────────────────────────── -->
+  <section class="contact-section" id="contact" aria-label="Contact Us">
+    <div class="contact-inner">
+      <div class="section-label" style="color:var(--gold-light)">GET IN TOUCH</div>
+      <h2 class="section-title" style="color:#fff">Contact Us</h2>
+      <div class="contact-cards">
+
+        <div class="contact-card">
+          <div class="contact-card-icon">📍</div>
+          <div class="contact-card-title">Address</div>
+          <div class="contact-card-desc">
+            Infant Jesus Learning Academy<br>
+            Malabon City &amp; Quezon City Branch<br>
+            Philippines
+          </div>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-card-icon">📞</div>
+          <div class="contact-card-title">Phone &amp; Email</div>
+          <div class="contact-card-desc">
+            📱 +63 900 000 0000<br>
+            ✉️ info@ijed.edu.ph<br>
+            🕐 Mon–Fri, 7AM–5PM
+          </div>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-card-icon">🌐</div>
+          <div class="contact-card-title">Follow Us</div>
+          <div class="contact-card-desc">
+            <a href="https://www.facebook.com/ijlamalaboncity" target="_blank" rel="noopener" class="contact-link">
+              📘 Facebook — Malabon Branch
+            </a>
+            <a href="https://www.facebook.com/IJLAQC" target="_blank" rel="noopener" class="contact-link">
+              📘 Facebook — Quezon City Branch
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="landing-footer">
+    <p>© 2025 <strong>Infant Jesus Learning Academy</strong>. All rights reserved. | Learning Management System</p>
+    <p style="font-size:11px;opacity:.6;margin-top:4px">4K Norms</p>
+  </footer>
+
+</div><!-- /#page-landing -->
+
+
+<!-- ════════════════════════════════════════════════════════════
+     PAGE: LOGIN
+     ════════════════════════════════════════════════════════════ -->
+<div id="page-login" class="hidden" role="main">
+
+  <div class="login-box">
+
+    <!-- Logo / Branding -->
+    <div class="login-logo">
+      <img src="assets/images/logo.png" alt="IJED Logo" class="login-logo-icon" style="width:72px;height:72px;object-fit:contain;border-radius:50%;" />
+      <div class="login-school-name">Infant Jesus</div>
+      <div class="login-school-sub">Learning Academy</div>
+    </div>
+
+    <h1 class="login-title">Welcome Back!</h1>
+    <p class="login-sub">Select your role and sign in to continue.</p>
+
+    <!-- Role Selection Tabs -->
+    <div class="role-tabs" id="role-tabs" role="tablist" aria-label="Select your role">
+      <div class="role-tab active" data-role="admin"
+        onclick="AuthController.selectRole('admin')" role="tab" tabindex="0"
+        aria-selected="true" aria-label="Admin role">
+        <span class="tab-icon" aria-hidden="true">👨‍💼</span>
+        <span>Admin</span>
+      </div>
+      <div class="role-tab" data-role="teacher"
+        onclick="AuthController.selectRole('teacher')" role="tab" tabindex="0"
+        aria-selected="false" aria-label="Teacher role">
+        <span class="tab-icon" aria-hidden="true">👩‍🏫</span>
+        <span>Teacher</span>
+      </div>
+      <div class="role-tab" data-role="student"
+        onclick="AuthController.selectRole('student')" role="tab" tabindex="0"
+        aria-selected="false" aria-label="Student role">
+        <span class="tab-icon" aria-hidden="true">🎓</span>
+        <span>Student</span>
+      </div>
+    </div>
+
+    <!-- Credentials -->
+    <div class="form-group">
+      <label class="form-label" for="login-email">Email / Username</label>
+      <input type="email" id="login-email" class="form-control"
+        placeholder="Enter your email address"
+        onkeydown="if(event.key==='Enter') AuthController.login()" />
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="login-password">Password</label>
+      <div style="position:relative;">
+        <input type="password" id="login-password" class="form-control"
+          placeholder="Enter your password"
+          style="padding-right:2.8rem;"
+          onkeydown="if(event.key==='Enter') AuthController.login()" />
+        <button type="button" id="toggle-login-password"
+          onclick="(function(){var i=document.getElementById('login-password'),b=document.getElementById('toggle-login-password');i.type=i.type==='password'?'text':'password';b.innerHTML=i.type==='password'?'&#128065;':'&#128064;';})()"
+          style="position:absolute;right:0.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;padding:0.2rem;color:#888;"
+          title="Show/hide password">&#128065;</button>
+      </div>
+    </div>
+
+    <!-- Login Button -->
+    <button class="btn btn-primary w-full"
+      style="padding:11px;font-size:15px;justify-content:center;"
+      onclick="AuthController.login()">
+      Sign In
+    </button>
+
+    <!-- Back Link -->
+    <div class="login-back">
+      <a href="#" onclick="App.showPage('landing'); return false;">← Back to Homepage</a>
+    </div>
+
+  </div>
+
+</div><!-- /#page-login -->
+
+
+<!-- ════════════════════════════════════════════════════════════
+     PAGE: APP (Dashboard Shell)
+     ════════════════════════════════════════════════════════════ -->
+<div id="page-app" class="hidden">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar" role="navigation" aria-label="Sidebar navigation">
+
+    <!-- Brand -->
+    <div class="sidebar-brand">
+      <img src="assets/images/logo.png" alt="IJED Logo" class="sidebar-brand-icon" style="width:36px;height:36px;object-fit:contain;border-radius:50%;" />
+      <div class="sidebar-brand-text">
+        <div class="sidebar-brand-name">IJED</div>
+        <div class="sidebar-brand-sub">Learning Academy</div>
+      </div>
+    </div>
+
+    <!-- Logged-in User -->
+    <div class="sidebar-user" aria-label="Current user">
+      <div class="sidebar-avatar" id="sb-avatar" aria-hidden="true">A</div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name" id="sb-username">Administrator</div>
+        <div class="sidebar-user-role" id="sb-role">admin</div>
+      </div>
+    </div>
+
+    <!-- Navigation (rendered by DashboardController.buildNav) -->
+    <nav class="sidebar-nav" id="sidebar-nav" aria-label="Module navigation"></nav>
+
+    <!-- Logout -->
+    <div class="sidebar-footer">
+      <button class="sidebar-logout" onclick="AuthController.logout()" aria-label="Sign out">
+        <span class="nav-icon" aria-hidden="true">🚪</span>
+        <span class="nav-label">Logout</span>
+      </button>
+    </div>
+
+  </aside><!-- /.sidebar -->
+
+  <!-- ── Main Content ─────────────────────────────────────────── -->
+  <div class="main-content" role="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="topbar-toggle" id="sidebar-toggle"
+          onclick="App.toggleSidebar()" aria-label="Toggle sidebar">☰</button>
+        <span class="topbar-page-title" id="topbar-title">Dashboard</span>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-time" id="topbar-time" aria-label="Current time"></span>
+        <div class="topbar-avatar-wrapper" id="topbar-avatar-wrapper">
+          <div class="topbar-avatar" id="topbar-avatar"
+            onclick="App.toggleProfileMenu()"
+            title="Your profile" aria-label="Profile menu">A</div>
+          <div class="profile-dropdown" id="profile-dropdown">
+            <div class="profile-dropdown-header">
+              <div class="profile-dropdown-avatar" id="profile-dd-avatar">A</div>
+              <div style="min-width:0">
+                <div class="profile-dropdown-name" id="profile-dd-name">User</div>
+                <div class="profile-dropdown-role" id="profile-dd-role">—</div>
+                <div class="profile-dropdown-email" id="profile-dd-email">—</div>
+              </div>
+            </div>
+            <div class="profile-dropdown-divider"></div>
+            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu(); DarkMode.toggle()">
+              🌙 Toggle Dark Mode
+            </button>
+            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu()">
+              ⚙️ Settings
+            </button>
+            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu()">
+              ❓ Report / Help
+            </button>
+            <div class="profile-dropdown-divider"></div>
+            <button class="profile-dropdown-item profile-dropdown-logout"
+              onclick="App.toggleProfileMenu(); AuthController.logout()">
+              🚪 Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Dynamic Content Area (filled by controllers) -->
+    <div class="content-area" id="content-area"></div>
+
+  </div><!-- /.main-content -->
+
+</div><!-- /#page-app -->
+
+
+<!-- ════════════════════════════════════════════════════════════
+     JAVASCRIPT — load in dependency order
+     1. Models  (data layer)
+     2. Utils   (shared helpers)
+     3. Views   (render functions)
+     4. Controllers (logic)
+     5. app.js  (bootstrap)
+     ════════════════════════════════════════════════════════════ -->
+<!-- API layer — MUST be first -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script defer src="assets/js/analytics.engine.js"></script>
+<script defer src="assets/js/lms-supabase-api.js"></script>
+
+<!-- Data models -->
+
+<!-- Shared utilities -->
+<script defer src="utils/utils.js"></script>
+<script defer src="utils/loader.js"></script>
+
+<!-- Views (role-scoped) -->
+<script defer src="views/admin.view.js"></script>
+<script defer src="views/teacher.view.js"></script>
+<script defer src="views/student.view.js"></script>
+<script defer src="views/analytics.view.js"></script>
+<script defer src="views/calendar.view.js"></script>
+
+
+<!-- Controllers (role-scoped) -->
+<script defer src="controllers/notification.controller.js"></script>
+<script defer src="controllers/app.controller.js"></script>
+<script defer src="controllers/auth.controller.js"></script>
+<script defer src="controllers/admin.controller.js"></script>
+<script defer src="controllers/teacher.controller.js"></script>
+<script defer src="controllers/gradebook.controller.js"></script>
+<script defer src="controllers/attendance.controller.js"></script>
+<script defer src="controllers/student.controller.js"></script>
+<script defer src="controllers/analytics.controller.js"></script> 
+<script defer src="controllers/calendar.controller.js"></script>
+<script defer src="controllers/dashboard.controller.js"></script>
+
+<!-- Bootstrap -->
+<script defer src="assets/js/app.js"></script>
+</body>
+</html>

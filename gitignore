@@ -1,0 +1,37 @@
+# ── Python ────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# ── Environment / Secrets ─────────────────────────────────────
+.env
+!.env.example
+
+# ── Database ──────────────────────────────────────────────────
+*.db
+*.sqlite3
+
+# ── Alembic (keep versions, ignore temp) ─────────────────────
+# alembic/versions/ is intentionally tracked
+
+# ── VS Code ───────────────────────────────────────────────────
+.vscode/
+!.vscode/launch.json
+
+# ── OS Files ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Node (if you add tooling later) ───────────────────────────
+node_modules/
