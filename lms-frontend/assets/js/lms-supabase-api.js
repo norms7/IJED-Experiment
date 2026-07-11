@@ -16,8 +16,8 @@
  * error for now so the UI fails loudly instead of silently.
  */
 
-const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+const SUPABASE_URL = "https://qjkoqznvrvlszacvmeug.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqa29xem52cnZsc3phY3ZtZXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NjQ2OTAsImV4cCI6MjA5ODE0MDY5MH0.hHRQpLeZyBKeIskeFIBshbv-e_jJkw07lNktTvPSSKE";
 
 class LMSAdminAPI {
   constructor() {
