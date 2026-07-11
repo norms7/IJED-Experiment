@@ -72,7 +72,6 @@ const App = {
     setInterval(() => this.updateClock(), 1000);
     const session = Storage.get('ijla_session');
     if (session) {
-      if (session._token) api._saveToken(session._token);
       this.showPage('app');
       Loader.init();  // Init after page is visible so content-area has dimensions
       this.populateProfileDropdown(session);

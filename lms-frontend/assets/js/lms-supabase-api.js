@@ -845,3 +845,6 @@ class LMSAdminAPI {
     return AnalyticsEngine.getRiskAssessment(this.sb, await this._myStudentId());
   }
 }
+
+// Global singleton — all controllers reference this as `api`
+const api = new LMSAdminAPI();

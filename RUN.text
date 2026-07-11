@@ -4,5 +4,14 @@ cd lms-admin-backend
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # Mac/Linux
 
-# Start it
+# Start it 
+# Norman_030701!
+# https://qjkoqznvrvlszacvmeug.supabase.co
+# eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqa29xem52cnZsc3phY3ZtZXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NjQ2OTAsImV4cCI6MjA5ODE0MDY5MH0.hHRQpLeZyBKeIskeFIBshbv-e_jJkw07lNktTvPSSKE
+
+
 uvicorn app.main:app --reload --port 8000
+
+admin@ijed.test - admin1234
+dancalan179741@ijedfac.com - Dancalan_179741
+etac12345@ijed.edu.com - Etac_12345
