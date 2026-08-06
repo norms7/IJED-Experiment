@@ -8,7 +8,7 @@ cd lms-admin-backend
 # Norman_030701!
 # https://qjkoqznvrvlszacvmeug.supabase.co
 # eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqa29xem52cnZsc3phY3ZtZXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NjQ2OTAsImV4cCI6MjA5ODE0MDY5MH0.hHRQpLeZyBKeIskeFIBshbv-e_jJkw07lNktTvPSSKE
-
+Ijed2026!/*
 
 uvicorn app.main:app --reload --port 8000
 

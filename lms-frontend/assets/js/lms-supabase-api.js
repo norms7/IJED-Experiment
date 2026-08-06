@@ -1,19 +1,6 @@
 /**
- * lms-supabase-api.js
- * Drop-in replacement for lms-admin-api.js.
- *
- * SAME PUBLIC METHOD NAMES as the old class — your controllers
- * (admin.controller.js, teacher.controller.js, etc.) do NOT need to change.
- * Just swap the <script> tag in index.html and update the two constants below.
- *
- * Requires the Supabase JS SDK loaded first:
- *   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
- *   <script defer src="assets/js/lms-supabase-api.js"></script>
- *
- * Analytics methods (getDescriptiveAnalytics / getBayesianAnalytics /
- * getPredictedGrade / getImprovementProbability / getRiskAssessment) are
- * Phase 2 — see MIGRATION_GUIDE.md. They throw a clear "not yet ported"
- * error for now so the UI fails loudly instead of silently.
+ * lms-supabase-api.js  — fixed build
+ * All data shapes normalized to match what admin/teacher/student views expect.
  */
 
 const SUPABASE_URL = "https://qjkoqznvrvlszacvmeug.supabase.co";
@@ -27,7 +14,8 @@ class LMSAdminAPI {
     this._restoreSession();
   }
 
-  // ── Internal: session restore on page load ─────────────────────────────
+  // ── Internal helpers ──────────────────────────────────────────────────────
+
   async _restoreSession() {
     const { data } = await this.sb.auth.getSession();
     if (data?.session) await this._hydrateSessionUser(data.session);
@@ -40,7 +28,6 @@ class LMSAdminAPI {
       .eq("auth_uid", session.user.id)
       .single();
     if (!profile) return null;
-
     const userPayload = {
       id: profile.id,
       role: profile.roles.name,
@@ -80,7 +67,7 @@ class LMSAdminAPI {
     return res.data;
   }
 
-  // ── Auth ─────────────────────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────
 
   async login(email, password) {
     const { data, error } = await this.sb.auth.signInWithPassword({ email, password });
@@ -111,11 +98,9 @@ class LMSAdminAPI {
     return raw ? JSON.parse(raw) : null;
   }
 
-  isLoggedIn() {
-    return !!this.getCurrentUser();
-  }
+  isLoggedIn() { return !!this.getCurrentUser(); }
 
-  // ── Dashboard (admin) ────────────────────────────────────────────────────
+  // ── Dashboard (admin) ─────────────────────────────────────────────────────
 
   async getDashboardStats() {
     return this._cached("dash:admin", 20_000, async () =>
@@ -123,13 +108,19 @@ class LMSAdminAPI {
     );
   }
 
-  // ── Users (admin) ────────────────────────────────────────────────────────
+  // ── Users (admin) ─────────────────────────────────────────────────────────
 
   async getUsers(params = {}) {
     let q = this.sb.from("users").select("id, email, first_name, last_name, role_id, is_active, created_at, roles(name)");
     if (params.role_id) q = q.eq("role_id", params.role_id);
     if (params.is_active !== undefined) q = q.eq("is_active", params.is_active);
-    return this._throwIfError(await q);
+    const data = this._throwIfError(await q);
+    // FIX: add full_name and normalize roles -> role for view compatibility
+    return data.map(u => ({
+      ...u,
+      full_name: `${u.first_name} ${u.last_name}`.trim(),
+      role: u.roles,
+    }));
   }
 
   async getUser(id) {
@@ -138,11 +129,6 @@ class LMSAdminAPI {
     );
   }
 
-  /**
-   * Admin creates a teacher/student/admin login account.
-   * Requires the `admin-create-user` Supabase Edge Function (service role) —
-   * see MIGRATION_GUIDE.md Step 5. Cannot be done with the anon key alone.
-   */
   async createUser({ email, password, first_name, last_name, role_id }) {
     const { data, error } = await this.sb.functions.invoke("admin-create-user", {
       body: { email, password, first_name, last_name, role_id },
@@ -166,12 +152,36 @@ class LMSAdminAPI {
     );
   }
 
-  // ── Teachers (admin) ─────────────────────────────────────────────────────
+  // ── Teachers (admin) ──────────────────────────────────────────────────────
 
   async getTeachers() {
-    return this._cached("teachers:all", 60_000, async () =>
-      this._throwIfError(await this.sb.from("teachers").select("*, users(first_name, last_name, email)"))
-    );
+    return this._cached("teachers:all", 60_000, async () => {
+      const teachers = this._throwIfError(
+        await this.sb.from("teachers")
+          .select("*, users(id, first_name, last_name, email, is_active)")
+      );
+      const teacherIds = teachers.map(t => t.id);
+      const assignments = teacherIds.length ? this._throwIfError(
+        await this.sb.from("teacher_class_assignments")
+          .select("*, subjects(id, name), classes(id, name, grade_level)")
+          .in("teacher_id", teacherIds)
+      ) : [];
+      const byTeacher = {};
+      assignments.forEach(a => {
+        if (!byTeacher[a.teacher_id]) byTeacher[a.teacher_id] = [];
+        byTeacher[a.teacher_id].push({
+          ...a,
+          subject: a.subjects,   // view uses a.subject.name
+          class_: a.classes,     // view uses a.class_.name
+        });
+      });
+      // FIX: rename users -> user, attach class_assignments
+      return teachers.map(t => ({
+        ...t,
+        user: t.users,
+        class_assignments: byTeacher[t.id] || [],
+      }));
+    });
   }
 
   async getTeacher(id) {
@@ -196,12 +206,31 @@ class LMSAdminAPI {
     return result;
   }
 
+  // FIX: also fetch class_assignments so the edit teacher modal works
   async getTeacherByUserId(userId) {
-    return this._throwIfError(await this.sb.from("teachers").select("*").eq("user_id", userId).single());
+    const teacher = this._throwIfError(
+      await this.sb.from("teachers").select("*").eq("user_id", userId).single()
+    );
+    if (!teacher) return null;
+    const assignments = this._throwIfError(
+      await this.sb.from("teacher_class_assignments")
+        .select("*, subjects(id, name), classes(id, name, grade_level)")
+        .eq("teacher_id", teacher.id)
+    );
+    return {
+      ...teacher,
+      class_assignments: assignments.map(a => ({
+        ...a,
+        subject: a.subjects,
+        class_: a.classes,
+      })),
+    };
   }
 
   async updateTeacherProfile(teacherId, data) {
-    const result = this._throwIfError(await this.sb.from("teachers").update(data).eq("id", teacherId).select().single());
+    const result = this._throwIfError(
+      await this.sb.from("teachers").update(data).eq("id", teacherId).select().single()
+    );
     this.clearCache("teachers");
     return result;
   }
@@ -222,12 +251,30 @@ class LMSAdminAPI {
     return result;
   }
 
-  // ── Students (admin) ─────────────────────────────────────────────────────
+  // ── Students (admin) ──────────────────────────────────────────────────────
 
   async getStudents() {
-    return this._cached("students:all", 60_000, async () =>
-      this._throwIfError(await this.sb.from("students").select("*, users(first_name, last_name, email)"))
-    );
+    return this._cached("students:all", 60_000, async () => {
+      const students = this._throwIfError(
+        await this.sb.from("students")
+          .select("*, users(id, first_name, last_name, email, is_active)")
+      );
+      const studentIds = students.map(s => s.id);
+      const sectionAssignments = studentIds.length ? this._throwIfError(
+        await this.sb.from("student_section_assignments").select("*").in("student_id", studentIds)
+      ) : [];
+      const byStu = {};
+      sectionAssignments.forEach(sa => {
+        if (!byStu[sa.student_id]) byStu[sa.student_id] = [];
+        byStu[sa.student_id].push(sa);
+      });
+      // FIX: rename users -> user, attach section_assignments
+      return students.map(s => ({
+        ...s,
+        user: s.users,
+        section_assignments: byStu[s.id] || [],
+      }));
+    });
   }
 
   async getStudent(id) {
@@ -286,7 +333,7 @@ class LMSAdminAPI {
     return result;
   }
 
-  // ── Classes (admin) ──────────────────────────────────────────────────────
+  // ── Classes (admin) ───────────────────────────────────────────────────────
 
   async getClasses() {
     return this._cached("classes:all", 60_000, async () =>
@@ -302,7 +349,7 @@ class LMSAdminAPI {
     return result;
   }
 
-  // ── Sections (admin) ─────────────────────────────────────────────────────
+  // ── Sections (admin) ──────────────────────────────────────────────────────
 
   async getSections() {
     return this._cached("sections:all", 60_000, async () =>
@@ -315,13 +362,17 @@ class LMSAdminAPI {
   }
 
   async createSection({ name, class_id }) {
-    const result = this._throwIfError(await this.sb.from("sections").insert({ name, class_id }).select().single());
+    const result = this._throwIfError(
+      await this.sb.from("sections").insert({ name, class_id }).select().single()
+    );
     this.clearCache("sections");
     return result;
   }
 
   async updateSection(id, data) {
-    const result = this._throwIfError(await this.sb.from("sections").update(data).eq("id", id).select().single());
+    const result = this._throwIfError(
+      await this.sb.from("sections").update(data).eq("id", id).select().single()
+    );
     this.clearCache("sections");
     return result;
   }
@@ -332,7 +383,7 @@ class LMSAdminAPI {
     return result;
   }
 
-  // ── Subjects (admin) ─────────────────────────────────────────────────────
+  // ── Subjects (admin) ──────────────────────────────────────────────────────
 
   async getSubjects() {
     return this._cached("subjects:all", 60_000, async () =>
@@ -341,12 +392,14 @@ class LMSAdminAPI {
   }
 
   async createSubject({ name, description }) {
-    const result = this._throwIfError(await this.sb.from("subjects").insert({ name, description }).select().single());
+    const result = this._throwIfError(
+      await this.sb.from("subjects").insert({ name, description }).select().single()
+    );
     this.clearCache("subjects");
     return result;
   }
 
-  // ── Modules (admin) ──────────────────────────────────────────────────────
+  // ── Modules (admin) ───────────────────────────────────────────────────────
 
   async getModules({ class_id, subject_id } = {}) {
     return this._cached(`modules:${class_id || ""}:${subject_id || ""}`, 60_000, async () => {
@@ -372,7 +425,9 @@ class LMSAdminAPI {
   }
 
   async updateModule(id, fields) {
-    const result = this._throwIfError(await this.sb.from("modules").update(fields).eq("id", id).select().single());
+    const result = this._throwIfError(
+      await this.sb.from("modules").update(fields).eq("id", id).select().single()
+    );
     this.clearCache("modules");
     return result;
   }
@@ -383,7 +438,7 @@ class LMSAdminAPI {
     return result;
   }
 
-  // ── Activities (admin) ───────────────────────────────────────────────────
+  // ── Activities (admin) ────────────────────────────────────────────────────
 
   async getActivities(module_id) {
     return this._cached(`activities:${module_id}`, 60_000, async () =>
@@ -402,7 +457,9 @@ class LMSAdminAPI {
   }
 
   async updateActivity(id, fields) {
-    const result = this._throwIfError(await this.sb.from("activities").update(fields).eq("id", id).select().single());
+    const result = this._throwIfError(
+      await this.sb.from("activities").update(fields).eq("id", id).select().single()
+    );
     this.clearCache("activities");
     return result;
   }
@@ -413,16 +470,26 @@ class LMSAdminAPI {
     return result;
   }
 
-  // ── Teacher Portal ───────────────────────────────────────────────────────
+  // ── Teacher Portal ────────────────────────────────────────────────────────
 
+  // FIX: flatten nested subjects/classes to flat subject_name, class_name, etc.
   async getMySubjects() {
-    return this._cached("teacher:mysubjects", 60_000, async () =>
-      this._throwIfError(
+    return this._cached("teacher:mysubjects", 60_000, async () => {
+      const data = this._throwIfError(
         await this.sb.from("teacher_class_assignments")
           .select("*, subjects(*), classes(*)")
           .eq("teacher_id", (await this._myTeacherId()))
-      )
-    );
+      );
+      return data.map(row => ({
+        ...row,
+        subject_id: row.subject_id,
+        subject_name: row.subjects?.name || "",
+        subject_description: row.subjects?.description || "",
+        class_id: row.class_id,
+        class_name: row.classes?.name || "",
+        grade_level: row.classes?.grade_level || "",
+      }));
+    });
   }
 
   async _myTeacherId() {
@@ -457,7 +524,6 @@ class LMSAdminAPI {
     );
   }
 
-  /** Uploads a file to the `module-files` Storage bucket, returns { file_url, file_name }. */
   async uploadModuleFile(file) {
     const path = `${Date.now()}_${file.name}`;
     const { error } = await this.sb.storage.from("module-files").upload(path, file);
@@ -469,11 +535,10 @@ class LMSAdminAPI {
   async uploadSubjectMaterial(subjectId, formData) {
     const file = formData.get("file");
     const upload = await this.uploadModuleFile(file);
-    const result = await this.createMyModule({
+    return this.createMyModule({
       title: file.name, subject_id: subjectId,
       file_url: upload.file_url, file_name: upload.file_name,
     });
-    return result;
   }
 
   async getMyModules(subject_id = null) {
@@ -501,28 +566,19 @@ class LMSAdminAPI {
     return result;
   }
 
-  // ── Teacher Activities (full quiz builder) ──────────────────────────────
+  // ── Teacher Activities ────────────────────────────────────────────────────
 
-  /**
-   * payload: { title, module_id, subject_id, activity_type, format_type,
-   *            grading_mode, instructions, start_date, due_date,
-   *            questions: [{ question_text, question_type, points,
-   *                          correct_answer, choices: [{choice_text, order}] }] }
-   */
   async createTeacherActivity(payload) {
     const teacher_id = await this._myTeacherId();
     const { questions, ...activityFields } = payload;
-
     const activity = this._throwIfError(
       await this.sb.from("activities").insert({ ...activityFields, teacher_id }).select().single()
     );
-
     for (const [i, q] of (questions || []).entries()) {
       const { choices, ...qFields } = q;
       const question = this._throwIfError(
         await this.sb.from("activity_questions")
-          .insert({ ...qFields, activity_id: activity.id, order: q.order ?? i })
-          .select().single()
+          .insert({ ...qFields, activity_id: activity.id, order: q.order ?? i }).select().single()
       );
       if (choices?.length) {
         await this.sb.from("activity_question_choices").insert(
@@ -553,7 +609,6 @@ class LMSAdminAPI {
     );
   }
 
-  /** Pass `questions` to fully replace all questions/choices (delete + reinsert). */
   async updateTeacherActivity(id, payload) {
     const { questions, ...fields } = payload;
     const result = this._throwIfError(
@@ -601,15 +656,21 @@ class LMSAdminAPI {
     );
   }
 
-  // ── Student Portal ───────────────────────────────────────────────────────
+  // ── Student Portal ────────────────────────────────────────────────────────
 
   async getStudentSubjects() {
-    return this._cached("student:mysubjects", 60_000, async () =>
-      this._throwIfError(
+    return this._cached("student:mysubjects", 60_000, async () => {
+      const data = this._throwIfError(
         await this.sb.from("student_subject_enrollments")
           .select("*, subjects(*)").eq("student_id", await this._myStudentId())
-      )
-    );
+      );
+      // Flatten for view compatibility: subject_id, subject_name
+      return data.map(row => ({
+        ...row,
+        subject_id: row.subject_id,
+        subject_name: row.subjects?.name || "",
+      }));
+    });
   }
 
   async getStudentModules(subject_id = null) {
@@ -642,19 +703,22 @@ class LMSAdminAPI {
       return activities.map(a => {
         const sub = subByActivity.get(a.id);
         let status = { status: "open", label: "Open" };
-        if (sub) status = sub.is_graded ? { status: "graded", label: "Graded" } : { status: "submitted", label: "Submitted – Pending Grade" };
-        else if (a.due_date && now > new Date(a.due_date)) status = { status: "past_due", label: "Past Due – No Submission" };
+        if (sub) status = sub.is_graded
+          ? { status: "graded", label: "Graded" }
+          : { status: "submitted", label: "Submitted – Pending Grade" };
+        else if (a.due_date && now > new Date(a.due_date))
+          status = { status: "past_due", label: "Past Due – No Submission" };
         return { ...a, submission: sub || null, ...status };
       });
     });
   }
 
-  /** Returns the activity with questions, WITHOUT correct_answer (uses the student_safe_questions view). */
   async getStudentActivity(id) {
     const activity = this._throwIfError(await this.sb.from("activities").select("*").eq("id", id).single());
     const questions = this._throwIfError(
       await this.sb.from("student_safe_questions")
-        .select("*, activity_question_choices(*)").eq("activity_id", id).order("order")
+        .select("*, activity_question_choices(*)")
+        .eq("activity_id", id).order("order")
     );
     return { ...activity, questions };
   }
@@ -699,11 +763,7 @@ class LMSAdminAPI {
     );
   }
 
-  // ── Notifications ────────────────────────────────────────────────────────
-  // TIP: for live push (replacing the old SSE), subscribe to Realtime:
-  //   api.sb.channel('notifications').on('postgres_changes',
-  //     { event: 'INSERT', schema: 'public', table: 'notifications',
-  //       filter: `target_user_id=eq.${userId}` }, callback).subscribe();
+  // ── Notifications ─────────────────────────────────────────────────────────
 
   async getNotifications(limit = 20, offset = 0, unreadOnly = false) {
     let q = this.sb.from("notifications").select("*")
@@ -729,13 +789,12 @@ class LMSAdminAPI {
     return this._throwIfError(await this.sb.from("notifications").delete().eq("id", notifId));
   }
 
-  /** Admin broadcast. target: "all" | "teachers" | "students" */
   async sendAnnouncement(title, message, target = "all") {
     let roleFilter = null;
     if (target === "teachers") roleFilter = "teacher";
     if (target === "students") roleFilter = "student";
-    let q = this.sb.from("users").select("id, role_id, roles(name)").eq("is_active", true);
-    const { data: users } = await q;
+    const { data: users } = await this.sb
+      .from("users").select("id, role_id, roles(name)").eq("is_active", true);
     const targets = (users || []).filter(u => !roleFilter || u.roles.name === roleFilter).map(u => u.id);
     const me = this.getCurrentUser();
     const rows = targets.map(uid => ({
@@ -743,15 +802,17 @@ class LMSAdminAPI {
       title, message,
     }));
     if (rows.length) await this.sb.from("notifications").insert(rows);
-    return { message: `Announcement sent to ${rows.length} user(s).` };
+    // FIX: return sent_to count for admin.controller.js
+    return { message: `Announcement sent to ${rows.length} user(s).`, sent_to: rows.length };
   }
 
-  // ── Attendance (teacher) ────────────────────────────────────────────────
+  // ── Attendance (teacher) ──────────────────────────────────────────────────
 
   async getAttendanceSections() {
     return this._throwIfError(
       await this.sb.from("teacher_class_assignments")
-        .select("*, classes(*, sections(*))").eq("teacher_id", await this._myTeacherId())
+        .select("*, classes(*, sections(*))")
+        .eq("teacher_id", await this._myTeacherId())
     );
   }
 
@@ -807,8 +868,7 @@ class LMSAdminAPI {
     return this._throwIfError(await this.sb.from("attendance_sessions").delete().eq("id", sessionId));
   }
 
-  // ── Student Analytics — backed by analytics.engine.js (Phase 2 port) ─────
-  // Make sure assets/js/analytics.engine.js is loaded BEFORE this file.
+  // ── Analytics ─────────────────────────────────────────────────────────────
 
   async getDescriptiveAnalytics(subjectId = null) {
     const studentId = await this._myStudentId();

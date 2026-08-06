@@ -443,16 +443,12 @@
      4. Controllers (logic)
      5. app.js  (bootstrap)
      ════════════════════════════════════════════════════════════ -->
-<!-- API layer — MUST be first -->
+<!-- API layer — load order matters: supabase SDK → utils → analytics engine → api client -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script defer src="assets/js/analytics.engine.js"></script>
-<script defer src="assets/js/lms-supabase-api.js"></script>
-
-<!-- Data models -->
-
-<!-- Shared utilities -->
 <script defer src="utils/utils.js"></script>
 <script defer src="utils/loader.js"></script>
+<script defer src="assets/js/analytics.engine.js"></script>
+<script defer src="assets/js/lms-supabase-api.js"></script>
 
 <!-- Views (role-scoped) -->
 <script defer src="views/admin.view.js"></script>

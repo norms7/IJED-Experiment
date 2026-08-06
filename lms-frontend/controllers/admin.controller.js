@@ -229,8 +229,9 @@ const AdminController = {
       const data = await api.getClasses();
       const sel  = document.getElementById(selectId);
       if (!sel) return;
+      const classes = Array.isArray(data) ? data : (data.items || []);
       sel.innerHTML = '<option value="">— Skip for now —</option>' +
-        data.items.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+        classes.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
     } catch (e) { /* silent */ }
   },
 
@@ -744,7 +745,7 @@ const AdminController = {
     }
     try {
       const result = await api.sendAnnouncement(title, msg, target);
-      Toast.show(`📢 Announcement sent to ${result.sent_to} user(s).`, 'success');
+      Toast.show(`📢 Announcement sent to ${result.sent_to ?? ''} user(s).`, 'success');
       this.closeAnnouncement();
       document.getElementById('announce-title').value = '';
       document.getElementById('announce-msg').value   = '';
