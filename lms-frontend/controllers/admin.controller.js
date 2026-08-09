@@ -130,13 +130,13 @@ const AdminController = {
                 <div class="form-group">
                   <label class="form-label">Subject *</label>
                   <select class="form-control assignment-subject" data-index="0">
-                    <option value="">— Select Class First —</option>
+                    <option value="">— Select Section First —</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Class *</label>
+                  <label class="form-label">Section *</label>
                   <select class="form-control assignment-class" data-index="0">
-                    <option value="">— Select Class —</option>
+                    <option value="">— Select Section —</option>
                     ${classOpts}
                   </select>
                 </div>
@@ -270,7 +270,7 @@ const AdminController = {
         const newIndex = container.children.length;
         newRow.setAttribute('data-index', newIndex);
         newRow.querySelectorAll('select').forEach(el => { el.value = ''; });
-        newRow.querySelector('.assignment-subject').innerHTML = '<option value="">— Select Class First —</option>';
+        newRow.querySelector('.assignment-subject').innerHTML = '<option value="">— Select Section First —</option>';
         const removeBtn = newRow.querySelector('.remove-assignment-btn');
         if (removeBtn) removeBtn.style.display = 'inline-block';
         container.appendChild(newRow);
@@ -338,12 +338,11 @@ const AdminController = {
       return;
     }
 
-    // Filter classes whose name starts with the strand + grade digits
-    // e.g. strand=ICT, grade=11 → matches ICT1101, ICT1102
+    // ICT + 11 → matches ICT1101, ICT1102 (startsWith "ICT11")
+    const prefix = (strand + grade).toUpperCase();
     api.getClasses().then(classes => {
-      const arr = Array.isArray(classes) ? classes : [];
-      const prefix = strand + '1' + grade; // ICT + 1 + 11 = ICT111 → matches ICT1101, ICT1102
-      const matched = arr.filter(c => c.name.toUpperCase().startsWith(strand + '1' + grade));
+      const arr     = Array.isArray(classes) ? classes : [];
+      const matched = arr.filter(c => c.name.toUpperCase().startsWith(prefix));
       if (!matched.length) {
         secSel.innerHTML = '<option value="">No sections found for this strand & grade</option>';
         return;
@@ -521,7 +520,7 @@ const AdminController = {
             <div class="assignment-row" data-assignment-id="${ass.id}">
               <div class="form-row">
                 <div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject" data-idx="${idx}"><option value="">— Select Subject —</option>${subjects.map(s => `<option value="${s.id}" ${s.id === ass.subject_id ? 'selected' : ''}>${escHtml(s.name)}</option>`).join('')}</select></div>
-                <div class="form-group"><label>Class *</label><select class="form-control edit-assignment-class" data-idx="${idx}"><option value="">— Select Class —</option>${classes.map(c => `<option value="${c.id}" ${c.id === ass.class_id ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}</select></div>
+                <div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class" data-idx="${idx}"><option value="">— Select Section —</option>${classes.map(c => `<option value="${c.id}" ${c.id === ass.class_id ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}</select></div>
               </div>
               <div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" value="${escHtml(ass.schedule || '')}" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div>
               <button type="button" class="btn btn-xs btn-danger remove-existing-assignment" data-id="${ass.id}">✕ Remove</button>
@@ -529,7 +528,7 @@ const AdminController = {
             </div>`;
         });
         if (!existingAssignments.length) {
-          assignmentsHtml = `<div class="assignment-row" data-original="false"><div class="form-row"><div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject"><option value="">— Select Subject —</option>${subjectOpts}</select></div><div class="form-group"><label>Class *</label><select class="form-control edit-assignment-class"><option value="">— Select Class —</option>${classOpts}</select></div></div><div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div><button type="button" class="btn btn-xs btn-danger remove-assignment-btn" style="display:none;">✕ Remove</button><hr></div>`;
+          assignmentsHtml = `<div class="assignment-row" data-original="false"><div class="form-row"><div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject"><option value="">— Select Subject —</option>${subjectOpts}</select></div><div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class"><option value="">— Select Section —</option>${classOpts}</select></div></div><div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div><button type="button" class="btn btn-xs btn-danger remove-assignment-btn" style="display:none;">✕ Remove</button><hr></div>`;
         }
         extraFields = `
           <hr><h4>Teacher Details</h4>
@@ -731,7 +730,7 @@ const AdminController = {
         <input class="form-control" id="new-section-name" placeholder="e.g. Section A" />
       </div>
       <div class="form-group">
-        <label class="form-label">Class *</label>
+        <label class="form-label">Section *</label>
         <select class="form-control" id="new-section-class">${classOpts}</select>
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
@@ -769,7 +768,7 @@ const AdminController = {
           <input class="form-control" id="edit-section-name" value="${escHtml(section.name)}" />
         </div>
         <div class="form-group">
-          <label class="form-label">Class *</label>
+          <label class="form-label">Section *</label>
           <select class="form-control" id="edit-section-class">${classOpts}</select>
         </div>`,
         `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
