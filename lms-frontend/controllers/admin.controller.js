@@ -218,8 +218,31 @@ const AdminController = {
             <input class="form-control" id="f-guardian-contact" placeholder="e.g. 09XXXXXXXXX" />
           </div>
           <div class="form-group">
+            <label class="form-label">Grade Level</label>
+            <select class="form-control" id="f-grade-level" onchange="AdminController._filterSections()">
+              <option value="">— Select Grade —</option>
+              <option value="11">Grade 11</option>
+              <option value="12">Grade 12</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Strand</label>
+            <select class="form-control" id="f-strand" onchange="AdminController._filterSections()">
+              <option value="">— Select Strand —</option>
+              <option value="ICT">ICT</option>
+              <option value="ABM">ABM</option>
+              <option value="HUMSS">HUMSS</option>
+              <option value="STEM">STEM</option>
+              <option value="GAS">GAS</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label class="form-label">Assign Section <span style="font-size:11px;color:#888">(optional)</span></label>
-            <select class="form-control" id="f-section-id">${sectionOpts}</select>
+            <select class="form-control" id="f-section-id">
+              <option value="">— Select Strand & Grade First —</option>
+            </select>
           </div>
         </div>
       </div>`,
@@ -303,6 +326,35 @@ const AdminController = {
     } catch (e) { /* silent */ }
   },
 
+  // Filter sections by strand + grade for student assignment
+  _filterSections() {
+    const strand = (document.getElementById('f-strand')?.value || '').toUpperCase();
+    const grade  = document.getElementById('f-grade-level')?.value || '';
+    const secSel = document.getElementById('f-section-id');
+    if (!secSel) return;
+
+    if (!strand || !grade) {
+      secSel.innerHTML = '<option value="">— Select Strand & Grade First —</option>';
+      return;
+    }
+
+    // Filter classes whose name starts with the strand + grade digits
+    // e.g. strand=ICT, grade=11 → matches ICT1101, ICT1102
+    api.getClasses().then(classes => {
+      const arr = Array.isArray(classes) ? classes : [];
+      const prefix = strand + '1' + grade; // ICT + 1 + 11 = ICT111 → matches ICT1101, ICT1102
+      const matched = arr.filter(c => c.name.toUpperCase().startsWith(strand + '1' + grade));
+      if (!matched.length) {
+        secSel.innerHTML = '<option value="">No sections found for this strand & grade</option>';
+        return;
+      }
+      secSel.innerHTML = '<option value="">— Select Section —</option>' +
+        matched.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+    }).catch(() => {
+      secSel.innerHTML = '<option value="">Error loading sections</option>';
+    });
+  },
+
   _toggleRoleFields() {
     const role = document.getElementById('f-role').value;
     document.getElementById('teacher-fields').style.display = role === 'teacher' ? '' : 'none';
@@ -369,6 +421,10 @@ const AdminController = {
         const lrn             = document.getElementById('f-lrn').value.trim();
         const guardian        = document.getElementById('f-guardian').value.trim();
         const guardianContact = document.getElementById('f-guardian-contact').value.trim();
+        const strand          = (document.getElementById('f-strand')?.value || '').toUpperCase();
+        const grade           = document.getElementById('f-grade-level')?.value || '';
+        const classId         = document.getElementById('f-section-id').value;
+
         const studentProfile  = await api.createStudentProfile({
           user_id:          newUser.id,
           student_number:   lrn             || null,
@@ -376,10 +432,40 @@ const AdminController = {
           guardian_contact: guardianContact || null,
           contact_number:   null,
         });
-        const sectionId = document.getElementById('f-section-id').value;
-        if (sectionId) {
-          await api.assignStudentToSection({ student_id: studentProfile.id, section_id: parseInt(sectionId) });
-          Toast.show('Section assigned!', 'info');
+
+        if (classId) {
+          // Find or create a section under the selected class
+          let { data: existingSections } = await api.sb.from('sections')
+            .select('id').eq('class_id', parseInt(classId)).limit(1);
+          let sectionId;
+          if (existingSections && existingSections.length > 0) {
+            sectionId = existingSections[0].id;
+          } else {
+            // Auto-create a default section for this class
+            const className = document.getElementById('f-section-id')
+              .options[document.getElementById('f-section-id').selectedIndex]?.text || 'Main';
+            const { data: newSection } = await api.sb.from('sections')
+              .insert({ name: className, class_id: parseInt(classId) })
+              .select('id').single();
+            sectionId = newSection?.id;
+          }
+          if (sectionId) {
+            await api.assignStudentToSection({ student_id: studentProfile.id, section_id: sectionId });
+            Toast.show('Section assigned!', 'info');
+          }
+
+          // Auto-enroll in strand + core subjects for their grade
+          if (strand && grade) {
+            const allSubjects = await api.getSubjects();
+            const strandSubjects = allSubjects.filter(s => {
+              const n = s.name.toUpperCase();
+              return n.includes(strand + ' G' + grade) || n.includes('G' + grade + ' CORE');
+            });
+            if (strandSubjects.length > 0) {
+              await api.enrollStudentSubjects(studentProfile.id, strandSubjects.map(s => s.id));
+              Toast.show(`Enrolled in ${strandSubjects.length} subject(s) for ${strand} Grade ${grade}.`, 'info');
+            }
+          }
         }
       }
 
