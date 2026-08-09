@@ -130,8 +130,7 @@ const AdminController = {
                 <div class="form-group">
                   <label class="form-label">Subject *</label>
                   <select class="form-control assignment-subject" data-index="0">
-                    <option value="">— Select Subject —</option>
-                    ${subjectOpts}
+                    <option value="">— Select Class First —</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -142,9 +141,57 @@ const AdminController = {
                   </select>
                 </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">Schedule (optional)</label>
-                <input type="text" class="form-control assignment-schedule" data-index="0" placeholder="e.g. MWF 8:00-9:00 (Room 201)">
+              <div class="form-row schedule-row">
+                <div class="form-group">
+                  <label class="form-label">Days</label>
+                  <select class="form-control assignment-days">
+                    <option value="">— Days —</option>
+                    <option>MWF</option>
+                    <option>TTh</option>
+                    <option>MTuWThF</option>
+                    <option>MTuTh</option>
+                    <option>WThF</option>
+                    <option>Sat</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Time</label>
+                  <select class="form-control assignment-time">
+                    <option value="">— Time —</option>
+                    <option>7:00-8:00 AM</option>
+                    <option>8:00-9:00 AM</option>
+                    <option>9:00-10:00 AM</option>
+                    <option>10:00-11:00 AM</option>
+                    <option>11:00 AM-12:00 PM</option>
+                    <option>12:00-1:00 PM</option>
+                    <option>1:00-2:00 PM</option>
+                    <option>2:00-3:00 PM</option>
+                    <option>3:00-4:00 PM</option>
+                    <option>4:00-5:00 PM</option>
+                    <option>5:00-6:00 PM</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Room</label>
+                  <select class="form-control assignment-room">
+                    <option value="">— Room —</option>
+                    <option>Room 101</option>
+                    <option>Room 102</option>
+                    <option>Room 103</option>
+                    <option>Room 104</option>
+                    <option>Room 201</option>
+                    <option>Room 202</option>
+                    <option>Room 203</option>
+                    <option>Room 204</option>
+                    <option>ICT Lab 1</option>
+                    <option>ICT Lab 2</option>
+                    <option>ICT Lab 3</option>
+                    <option>Science Lab</option>
+                    <option>AVR</option>
+                    <option>Library</option>
+                    <option>Online / Virtual</option>
+                  </select>
+                </div>
               </div>
               <button type="button" class="btn btn-xs btn-danger remove-assignment-btn" style="display: none;">✕ Remove</button>
             </div>
@@ -199,16 +246,37 @@ const AdminController = {
         const newRow   = firstRow.cloneNode(true);
         const newIndex = container.children.length;
         newRow.setAttribute('data-index', newIndex);
-        newRow.querySelectorAll('select, input').forEach(el => {
-          if (el.className.includes('assignment-subject') || el.className.includes('assignment-class')) el.value = '';
-          else if (el.className.includes('assignment-schedule')) el.value = '';
-          if (el.hasAttribute('data-index')) el.setAttribute('data-index', newIndex);
-        });
+        newRow.querySelectorAll('select').forEach(el => { el.value = ''; });
+        newRow.querySelector('.assignment-subject').innerHTML = '<option value="">— Select Class First —</option>';
         const removeBtn = newRow.querySelector('.remove-assignment-btn');
         if (removeBtn) removeBtn.style.display = 'inline-block';
         container.appendChild(newRow);
         refreshRemoveButtons();
       };
+
+      // Filter subjects by strand+grade when class changes
+      const _filterSubjects = async (classSelect, subjectSelect) => {
+        const opt = classSelect.options[classSelect.selectedIndex];
+        const className = opt ? opt.text : '';
+        const strand = className.replace(/\d.*/, '').toUpperCase();
+        const gradeMatch = className.match(/(\d{2})/);
+        const grade = gradeMatch ? gradeMatch[1] : null;
+        const allSubjects = await api.getSubjects();
+        const filtered = allSubjects.filter(s => {
+          if (!grade || !strand) return true;
+          const n = s.name.toUpperCase();
+          return n.includes(strand + ' G' + grade) || n.includes('G' + grade + ' CORE');
+        });
+        subjectSelect.innerHTML = '<option value="">— Select Subject —</option>' +
+          filtered.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+      };
+
+      container.addEventListener('change', (e) => {
+        if (e.target.classList.contains('assignment-class')) {
+          const row = e.target.closest('.assignment-row');
+          _filterSubjects(e.target, row.querySelector('.assignment-subject'));
+        }
+      });
 
       container.addEventListener('click', (e) => {
         const btn = e.target.closest('.remove-assignment-btn');
@@ -280,8 +348,11 @@ const AdminController = {
         document.querySelectorAll('#teacher-assignments-container .assignment-row').forEach(row => {
           const subjectId = row.querySelector('.assignment-subject').value;
           const classId   = row.querySelector('.assignment-class').value;
-          const schedule  = row.querySelector('.assignment-schedule').value.trim();
-          if (subjectId && classId) assignments.push({ subjectId: parseInt(subjectId), classId: parseInt(classId), schedule: schedule || null });
+          const days      = row.querySelector('.assignment-days')?.value || '';
+          const time      = row.querySelector('.assignment-time')?.value || '';
+          const room      = row.querySelector('.assignment-room')?.value || '';
+          const schedule  = [days, time, room ? `(${room})` : ''].filter(Boolean).join(' ') || null;
+          if (subjectId && classId) assignments.push({ subjectId: parseInt(subjectId), classId: parseInt(classId), schedule });
         });
         if (assignments.length === 0) {
           Toast.show('Please add at least one subject & class assignment.', 'error');
