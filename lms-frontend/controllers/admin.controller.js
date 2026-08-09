@@ -327,7 +327,7 @@ const AdminController = {
   },
 
   // Filter sections by strand + grade for student assignment
-  _filterSections() {
+  async _filterSections() {
     const strand = (document.getElementById('f-strand')?.value || '').toUpperCase();
     const grade  = document.getElementById('f-grade-level')?.value || '';
     const secSel = document.getElementById('f-section-id');
@@ -338,20 +338,32 @@ const AdminController = {
       return;
     }
 
-    // ICT + 11 → matches ICT1101, ICT1102 (startsWith "ICT11")
-    const prefix = (strand + grade).toUpperCase();
-    api.getClasses().then(classes => {
-      const arr     = Array.isArray(classes) ? classes : [];
-      const matched = arr.filter(c => c.name.toUpperCase().startsWith(prefix));
+    secSel.innerHTML = '<option value="">Loading…</option>';
+
+    try {
+      // Query DB directly — filter by grade_level column, then filter by strand prefix
+      const gradeLabel = grade === '11' ? 'Grade 11' : 'Grade 12';
+      const { data, error } = await api.sb
+        .from('classes')
+        .select('id, name, grade_level')
+        .eq('is_active', true)
+        .eq('grade_level', gradeLabel);
+
+      if (error) throw new Error(error.message);
+
+      const matched = (data || []).filter(c => c.name.toUpperCase().startsWith(strand));
+
       if (!matched.length) {
-        secSel.innerHTML = '<option value="">No sections found for this strand & grade</option>';
+        secSel.innerHTML = `<option value="">No ${strand} sections for Grade ${grade} found</option>`;
         return;
       }
+
       secSel.innerHTML = '<option value="">— Select Section —</option>' +
         matched.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
-    }).catch(() => {
+    } catch (err) {
+      console.error('_filterSections error:', err);
       secSel.innerHTML = '<option value="">Error loading sections</option>';
-    });
+    }
   },
 
   _toggleRoleFields() {
