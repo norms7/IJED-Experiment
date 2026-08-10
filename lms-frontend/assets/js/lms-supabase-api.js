@@ -658,19 +658,31 @@ class LMSAdminAPI {
 
   // ── Student Portal ────────────────────────────────────────────────────────
 
-  async getStudentSubjects() {
-    return this._cached("student:mysubjects", 60_000, async () => {
+  async getStudentSubjects(semesterFilter = null) {
+    const cacheKey = `student:mysubjects:${semesterFilter || 'all'}`;
+    return this._cached(cacheKey, 60_000, async () => {
       const data = this._throwIfError(
         await this.sb.from("student_subject_enrollments")
-          .select("*, subjects(*)").eq("student_id", await this._myStudentId())
+          .select("*, subjects(id, name, description, semester)")
+          .eq("student_id", await this._myStudentId())
       );
-      // Flatten for view compatibility: subject_id, subject_name
-      return data.map(row => ({
+      const rows = data.map(row => ({
         ...row,
-        subject_id: row.subject_id,
+        subject_id:   row.subject_id,
         subject_name: row.subjects?.name || "",
+        semester:     row.subjects?.semester ?? null,
       }));
+      if (semesterFilter) return rows.filter(r => r.semester === semesterFilter);
+      return rows;
     });
+  }
+
+  // Returns the "current" semester: the highest semester the student is enrolled in.
+  // Used to set the default tab in the My Subjects view.
+  async getStudentCurrentSemester() {
+    const all = await this.getStudentSubjects();
+    const semesters = [...new Set(all.map(r => r.semester).filter(Boolean))].sort();
+    return semesters.length ? semesters[semesters.length - 1] : 1;
   }
 
   async getStudentModules(subject_id = null) {

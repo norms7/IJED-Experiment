@@ -81,7 +81,7 @@ const DashboardController = {
   },
 
   /** Switch to a named section */
-  loadSection(sectionId) {
+  loadSection(sectionId, opts = {}) {
     this.currentSection = sectionId;
     document
       .querySelectorAll(".nav-item")
@@ -274,12 +274,14 @@ const DashboardController = {
       area.innerHTML = Loader.skeleton("list");
       Loader.init();
       try {
+        // Detect current semester from enrolled subjects (default to highest)
+        const currentSem = opts?.semester ?? (await api.getStudentCurrentSemester());
         const [subjects, modules, activities] = await Promise.all([
-          api.getStudentSubjects(),
+          api.getStudentSubjects(currentSem),
           api.getStudentModules(),
           api.getStudentActivities(),
         ]);
-        area.innerHTML = StudentView.mySubjects(subjects, modules, activities);
+        area.innerHTML = StudentView.mySubjects(subjects, modules, activities, currentSem);
         StudentController._attachSubjectAccordion();
         this._attachSearch();
       } catch (err) {

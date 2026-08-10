@@ -170,7 +170,7 @@ const StudentView = {
       </div>`;
   },
 
-  mySubjects(apiSubjects = null, apiModules = [], apiActivities = []) {
+  mySubjects(apiSubjects = null, apiModules = [], apiActivities = [], currentSem = null) {
     if (apiSubjects === null) {
       return `
         <div class="section-header">
@@ -181,6 +181,29 @@ const StudentView = {
           <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading subjects…</div></div>
         </div>`;
     }
+
+    const sem = currentSem || 1;
+
+    const semesterTabs = `
+      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+        <button onclick="DashboardController.loadSection('my-subjects',{semester:1})"
+          style="padding:7px 20px;border-radius:20px;border:2px solid var(--maroon,#7b1c1c);
+                 background:${sem===1?'var(--maroon,#7b1c1c)':'transparent'};
+                 color:${sem===1?'#fff':'var(--maroon,#7b1c1c)'};
+                 font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;">
+          📘 1st Semester
+        </button>
+        <button onclick="DashboardController.loadSection('my-subjects',{semester:2})"
+          style="padding:7px 20px;border-radius:20px;border:2px solid var(--maroon,#7b1c1c);
+                 background:${sem===2?'var(--maroon,#7b1c1c)':'transparent'};
+                 color:${sem===2?'#fff':'var(--maroon,#7b1c1c)'};
+                 font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;">
+          📗 2nd Semester
+        </button>
+        <span style="align-self:center;font-size:12px;color:#9ca3af;margin-left:4px;">
+          ${sem===1?'1st':'2nd'} Semester subjects
+        </span>
+      </div>`;
 
     const PALETTE = [
       { color: '#8b1a2e', icon: '➕' }, { color: '#2e6b3e', icon: '🔬' },
@@ -204,12 +227,13 @@ const StudentView = {
     if (!apiSubjects || !apiSubjects.length) {
       return `
         <div class="section-header">
-          <div class="section-header-left"><h2>My Subjects</h2><p>All enrolled subjects this term</p></div>
+          <div class="section-header-left"><h2>My Subjects</h2><p>${sem === 1 ? '1st' : '2nd'} Semester</p></div>
         </div>
+        ${semesterTabs}
         <div class="empty-state" style="margin-top:40px">
           <div class="empty-state-icon">📭</div>
-          <div class="empty-state-title">No Subjects Yet</div>
-          <div class="empty-state-desc">You have not been enrolled in any subjects yet. Please contact your admin or adviser.</div>
+          <div class="empty-state-title">No Subjects for ${sem === 1 ? '1st' : '2nd'} Semester</div>
+          <div class="empty-state-desc">You have no enrolled subjects for this semester. Try switching semesters above, or contact your admin.</div>
         </div>`;
     }
 
@@ -325,10 +349,11 @@ const StudentView = {
       <div class="section-header">
         <div class="section-header-left">
           <h2>My Subjects</h2>
-          <p>${apiSubjects.length} enrolled subject${apiSubjects.length !== 1 ? 's' : ''} · click a subject to expand</p>
+          <p>${apiSubjects.length} subject${apiSubjects.length !== 1 ? 's' : ''} · ${sem === 1 ? '1st' : '2nd'} Semester · click to expand</p>
         </div>
         <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
       </div>
+      ${semesterTabs}
       <div class="subject-list" id="student-subjects-list">${cards}</div>`;
   },
 
