@@ -217,12 +217,22 @@ const AdminController = {
             <label class="form-label">Guardian Contact</label>
             <input class="form-control" id="f-guardian-contact" placeholder="e.g. 09XXXXXXXXX" />
           </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label class="form-label">Grade Level</label>
             <select class="form-control" id="f-grade-level" onchange="AdminController._filterSections()">
               <option value="">— Select Grade —</option>
               <option value="11">Grade 11</option>
               <option value="12">Grade 12</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Semester</label>
+            <select class="form-control" id="f-semester">
+              <option value="">— Select Semester —</option>
+              <option value="1">1st Semester</option>
+              <option value="2">2nd Semester</option>
             </select>
           </div>
         </div>
@@ -434,6 +444,7 @@ const AdminController = {
         const guardianContact = document.getElementById('f-guardian-contact').value.trim();
         const strand          = (document.getElementById('f-strand')?.value || '').toUpperCase();
         const grade           = document.getElementById('f-grade-level')?.value || '';
+        const semester        = parseInt(document.getElementById('f-semester')?.value || '0');
         const classId         = document.getElementById('f-section-id').value;
 
         const studentProfile  = await api.createStudentProfile({
@@ -465,16 +476,20 @@ const AdminController = {
             Toast.show('Section assigned!', 'info');
           }
 
-          // Auto-enroll in strand + core subjects for their grade
+          // Auto-enroll in strand + core subjects for their grade AND semester
           if (strand && grade) {
             const allSubjects = await api.getSubjects();
             const strandSubjects = allSubjects.filter(s => {
               const n = s.name.toUpperCase();
-              return n.includes(strand + ' G' + grade) || n.includes('G' + grade + ' CORE');
+              const matchStrand = n.includes(strand + ' G' + grade);
+              const matchCore   = n.includes('G' + grade + ' CORE');
+              const matchSem    = !semester || s.semester === semester;
+              return (matchStrand || matchCore) && matchSem;
             });
             if (strandSubjects.length > 0) {
               await api.enrollStudentSubjects(studentProfile.id, strandSubjects.map(s => s.id));
-              Toast.show(`Enrolled in ${strandSubjects.length} subject(s) for ${strand} Grade ${grade}.`, 'info');
+              const semLabel = semester === 1 ? '1st' : semester === 2 ? '2nd' : '';
+              Toast.show(`Enrolled in ${strandSubjects.length} subject(s) for ${strand} Grade ${grade}${semLabel ? ' ' + semLabel + ' Sem' : ''}.`, 'info');
             }
           }
         }
