@@ -97,7 +97,7 @@ const DashboardController = {
     area.innerHTML = this._render(sectionId);
     // Re-attach the overlay div every time content-area is wiped
     Loader.init();
-    this._postRender(sectionId);
+    this._postRender(sectionId, opts);
   },
 
   /** Return HTML shell for a section (no data yet) */
@@ -134,7 +134,7 @@ const DashboardController = {
   },
 
   /** After rendering shell, fetch real data and wire up event handlers */
-  async _postRender(sectionId) {
+  async _postRender(sectionId, opts = {}) {
     const role = this.currentUser.role;
     const user = this.currentUser;
     const area = document.getElementById("content-area");
