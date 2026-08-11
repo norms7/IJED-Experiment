@@ -755,11 +755,16 @@ class LMSAdminAPI {
     const activity = this._throwIfError(
       await this.sb.from("activities").select("*").eq("id", id).single()
     );
-    const questions = this._throwIfError(
+    const rawQuestions = this._throwIfError(
       await this.sb.from("student_safe_questions")
         .select("*, activity_question_choices(*)")
         .eq("activity_id", id).order("order")
     );
+    // Normalize: rename activity_question_choices -> choices so the view can use q.choices
+    const questions = (rawQuestions || []).map(q => ({
+      ...q,
+      choices: (q.activity_question_choices || []).sort((a, b) => a.order - b.order),
+    }));
     const studentId = await this._myStudentId();
     const { data: existingSub } = await this.sb
       .from("activity_submissions")
@@ -967,4 +972,4 @@ class LMSAdminAPI {
 }
 
 // Global singleton — all controllers reference this as `api`
-const api = new LMSAdminAPI();
+const api = new LMSAdminAPI();w
