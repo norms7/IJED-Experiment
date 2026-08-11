@@ -537,8 +537,31 @@ const TeacherController = {
       };
 
       const isManual = activity.grading_mode === 'manual';
-      const rows = submissions.map(s => {
-        const studentLabel = s.student_name ? escHtml(s.student_name) : `Student #${s.student_id}`;
+
+      // Build section filter options from submission data
+      const sectionMap = new Map();
+      submissions.forEach(s => {
+        if (s.class_id && s.section_name) sectionMap.set(s.class_id, s.section_name);
+      });
+      const hasSections = sectionMap.size > 1;
+      const sectionFilterHtml = hasSections
+        ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+            <span style="font-size:13px;color:#6b7280;font-weight:500;">Section:</span>
+            <select id="submission-section-filter"
+              style="padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:13px;cursor:pointer"
+              onchange="TeacherController._filterSubmissionRows()">
+              <option value="">All Sections (${submissions.length})</option>
+              ${[...sectionMap.entries()].map(([id, name]) =>
+                `<option value="${id}">${escHtml(name)} (${submissions.filter(s => s.class_id === id).length})</option>`
+              ).join('')}
+            </select>
+          </div>`
+        : '';
+
+      const buildRows = (subs) => subs.map(s => {
+        const studentLabel = escHtml(s.student_name || `Student #${s.student_id}`);
+        const sectionBadge = s.section_name
+          ? `<br><span style="font-size:11px;color:#6b7280">${escHtml(s.section_name)}</span>` : '';
         const submittedAt  = s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : '—';
         let scoreCell = '— Pending —', pctCell = '—', gradeCell = '—';
 
@@ -558,8 +581,8 @@ const TeacherController = {
           ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score || 100})">✏️ Grade</button>`
           : (s.is_graded ? `<span class="badge badge-green">✓ Graded</span>` : `<span class="badge badge-gray">Auto</span>`);
 
-        return `<tr data-searchable>
-          <td><strong>${studentLabel}</strong></td>
+        return `<tr data-class-id="${s.class_id || ''}" data-searchable>
+          <td><strong>${studentLabel}</strong>${sectionBadge}</td>
           <td>${submittedAt}</td>
           <td>${scoreCell}</td>
           <td>${pctCell}</td>
@@ -568,11 +591,15 @@ const TeacherController = {
         </tr>`;
       }).join('');
 
+      // Store submissions on controller for filter re-render
+      TeacherController._submissionsCache = { activity, submissions, computeGrade, isManual, buildRows };
+
       Modal.show(
         `📊 ${escHtml(activity.title)} — Submissions`,
-        `<div class="table-wrap"><table class="data-table">
-          <thead><tr><th>Student</th><th>Submitted</th><th>Score</th><th>Percentage</th><th>Grade</th><th>Action</th></tr></thead>
-          <tbody>${rows}</tbody>
+        `${sectionFilterHtml}
+        <div class="table-wrap"><table class="data-table" id="submissions-table">
+          <thead><tr><th>Student</th><th>Submitted</th><th>Score</th><th>%</th><th>Grade</th><th>Action</th></tr></thead>
+          <tbody id="submissions-tbody">${buildRows(submissions)}</tbody>
         </table></div>`,
         `<button class="btn btn-ghost" onclick="Modal.close()">Close</button>`,
         { wide: true }
@@ -587,6 +614,22 @@ const TeacherController = {
   },
 
   // ── Manual Grade Modal ────────────────────────────────────
+
+  // Section filter for submissions modal
+  _submissionsCache: null,
+
+  _filterSubmissionRows() {
+    const sel     = document.getElementById('submission-section-filter');
+    const classId = sel ? sel.value : '';
+    const tbody   = document.getElementById('submissions-tbody');
+    if (!tbody) return;
+    const cache = TeacherController._submissionsCache;
+    if (!cache) return;
+    const filtered = classId
+      ? cache.submissions.filter(s => String(s.class_id) === String(classId))
+      : cache.submissions;
+    tbody.innerHTML = cache.buildRows(filtered);
+  },
 
   openManualGrade(activityId, submissionId, maxScore) {
     Modal.show('✏️ Enter Grade', `
