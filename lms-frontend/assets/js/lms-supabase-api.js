@@ -713,14 +713,40 @@ class LMSAdminAPI {
       const subByActivity = new Map((submissions || []).map(s => [s.activity_id, s]));
       const now = new Date();
       return activities.map(a => {
-        const sub = subByActivity.get(a.id);
-        let status = { status: "open", label: "Open" };
-        if (sub) status = sub.is_graded
-          ? { status: "graded", label: "Graded" }
-          : { status: "submitted", label: "Submitted – Pending Grade" };
-        else if (a.due_date && now > new Date(a.due_date))
-          status = { status: "past_due", label: "Past Due – No Submission" };
-        return { ...a, submission: sub || null, ...status };
+        const sub        = subByActivity.get(a.id) || null;
+        const isPastDue  = !!(a.due_date && now > new Date(a.due_date));
+        const isStarted  = !a.start_date || now >= new Date(a.start_date);
+        const alreadySub = !!sub;
+
+        let status;
+        if (alreadySub) {
+          status = sub.is_graded ? "graded" : "submitted";
+        } else if (isPastDue) {
+          status = "past_due";
+        } else if (!isStarted) {
+          status = "not_open";
+        } else {
+          status = "open";
+        }
+
+        // can_answer = true only when activity is open, student hasn't submitted,
+        // not past due, and not before start_date
+        const canAnswer = status === "open";
+
+        return {
+          ...a,
+          submission:        sub,
+          my_submission:     sub,
+          status,
+          label:             status === "open"      ? "Open"
+                           : status === "graded"    ? "Graded"
+                           : status === "submitted" ? "Submitted – Pending Grade"
+                           : status === "past_due"  ? "Past Due – No Submission"
+                           : "Not Yet Open",
+          can_answer:        canAnswer,
+          is_past_due:       isPastDue,
+          already_submitted: alreadySub,
+        };
       });
     });
   }
@@ -919,4 +945,4 @@ class LMSAdminAPI {
 }
 
 // Global singleton — all controllers reference this as `api`
-const api = new LMSAdminAPI();
+const api = new LMSAdminAPI();a
