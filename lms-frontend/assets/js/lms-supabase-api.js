@@ -752,13 +752,32 @@ class LMSAdminAPI {
   }
 
   async getStudentActivity(id) {
-    const activity = this._throwIfError(await this.sb.from("activities").select("*").eq("id", id).single());
+    const activity = this._throwIfError(
+      await this.sb.from("activities").select("*").eq("id", id).single()
+    );
     const questions = this._throwIfError(
       await this.sb.from("student_safe_questions")
         .select("*, activity_question_choices(*)")
         .eq("activity_id", id).order("order")
     );
-    return { ...activity, questions };
+    const studentId = await this._myStudentId();
+    const { data: existingSub } = await this.sb
+      .from("activity_submissions")
+      .select("id, is_graded, score, max_score, grade, submitted_at")
+      .eq("activity_id", id)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    const now       = new Date();
+    const isPastDue = !!(activity.due_date && now > new Date(activity.due_date));
+    const isStarted = !activity.start_date || now >= new Date(activity.start_date);
+    const canAnswer = !existingSub && !isPastDue && isStarted && activity.is_published;
+    return {
+      ...activity,
+      questions,
+      can_answer:    canAnswer,
+      is_past_due:   isPastDue,
+      my_submission: existingSub || null,
+    };
   }
 
   async submitActivityAnswers(activityId, answers) {
@@ -772,11 +791,14 @@ class LMSAdminAPI {
 
   async getMyActivityResult(activityId) {
     const studentId = await this._myStudentId();
-    return this._throwIfError(
-      await this.sb.from("activity_submissions")
-        .select("*, activity_answers(*)")
-        .eq("activity_id", activityId).eq("student_id", studentId).single()
-    );
+    const res = await this.sb
+      .from("activity_submissions")
+      .select("*, activity_answers(*)")
+      .eq("activity_id", activityId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (res.error) throw new Error(res.error.message);
+    return res.data;
   }
 
   async getStudentDashboardStats() {
@@ -945,4 +967,4 @@ class LMSAdminAPI {
 }
 
 // Global singleton — all controllers reference this as `api`
-const api = new LMSAdminAPI();a
+const api = new LMSAdminAPI();
