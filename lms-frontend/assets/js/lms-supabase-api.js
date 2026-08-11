@@ -505,13 +505,20 @@ class LMSAdminAPI {
   }
 
   async getClassStudents(classId) {
-    return this._cached(`teacher:classstudents:${classId}`, 60_000, async () =>
-      this._throwIfError(
+    return this._cached(`teacher:classstudents:${classId}`, 60_000, async () => {
+      const data = this._throwIfError(
         await this.sb.from("student_section_assignments")
           .select("students(*, users(first_name, last_name)), sections!inner(class_id)")
           .eq("sections.class_id", classId)
-      )
-    );
+      );
+      // Flatten: pull students out + rename users -> user so views use stu.user.first_name
+      return (data || [])
+        .filter(r => r.students)
+        .map(r => ({
+          ...r.students,
+          user: r.students.users,  // rename for view compatibility
+        }));
+    });
   }
 
   async getClassModuleReads(classId) {
@@ -640,11 +647,35 @@ class LMSAdminAPI {
   }
 
   async getActivitySubmissions(activityId) {
-    return this._throwIfError(
+    const data = this._throwIfError(
       await this.sb.from("activity_submissions")
-        .select("*, students(*, users(first_name, last_name)), activity_answers(*)")
+        .select(`*,
+          students(id, student_number,
+            users(first_name, last_name),
+            student_section_assignments(
+              sections(id, name, classes(id, name))
+            )
+          ),
+          activity_answers(*)`)
         .eq("activity_id", activityId)
+        .order("submitted_at", { ascending: true })
     );
+    // Normalize: flatten name and section so controller/view uses simple fields
+    return (data || []).map(s => {
+      const u        = s.students?.users;
+      const fullName = u
+        ? `${u.first_name || ""} ${u.last_name || ""}`.trim()
+        : `Student #${s.student_id}`;
+      const assign   = (s.students?.student_section_assignments || [])[0];
+      const cls      = assign?.sections?.classes;
+      return {
+        ...s,
+        student_name:   fullName,
+        student_number: s.students?.student_number || null,
+        section_name:   cls?.name || assign?.sections?.name || null,
+        class_id:       cls?.id   || null,
+      };
+    });
   }
 
   async manualGradeSubmission(activityId, submissionId, gradeData) {
@@ -972,4 +1003,4 @@ class LMSAdminAPI {
 }
 
 // Global singleton — all controllers reference this as `api`
-const api = new LMSAdminAPI();w
+const api = new LMSAdminAPI();z
