@@ -581,13 +581,16 @@ const TeacherController = {
           ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score || 100})">✏️ Grade</button>`
           : (s.is_graded ? `<span class="badge badge-green">✓ Graded</span>` : `<span class="badge badge-gray">Auto</span>`);
 
-        return `<tr data-class-id="${s.class_id || ''}" data-searchable>
+        return `<tr data-class-id="${s.class_id || ''}" data-searchable
+          style="cursor:pointer"
+          onclick="TeacherController.viewStudentAnswers(${activity.id}, ${s.id})"
+          title="Click to view ${escHtml(s.student_name || 'student')}'s answers">
           <td><strong>${studentLabel}</strong>${sectionBadge}</td>
           <td>${submittedAt}</td>
           <td>${scoreCell}</td>
           <td>${pctCell}</td>
           <td>${gradeCell}</td>
-          <td>${gradeBtn}</td>
+          <td onclick="event.stopPropagation()">${gradeBtn}</td>
         </tr>`;
       }).join('');
 
@@ -629,6 +632,123 @@ const TeacherController = {
       ? cache.submissions.filter(s => String(s.class_id) === String(classId))
       : cache.submissions;
     tbody.innerHTML = cache.buildRows(filtered);
+  },
+
+  // ── View individual student answers ──────────────────────────────────
+  async viewStudentAnswers(activityId, submissionId) {
+    Modal.show('📋 Student Answers', '<div class="text-center" style="padding:24px">Loading…</div>', '', { wide: true });
+    try {
+      const cache = TeacherController._submissionsCache;
+      const submission = cache?.submissions.find(s => s.id === submissionId);
+      if (!submission) throw new Error('Submission not found in cache');
+
+      // Fetch activity with questions + correct answers (teacher can see correct_answer)
+      const activity = await api.getTeacherActivity(activityId);
+      const answers  = submission.activity_answers || [];
+
+      // Map answers by question_id for quick lookup
+      const answerMap = new Map(answers.map(a => [a.question_id, a]));
+
+      const studentName   = escHtml(submission.student_name || `Student #${submission.student_id}`);
+      const submittedDate = submission.submitted_at
+        ? new Date(submission.submitted_at).toLocaleString() : '—';
+      const scoreLabel    = submission.is_graded && submission.score != null
+        ? `${submission.score} / ${activity.max_score ?? '—'}`
+        : 'Pending';
+
+      const questionRows = (activity.questions || []).map((q, idx) => {
+        const ans      = answerMap.get(q.id);
+        const answered = ans?.answer_value ?? null;
+        const type     = q.question_type;
+
+        // ── Render the student's answer based on question type ──────────
+        let answerDisplay = '<span style="color:#9ca3af;font-style:italic">No answer</span>';
+        let resultBadge   = '';
+
+        if (answered !== null && answered !== undefined && answered !== '') {
+          if (type === 'multiple_choice' || type === 'fill_blank') {
+            const isCorrect = ans?.is_correct;
+            answerDisplay   = `<span style="font-weight:600">${escHtml(String(answered))}</span>`;
+            if (isCorrect === true)  resultBadge = '<span class="badge badge-green" style="margin-left:8px">✓ Correct</span>';
+            if (isCorrect === false) resultBadge = '<span class="badge badge-danger" style="margin-left:8px">✗ Wrong</span>';
+
+          } else if (type === 'checkbox' || type === 'enumeration') {
+            let parsed = answered;
+            try { parsed = JSON.parse(answered); } catch (_) {}
+            const displayVal = Array.isArray(parsed) ? parsed.join(', ') : String(parsed);
+            answerDisplay   = `<span style="font-weight:600">${escHtml(displayVal)}</span>`;
+            if (ans?.is_correct === true)  resultBadge = '<span class="badge badge-green" style="margin-left:8px">✓ Correct</span>';
+            if (ans?.is_correct === false) resultBadge = '<span class="badge badge-danger" style="margin-left:8px">✗ Wrong</span>';
+
+          } else {
+            // essay / freeform / assignment — just show the text
+            answerDisplay = `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-top:4px;white-space:pre-wrap;font-size:13px;line-height:1.6">${escHtml(String(answered))}</div>`;
+          }
+        }
+
+        // Show correct answer for auto-graded types
+        let correctDisplay = '';
+        if (q.correct_answer && type !== 'essay' && type !== 'assignment' && type !== 'freeform') {
+          let correctVal = q.correct_answer;
+          try {
+            const parsed = JSON.parse(q.correct_answer);
+            if (Array.isArray(parsed)) correctVal = parsed.join(', ');
+          } catch (_) {}
+          correctDisplay = `
+            <div style="margin-top:6px;font-size:12px;color:#6b7280">
+              Correct answer: <strong style="color:#059669">${escHtml(String(correctVal))}</strong>
+            </div>`;
+        }
+
+        // Points earned
+        const pts = ans?.points_earned != null
+          ? `<span style="float:right;font-size:12px;color:#6b7280">${ans.points_earned}/${q.points} pts</span>`
+          : `<span style="float:right;font-size:12px;color:#9ca3af">${q.points} pts</span>`;
+
+        return `
+          <div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px;margin-bottom:12px;background:#fff">
+            <div style="font-size:13px;color:#6b7280;margin-bottom:4px">
+              Question ${idx + 1} <span style="text-transform:uppercase;font-size:11px;background:#f3f4f6;padding:2px 7px;border-radius:4px;margin-left:6px">${type.replace('_', ' ')}</span>
+              ${pts}
+            </div>
+            <div style="font-weight:600;font-size:15px;margin-bottom:10px;clear:both">${escHtml(q.question_text)}</div>
+            <div style="font-size:14px">${answerDisplay}${resultBadge}</div>
+            ${correctDisplay}
+          </div>`;
+      }).join('');
+
+      const gradeSection = submission.is_graded
+        ? `<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+            <span>✅ <strong>Graded</strong></span>
+            <span>Score: <strong>${scoreLabel}</strong></span>
+            ${submission.grade ? `<span>Grade: <strong>${escHtml(submission.grade)}</strong></span>` : ''}
+            ${submission.remarks ? `<span style="color:#6b7280;font-size:13px">${escHtml(submission.remarks)}</span>` : ''}
+          </div>`
+        : `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 16px;margin-bottom:16px">
+            ⏳ <strong>Pending grade</strong>
+            ${activity.grading_mode === 'manual'
+              ? `<button class="btn btn-xs btn-primary" style="margin-left:12px"
+                   onclick="TeacherController.openManualGrade(${activityId}, ${submissionId}, ${activity.max_score || 100})">
+                   ✏️ Grade Now</button>`
+              : ''}
+          </div>`;
+
+      Modal.show(
+        `📋 ${escHtml(studentName)} — Answers`,
+        `<div style="font-size:13px;color:#6b7280;margin-bottom:6px">
+          Submitted: ${submittedDate} &nbsp;|&nbsp; Activity: <strong>${escHtml(activity.title)}</strong>
+        </div>
+        ${gradeSection}
+        <div>${questionRows || '<p style="color:#9ca3af;text-align:center">No questions found.</p>'}</div>`,
+        `<button class="btn btn-ghost" onclick="TeacherController.viewSubmissions(${activityId})">← Back to Submissions</button>
+         <button class="btn btn-ghost" onclick="Modal.close()">Close</button>`,
+        { wide: true }
+      );
+    } catch (err) {
+      console.error('viewStudentAnswers error:', err);
+      Modal.show('Error', `<p>Could not load answers: ${escHtml(err.message)}</p>`,
+        `<button class="btn btn-ghost" onclick="Modal.close()">Close</button>`);
+    }
   },
 
   openManualGrade(activityId, submissionId, maxScore) {
