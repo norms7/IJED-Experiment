@@ -538,25 +538,63 @@ const TeacherController = {
 
       const isManual = activity.grading_mode === 'manual';
 
-      // Build section filter options from submission data
+      // ── Section map from submitted students ──────────────────────────────
       const sectionMap = new Map();
       submissions.forEach(s => {
         if (s.class_id && s.section_name) sectionMap.set(s.class_id, s.section_name);
       });
-      const hasSections = sectionMap.size > 1;
-      const sectionFilterHtml = hasSections
-        ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-            <span style="font-size:13px;color:#6b7280;font-weight:500;">Section:</span>
-            <select id="submission-section-filter"
-              style="padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:13px;cursor:pointer"
-              onchange="TeacherController._filterSubmissionRows()">
-              <option value="">All Sections (${submissions.length})</option>
-              ${[...sectionMap.entries()].map(([id, name]) =>
-                `<option value="${id}">${escHtml(name)} (${submissions.filter(s => s.class_id === id).length})</option>`
-              ).join('')}
-            </select>
-          </div>`
-        : '';
+
+      // Section filter — always show if there's at least 1 section
+      const sectionFilterHtml = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+          <span style="font-size:13px;color:#6b7280;font-weight:500;">📂 Section:</span>
+          <select id="submission-section-filter"
+            style="padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:13px;cursor:pointer"
+            onchange="TeacherController._filterSubmissionRows()">
+            <option value="">All Sections (${submissions.length} submitted)</option>
+            ${[...sectionMap.entries()].map(([id, name]) =>
+              `<option value="${id}">${escHtml(name)} — ${submissions.filter(s => s.class_id === id).length} submitted</option>`
+            ).join('')}
+          </select>
+        </div>`;
+
+      // ── Summary stats ─────────────────────────────────────────────────────
+      const gradedSubs   = submissions.filter(s => s.is_graded && s.score != null && activity.max_score);
+      const passed       = gradedSubs.filter(s => (s.score / activity.max_score) >= 0.75);
+      const failed       = gradedSubs.filter(s => (s.score / activity.max_score) <  0.75);
+      const pendingGrade = submissions.filter(s => !s.is_graded);
+      const avgScore     = gradedSubs.length
+        ? Math.round(gradedSubs.reduce((acc, s) => acc + (s.score / activity.max_score * 100), 0) / gradedSubs.length)
+        : null;
+      const passPct  = gradedSubs.length ? Math.round(passed.length / gradedSubs.length * 100) : null;
+      const failPct  = gradedSubs.length ? Math.round(failed.length / gradedSubs.length * 100) : null;
+
+      const summaryHtml = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:18px;padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb">
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:700;color:#7b1c1c">${submissions.length}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">Submitted</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:700;color:#059669">${passed.length}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">Passed${passPct !== null ? ` (${passPct}%)` : ''}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:700;color:#dc2626">${failed.length}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">Failed${failPct !== null ? ` (${failPct}%)` : ''}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:700;color:#d97706">${pendingGrade.length}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">Pending Grade</div>
+          </div>
+          ${avgScore !== null ? `<div style="text-align:center">
+            <div style="font-size:22px;font-weight:700;color:#2563eb">${avgScore}%</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">Class Average</div>
+          </div>` : ''}
+        </div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:6px;padding:0 2px">
+          Passing threshold: 75% &nbsp;|&nbsp; ${gradedSubs.length} graded &nbsp;|&nbsp; ${pendingGrade.length} pending
+        </div>`;
 
       const buildRows = (subs) => subs.map(s => {
         const studentLabel = escHtml(s.student_name || `Student #${s.student_id}`);
@@ -603,7 +641,8 @@ const TeacherController = {
         <div class="table-wrap"><table class="data-table" id="submissions-table">
           <thead><tr><th>Student</th><th>Submitted</th><th>Score</th><th>%</th><th>Grade</th><th>Action</th></tr></thead>
           <tbody id="submissions-tbody">${buildRows(submissions)}</tbody>
-        </table></div>`,
+        </table></div>
+        ${summaryHtml}`,
         `<button class="btn btn-ghost" onclick="Modal.close()">Close</button>`,
         { wide: true }
       );
@@ -656,7 +695,14 @@ const TeacherController = {
         ? `${submission.score} / ${activity.max_score ?? '—'}`
         : 'Pending';
 
-      const questionRows = (activity.questions || []).map((q, idx) => {
+      // Normalize: getTeacherActivity returns activity_questions, not questions
+      const questions = (activity.activity_questions || [])
+        .sort((a, b) => a.order - b.order)
+        .map(q => ({
+          ...q,
+          choices: (q.activity_question_choices || []).sort((a, b) => a.order - b.order),
+        }));
+      const questionRows = questions.map((q, idx) => {
         const ans      = answerMap.get(q.id);
         const answered = ans?.answer_value ?? null;
         const type     = q.question_type;
