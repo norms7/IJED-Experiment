@@ -514,9 +514,45 @@ const TeacherController = {
         api.getActivitySubmissions(activityId),
       ]);
 
+      // Fetch enrolled students for this subject so we can show who hasn't submitted
+      let enrolledStudents = [];
+      if (activity.subject_id) {
+        const { data: enrolled } = await api.sb
+          .from("student_subject_enrollments")
+          .select("students(id, student_number, users(first_name, last_name), student_section_assignments(sections(classes(id, name))))")
+          .eq("subject_id", activity.subject_id);
+        enrolledStudents = (enrolled || []).map(e => {
+          const s   = e.students;
+          const u   = s?.users;
+          const cls = s?.student_section_assignments?.[0]?.sections?.classes;
+          return {
+            id:           s?.id,
+            full_name:    u ? `${u.first_name} ${u.last_name}`.trim() : `Student #${s?.id}`,
+            student_number: s?.student_number,
+            class_name:   cls?.name || null,
+            class_id:     cls?.id   || null,
+          };
+        }).filter(s => s.id);
+      }
+
+      const submittedIds = new Set(submissions.map(s => s.student_id));
+      const notSubmitted = enrolledStudents.filter(s => !submittedIds.has(s.id));
+
       if (!submissions.length) {
+        const nsList = notSubmitted.map(s =>
+          `<li style="padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
+            ${escHtml(s.full_name)}
+            ${s.class_name ? `<span style="color:#9ca3af;font-size:11px;margin-left:6px">${escHtml(s.class_name)}</span>` : ''}
+          </li>`).join('');
         Modal.show('📊 Submissions',
-          `<div class="empty-state" style="padding:24px 0"><div class="empty-state-icon">📭</div><div class="empty-state-title">No submissions yet</div></div>`,
+          `<div class="empty-state" style="padding:24px 0">
+            <div class="empty-state-icon">📭</div>
+            <div class="empty-state-title">No submissions yet</div>
+            ${notSubmitted.length ? `<div style="margin-top:16px;text-align:left;max-width:360px">
+              <p style="font-size:13px;font-weight:600;margin-bottom:8px">🕐 Not yet answered (${notSubmitted.length}):</p>
+              <ul style="list-style:none;padding:0;margin:0">${nsList}</ul>
+            </div>` : ''}
+          </div>`,
           '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>',
           { wide: true }
         );
@@ -569,8 +605,23 @@ const TeacherController = {
       const passPct  = gradedSubs.length ? Math.round(passed.length / gradedSubs.length * 100) : null;
       const failPct  = gradedSubs.length ? Math.round(failed.length / gradedSubs.length * 100) : null;
 
+      // Not yet submitted list
+      const notSubmittedHtml = notSubmitted.length
+        ? `<div style="margin-top:18px;padding:14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px">
+            <div style="font-size:13px;font-weight:700;color:#c2410c;margin-bottom:10px">
+              🕐 Not Yet Submitted (${notSubmitted.length} of ${enrolledStudents.length} enrolled)
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              ${notSubmitted.map(s => `
+                <span style="background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-size:12px">
+                  ${escHtml(s.full_name)}
+                  ${s.class_name ? `<span style="color:#9ca3af;margin-left:4px">(${escHtml(s.class_name)})</span>` : ''}
+                </span>`).join('')}
+            </div>
+          </div>`
+        : `<div style="margin-top:10px;font-size:12px;color:#059669">✅ All enrolled students have submitted.</div>`;
+
       const summaryHtml = `
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:18px;padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb">
           <div style="text-align:center">
             <div style="font-size:22px;font-weight:700;color:#7b1c1c">${submissions.length}</div>
             <div style="font-size:11px;color:#6b7280;margin-top:2px">Submitted</div>
@@ -633,7 +684,7 @@ const TeacherController = {
       }).join('');
 
       // Store submissions on controller for filter re-render
-      TeacherController._submissionsCache = { activity, submissions, computeGrade, isManual, buildRows };
+      TeacherController._submissionsCache = { activity, submissions, notSubmitted, computeGrade, isManual, buildRows };
 
       Modal.show(
         `📊 ${escHtml(activity.title)} — Submissions`,
@@ -642,7 +693,8 @@ const TeacherController = {
           <thead><tr><th>Student</th><th>Submitted</th><th>Score</th><th>%</th><th>Grade</th><th>Action</th></tr></thead>
           <tbody id="submissions-tbody">${buildRows(submissions)}</tbody>
         </table></div>
-        ${summaryHtml}`,
+        ${summaryHtml}
+        ${notSubmittedHtml}`,
         `<button class="btn btn-ghost" onclick="Modal.close()">Close</button>`,
         { wide: true }
       );
