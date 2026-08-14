@@ -174,7 +174,7 @@ const GradebookController = {
           api.getTeacherActivities({ subject_id: subjectId }).catch(() => []),
           api.getMyModules(subjectId).catch(() => []),
           api.getAttendanceSectionStudents(this._currentClassId, { subjectId, term }).catch(() => ({ students: [], total_meetings: 0 })),
-          api.getClassModuleReads(this._currentClassId).catch(() => ({ module_reads: {}, total_modules: 0 })),
+          api.getClassModuleReads(this._currentClassId, subjectId).catch(() => ({ module_reads: {}, total_modules: 0 })),
         ]);
 
         // Fetch submissions per activity
@@ -186,7 +186,7 @@ const GradebookController = {
           )
         );
 
-        cached = { activities: activitiesWithSubs, modules, attendance, moduleReads: moduleReadsData.module_reads || {} };
+        cached = { activities: activitiesWithSubs, modules, attendance, moduleReads: moduleReadsData.module_reads || {}, totalModules: moduleReadsData.total_modules || modules.length };
         this._subjectCache[cacheKey] = cached;
       }
 
