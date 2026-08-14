@@ -521,14 +521,31 @@ class LMSAdminAPI {
     });
   }
 
-  async getClassModuleReads(classId) {
-    return this._cached(`teacher:modreads:${classId}`, 30_000, async () =>
-      this._throwIfError(
-        await this.sb.from("student_module_reads")
-          .select("*, modules!inner(class_id)")
-          .eq("modules.class_id", classId)
-      )
-    );
+  async getClassModuleReads(classId, subjectId = null) {
+    const cacheKey = `teacher:modreads:${classId}:${subjectId || "all"}`;
+    return this._cached(cacheKey, 30_000, async () => {
+      // Get published modules for this class (optionally filtered by subject)
+      let modQ = this.sb.from("modules").select("id").eq("class_id", classId).eq("is_published", true);
+      if (subjectId) modQ = modQ.eq("subject_id", subjectId);
+      const { data: mods } = await modQ;
+      const moduleIds = (mods || []).map(m => m.id);
+      if (!moduleIds.length) return { module_reads: {}, total_modules: 0 };
+
+      // Count unique modules read per student
+      const { data: reads } = await this.sb.from("student_module_reads")
+        .select("student_id, module_id").in("module_id", moduleIds);
+
+      const byStudent = {};
+      (reads || []).forEach(r => {
+        if (!byStudent[r.student_id]) byStudent[r.student_id] = new Set();
+        byStudent[r.student_id].add(r.module_id);
+      });
+      const module_reads = {};
+      Object.entries(byStudent).forEach(([sid, set]) => {
+        module_reads[parseInt(sid)] = set.size;
+      });
+      return { module_reads, total_modules: moduleIds.length };
+    });
   }
 
   async uploadModuleFile(file) {
@@ -913,11 +930,37 @@ class LMSAdminAPI {
   }
 
   async getAttendanceSectionStudents(classId, { subjectId = null, term = null } = {}) {
-    return this._throwIfError(
-      await this.sb.from("student_section_assignments")
-        .select("students(*, users(first_name, last_name)), sections!inner(class_id)")
-        .eq("sections.class_id", classId)
-    );
+    // Get attendance sessions for this class (filtered by subject + term)
+    let sessionQ = this.sb.from("attendance_sessions")
+      .select("id, has_class").eq("class_id", classId).eq("has_class", true);
+    if (subjectId) sessionQ = sessionQ.eq("subject_id", subjectId);
+    if (term)      sessionQ = sessionQ.eq("term", term);
+    const { data: sessions } = await sessionQ;
+    const sessionIds    = (sessions || []).map(s => s.id);
+    const total_meetings = sessionIds.length;
+
+    // Get all attendance records for these sessions
+    let records = [];
+    if (sessionIds.length) {
+      const { data: recs } = await this.sb.from("attendance_records")
+        .select("student_id, status").in("session_id", sessionIds);
+      records = recs || [];
+    }
+
+    // Aggregate per student
+    const byStudent = {};
+    records.forEach(r => {
+      if (!byStudent[r.student_id]) byStudent[r.student_id] = { present: 0, late: 0, absent: 0, excused: 0 };
+      byStudent[r.student_id][r.status] = (byStudent[r.student_id][r.status] || 0) + 1;
+    });
+    const students = Object.entries(byStudent).map(([sid, c]) => ({
+      id:      parseInt(sid),
+      present: c.present  || 0,
+      late:    c.late     || 0,
+      absent:  c.absent   || 0,
+      excused: c.excused  || 0,
+    }));
+    return { students, total_meetings };
   }
 
   async getAttendanceSessions(classId, { subjectId = null, term = null } = {}) {
@@ -1003,4 +1046,4 @@ class LMSAdminAPI {
 }
 
 // Global singleton — all controllers reference this as `api`
-const api = new LMSAdminAPI();z
+const api = new LMSAdminAPI();
