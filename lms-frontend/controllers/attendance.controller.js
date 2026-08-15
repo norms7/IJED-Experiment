@@ -61,9 +61,8 @@ const AttendanceController = {
     }
 
     const sec = this._sections.find(s => s.class_id === classId);
-    this._currentSubjects = sec?.subjects || [];
-
-    // Default: first subject, 1st term
+    // subjects is now [{subject_id, subject_name, schedule}]
+    this._currentSubjects  = sec?.subjects || [];
     this._currentSubjectId = this._currentSubjects[0]?.subject_id || null;
     this._currentTerm      = '1st';
 
