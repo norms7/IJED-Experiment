@@ -621,30 +621,24 @@ const TeacherController = {
           </div>`
         : `<div style="margin-top:10px;font-size:12px;color:#059669">✅ All enrolled students have submitted.</div>`;
 
-      const summaryHtml = `
-          <div style="text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#7b1c1c">${submissions.length}</div>
-            <div style="font-size:11px;color:#6b7280;margin-top:2px">Submitted</div>
+      const statBox = (value, label, color) =>
+        `<div style="text-align:center;min-width:90px;flex:1">
+          <div style="font-size:24px;font-weight:700;color:${color}">${value}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:3px">${label}</div>
+        </div>`;
+
+      const summaryHtml =
+        `<div style="margin-top:18px;padding:14px 10px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb">
+          <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:flex-start">
+            ${statBox(submissions.length, 'Submitted', '#7b1c1c')}
+            ${statBox(passed.length, 'Passed' + (passPct !== null ? ' (' + passPct + '%)' : ''), '#059669')}
+            ${statBox(failed.length, 'Failed' + (failPct !== null ? ' (' + failPct + '%)' : ''), '#dc2626')}
+            ${statBox(pendingGrade.length, 'Pending Grade', '#d97706')}
+            ${avgScore !== null ? statBox(avgScore + '%', 'Class Average', '#2563eb') : ''}
           </div>
-          <div style="text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#059669">${passed.length}</div>
-            <div style="font-size:11px;color:#6b7280;margin-top:2px">Passed${passPct !== null ? ` (${passPct}%)` : ''}</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:10px;text-align:center">
+            Passing threshold: 75% &nbsp;|&nbsp; ${gradedSubs.length} graded &nbsp;|&nbsp; ${pendingGrade.length} pending
           </div>
-          <div style="text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#dc2626">${failed.length}</div>
-            <div style="font-size:11px;color:#6b7280;margin-top:2px">Failed${failPct !== null ? ` (${failPct}%)` : ''}</div>
-          </div>
-          <div style="text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#d97706">${pendingGrade.length}</div>
-            <div style="font-size:11px;color:#6b7280;margin-top:2px">Pending Grade</div>
-          </div>
-          ${avgScore !== null ? `<div style="text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#2563eb">${avgScore}%</div>
-            <div style="font-size:11px;color:#6b7280;margin-top:2px">Class Average</div>
-          </div>` : ''}
-        </div>
-        <div style="font-size:11px;color:#9ca3af;margin-top:6px;padding:0 2px">
-          Passing threshold: 75% &nbsp;|&nbsp; ${gradedSubs.length} graded &nbsp;|&nbsp; ${pendingGrade.length} pending
         </div>`;
 
       const buildRows = (subs) => subs.map(s => {
@@ -838,7 +832,7 @@ const TeacherController = {
         </div>
         ${gradeSection}
         <div>${questionRows || '<p style="color:#9ca3af;text-align:center">No questions found.</p>'}</div>`,
-        `<button class="btn btn-ghost" onclick="TeacherController.viewSubmissions(${activityId})">← Back to Submissions</button>
+        `<button class="btn btn-ghost" onclick="TeacherController.openGradeActivity(${activityId})">← Back to Submissions</button>
          <button class="btn btn-ghost" onclick="Modal.close()">Close</button>`,
         { wide: true }
       );
