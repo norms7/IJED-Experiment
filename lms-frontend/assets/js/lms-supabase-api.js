@@ -922,24 +922,69 @@ class LMSAdminAPI {
   // ── Attendance (teacher) ──────────────────────────────────────────────────
 
   async getAttendanceSections() {
-    return this._throwIfError(
+    const teacherId = await this._myTeacherId();
+    const data = this._throwIfError(
       await this.sb.from("teacher_class_assignments")
-        .select("*, classes(*, sections(*))")
-        .eq("teacher_id", await this._myTeacherId())
+        .select("*, subjects(id, name), classes(id, name, grade_level, school_year, sections(id, name))")
+        .eq("teacher_id", teacherId)
     );
+
+    // Group by class so one class with multiple subjects appears as one row
+    const byClass = new Map();
+    for (const row of (data || [])) {
+      const cls = row.classes;
+      if (!cls) continue;
+      if (!byClass.has(cls.id)) {
+        byClass.set(cls.id, {
+          class_id:    cls.id,
+          class_name:  cls.name,
+          grade_level: cls.grade_level,
+          school_year: cls.school_year,
+          sections:    cls.sections || [],
+          subjects:    [],
+        });
+      }
+      const entry = byClass.get(cls.id);
+      if (row.subjects) {
+        entry.subjects.push({
+          subject_id:   row.subjects.id,
+          subject_name: row.subjects.name,
+          schedule:     row.schedule,
+          assignment_id: row.id,
+        });
+      }
+    }
+    return [...byClass.values()];
   }
 
   async getAttendanceSectionStudents(classId, { subjectId = null, term = null } = {}) {
-    // Get attendance sessions for this class (filtered by subject + term)
+    // 1. Get ALL students assigned to this class (for the modal + summary)
+    const { data: assignments } = await this.sb
+      .from("student_section_assignments")
+      .select("students(id, student_number, users(first_name, last_name)), sections!inner(class_id)")
+      .eq("sections.class_id", classId);
+
+    const allStudents = (assignments || [])
+      .filter(a => a.students)
+      .map(a => ({
+        id:             a.students.id,
+        student_number: a.students.student_number,
+        first_name:     a.students.users?.first_name || '',
+        last_name:      a.students.users?.last_name  || '',
+        full_name:      `${a.students.users?.first_name || ''} ${a.students.users?.last_name || ''}`.trim()
+                        || `Student #${a.students.id}`,
+      }));
+
+    // 2. Get attendance sessions for this class
     let sessionQ = this.sb.from("attendance_sessions")
       .select("id, has_class").eq("class_id", classId).eq("has_class", true);
     if (subjectId) sessionQ = sessionQ.eq("subject_id", subjectId);
     if (term)      sessionQ = sessionQ.eq("term", term);
     const { data: sessions } = await sessionQ;
-    const sessionIds    = (sessions || []).map(s => s.id);
+    const sessionIds     = (sessions || []).map(s => s.id);
     const total_meetings = sessionIds.length;
 
-    // Get all attendance records for these sessions
+    // 3. Get attendance records for summary
     let records = [];
     if (sessionIds.length) {
       const { data: recs } = await this.sb.from("attendance_records")
@@ -947,19 +992,21 @@ class LMSAdminAPI {
       records = recs || [];
     }
 
-    // Aggregate per student
+    // 4. Merge: every student gets their attendance counts
     const byStudent = {};
     records.forEach(r => {
       if (!byStudent[r.student_id]) byStudent[r.student_id] = { present: 0, late: 0, absent: 0, excused: 0 };
       byStudent[r.student_id][r.status] = (byStudent[r.student_id][r.status] || 0) + 1;
     });
-    const students = Object.entries(byStudent).map(([sid, c]) => ({
-      id:      parseInt(sid),
-      present: c.present  || 0,
-      late:    c.late     || 0,
-      absent:  c.absent   || 0,
-      excused: c.excused  || 0,
+
+    const students = allStudents.map(s => ({
+      ...s,
+      present: byStudent[s.id]?.present  || 0,
+      late:    byStudent[s.id]?.late     || 0,
+      absent:  byStudent[s.id]?.absent   || 0,
+      excused: byStudent[s.id]?.excused  || 0,
     }));
+
     return { students, total_meetings };
   }
 
