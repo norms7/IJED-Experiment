@@ -1,3 +1,6 @@
+
+  },
+};
 /* ============================================================
    controllers/attendance.controller.js
    Attendance Monitoring — Teacher role only.
@@ -155,7 +158,7 @@ const AttendanceController = {
   _showAttendanceModal(existingSession) {
     const isEdit  = !!existingSession;
     const title   = isEdit ? '✏️ Edit Attendance Session' : '📝 Take Attendance';
-    const body    = TeacherView.attendanceModal(this._currentStudents, existingSession);
+    const body    = TeacherView.attendanceModal(this._currentStudents, existingSession, this._currentSubjects || []);
     const footer  = `
       <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
       <button class="btn btn-primary" onclick="AttendanceController.saveAttendance()">
@@ -186,12 +189,13 @@ const AttendanceController = {
     const dateEl  = document.getElementById('att-date');
     const termEl  = document.getElementById('att-term');
     const notesEl = document.getElementById('att-notes');
+    const subjEl  = document.getElementById('att-subject');
     const hasClassRadio = document.querySelector('input[name="att_has_class"]:checked');
 
     if (!dateEl?.value) { Toast.show('Please select a date.', 'error'); return; }
 
-    const hasClass  = hasClassRadio?.value === 'yes';
-    const records   = [];
+    const hasClass = hasClassRadio?.value === 'yes';
+    const records  = [];
 
     if (hasClass) {
       for (const stu of this._currentStudents) {
@@ -204,9 +208,12 @@ const AttendanceController = {
       }
     }
 
+    // Read subject from modal dropdown (overrides the filter selection)
+    const modalSubjectId = subjEl?.value ? parseInt(subjEl.value) : (this._currentSubjectId || null);
+
     const payload = {
       class_id:     this._currentClassId,
-      subject_id:   this._currentSubjectId || null,
+      subject_id:   modalSubjectId,
       term:         termEl?.value || '1st',
       session_date: dateEl.value,
       has_class:    hasClass,
@@ -217,9 +224,9 @@ const AttendanceController = {
     try {
       if (this._editingSessionId) {
         await api.updateAttendanceSession(this._editingSessionId, {
-          has_class: payload.has_class,
-          notes:     payload.notes,
-          records:   payload.records,
+          has_class:  payload.has_class,
+          notes:      payload.notes,
+          records:    payload.records,
         });
         Toast.show('Attendance session updated.', 'success');
       } else {
@@ -227,10 +234,15 @@ const AttendanceController = {
         Toast.show('Attendance saved successfully.', 'success');
       }
       Modal.close();
+      // After saving, update current subject context to what was just saved
+      // so the session history shows immediately without needing to switch filters
+      if (modalSubjectId && modalSubjectId !== this._currentSubjectId) {
+        this._currentSubjectId = modalSubjectId;
+      }
       await this._renderSectionDetail();
     } catch (err) {
-      console.error('[Attendance] save:', err);
-      Toast.show('Failed to save attendance: ' + (err.message || 'Unknown error'), 'error');
+      console.error('[Attendance] save error:', err);
+      Toast.show('Failed to save: ' + (err.message || 'Unknown error'), 'error');
     }
   },
 
