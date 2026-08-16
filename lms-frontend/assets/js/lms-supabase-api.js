@@ -1011,10 +1011,18 @@ class LMSAdminAPI {
   }
 
   async getAttendanceSessions(classId, { subjectId = null, term = null } = {}) {
-    let q = this.sb.from("attendance_sessions").select("*").eq("class_id", classId);
-    if (subjectId) q = q.eq("subject_id", subjectId);
-    if (term) q = q.eq("term", term);
-    return this._throwIfError(await q);
+    // Fetch ALL sessions for the class — filter client-side so subject_id/term
+    // mismatches never silently hide sessions from the teacher.
+    const data = this._throwIfError(
+      await this.sb.from("attendance_sessions")
+        .select("*, subjects(name)")
+        .eq("class_id", classId)
+        .order("session_date", { ascending: false })
+    );
+    let results = data || [];
+    if (subjectId) results = results.filter(s => s.subject_id === subjectId);
+    if (term)      results = results.filter(s => s.term === term);
+    return results;
   }
 
   async getAttendanceSession(sessionId) {
