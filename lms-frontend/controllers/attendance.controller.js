@@ -1,6 +1,3 @@
-
-  },
-};
 /* ============================================================
    controllers/attendance.controller.js
    Attendance Monitoring — Teacher role only.
