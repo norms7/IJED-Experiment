@@ -648,10 +648,10 @@ const TeacherView = {
         ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}">${pct}%</span>`
         : `<span class="badge badge-gray">—</span>`;
       return `<tr data-searchable>
-        <td>
-          <div style="font-weight:600">${escHtml(stu.first_name + ' ' + stu.last_name)}</div>
+        <td style="white-space:nowrap;min-width:130px">
+          <div style="font-weight:600">${escHtml(stu.full_name || (stu.first_name + ' ' + stu.last_name))}</div>
         </td>
-        <td style="font-size:13px;color:var(--gray-500)">${escHtml(stu.student_number || '—')}</td>
+        <td style="font-size:13px;color:var(--gray-500);white-space:nowrap">${escHtml(stu.student_number || '—')}</td>
         <td style="text-align:center;font-weight:600;color:var(--green)">${stu.present}</td>
         <td style="text-align:center;font-weight:600;color:var(--red, #dc2626)">${stu.absent}</td>
         <td style="text-align:center;font-weight:600;color:var(--gold, #d97706)">${stu.late}</td>
@@ -715,18 +715,18 @@ const TeacherView = {
       </div>
 
       <div class="card">
-        <div class="table-wrap">
-          <table class="data-table">
+        <div class="table-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+          <table class="data-table" style="min-width:580px">
             <thead>
               <tr>
-                <th>Student Name</th>
-                <th>LRN / Stud. No.</th>
-                <th style="text-align:center;color:var(--green,#16a34a)">Present</th>
-                <th style="text-align:center;color:#dc2626">Absent</th>
-                <th style="text-align:center;color:#d97706">Late</th>
-                <th style="text-align:center;color:var(--gray-500)">Excused</th>
-                <th style="text-align:center">Total Meetings</th>
-                <th style="text-align:center">Attendance %</th>
+                <th style="white-space:nowrap;min-width:130px">Student Name</th>
+                <th style="white-space:nowrap">LRN / Stud. No.</th>
+                <th style="text-align:center;color:var(--green,#16a34a);white-space:nowrap">Present</th>
+                <th style="text-align:center;color:#dc2626;white-space:nowrap">Absent</th>
+                <th style="text-align:center;color:#d97706;white-space:nowrap">Late</th>
+                <th style="text-align:center;color:var(--gray-500);white-space:nowrap">Excused</th>
+                <th style="text-align:center;white-space:nowrap">Total Meetings</th>
+                <th style="text-align:center;white-space:nowrap">Attendance %</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -771,10 +771,14 @@ const TeacherView = {
   },
 
   // ── Take Attendance modal body ─────────────────────────────────────────────
-  attendanceModal(students, existingSession) {
+  attendanceModal(students, existingSession, subjects = []) {
     const today = new Date().toISOString().slice(0, 10);
     const termOptions = ['1st','2nd','3rd','4th'].map(t =>
       `<option value="${t}" ${(existingSession?.term || '1st') === t ? 'selected' : ''}>${t} Quarter</option>`
+    ).join('');
+
+    const subjectOptions = subjects.map(s =>
+      `<option value="${s.subject_id}" ${existingSession?.subject_id === s.subject_id ? 'selected' : ''}>${escHtml(s.subject_name)}</option>`
     ).join('');
 
     const hasClass = existingSession ? existingSession.has_class : true;
@@ -788,10 +792,10 @@ const TeacherView = {
     const studentRows = students.map(stu => {
       const status = existingRecords[stu.id] || 'present';
       return `<tr>
-        <td style="padding:8px 10px;font-size:13px">
-          <div style="font-weight:600">${escHtml(stu.first_name + ' ' + stu.last_name)}</div>
+        <td style="padding:8px 10px;font-size:13px;white-space:nowrap;min-width:140px">
+          <div style="font-weight:600">${escHtml(stu.full_name || (stu.first_name + ' ' + stu.last_name))}</div>
         </td>
-        <td style="padding:8px 10px;font-size:12px;color:var(--gray-400)">${escHtml(stu.student_number || '—')}</td>
+        <td style="padding:8px 10px;font-size:12px;color:var(--gray-400);white-space:nowrap">${escHtml(stu.student_number || '—')}</td>
         <td style="padding:8px 10px;text-align:center">
           <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
             <input type="radio" name="att_${stu.id}" value="present"
@@ -824,6 +828,15 @@ const TeacherView = {
     }).join('');
 
     return `
+      <!-- Row 0: SUBJECT (if multiple subjects) -->
+      ${subjects.length > 0 ? `
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">SUBJECT</label>
+        <select id="att-subject" class="form-control">
+          ${subjects.length > 1 ? '<option value="">— All Subjects —</option>' : ''}
+          ${subjectOptions}
+        </select>
+      </div>` : ''}
       <!-- Row 1: DATE + TERM -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div>
@@ -866,11 +879,11 @@ const TeacherView = {
         <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
           Students — mark status below
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('present')" style="color:var(--green,#16a34a)">✅ All Present</button>
           <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('absent')" style="color:#dc2626">❌ All Absent</button>
         </div>
-        <div class="table-wrap" style="max-height:380px;overflow-y:auto">
+        <div class="table-wrap" style="max-height:380px;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table style="width:100%;border-collapse:collapse">
             <thead style="position:sticky;top:0;z-index:1">
               <tr style="background:var(--gray-50)">
