@@ -109,38 +109,14 @@ const AnalyticsEngine = (() => {
   async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null) {
     const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
-      if (!subjectIds.length) return { calendar: {}, summary: {} };
-
-      const filterIds = subjectId ? [subjectId] : subjectIds;
-      const { data: sessions, error } = await sb
-        .from("attendance_sessions").select("*").in("subject_id", filterIds).order("session_date");
+      const { data, error } = await sb.rpc('get_student_attendance_calendar', {
+        p_student_id: studentId,
+        p_subject_id: subjectId,
+        p_year: year,
+        p_month: month
+      });
       if (error) throw new Error(error.message);
-      if (!sessions?.length) {
-        return { calendar: {}, summary: { present: 0, absent: 0, late: 0, excused: 0, no_class: 0 } };
-      }
-
-      const sessionIds = sessions.filter(s => s.has_class).map(s => s.id);
-      const recordsBySession = {};
-      if (sessionIds.length) {
-        const { data: records } = await sb
-          .from("attendance_records").select("session_id, status")
-          .in("session_id", sessionIds).eq("student_id", studentId);
-        for (const r of (records || [])) recordsBySession[r.session_id] = r.status;
-      }
-
-      const calendar = {};
-      const summary = { present: 0, absent: 0, late: 0, excused: 0, no_class: 0 };
-      for (const sess of sessions) {
-        const d = new Date(sess.session_date + "T00:00:00");
-        if (year && d.getFullYear() !== year) continue;
-        if (month && (d.getMonth() + 1) !== month) continue;
-        const key = sess.session_date;
-        const status = !sess.has_class ? "no_class" : (recordsBySession[sess.id] || "absent");
-        calendar[key] = status;
-        summary[status] = (summary[status] || 0) + 1;
-      }
-      return { calendar, summary };
+      return data; // returns { calendar, summary }
     });
   }
 
