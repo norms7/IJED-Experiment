@@ -867,14 +867,15 @@ class LMSAdminAPI {
   }
 
   async getMyAttendance() {
-    return this._cached("student:attendance", 30_000, async () =>
-      this._throwIfError(
-        await this.sb.from("attendance_records")
-          .select("*, attendance_sessions(*, subjects(name), classes(name))")
-          .eq("student_id", await this._myStudentId())
-      )
-    );
-  }
+  return this._cached("student:attendance", 30_000, async () => {
+    const studentId = await this._myStudentId();
+    const { data, error } = await this.sb.rpc('get_student_attendance_summary', {
+      p_student_id: studentId
+    });
+    if (error) throw new Error(error.message);
+    return data; // Already in the required format
+  });
+}
 
   // ── Notifications ─────────────────────────────────────────────────────────
 
