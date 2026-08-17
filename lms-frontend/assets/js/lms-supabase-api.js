@@ -959,72 +959,24 @@ class LMSAdminAPI {
   }
 
   async getAttendanceSectionStudents(classId, { subjectId = null, term = null } = {}) {
-    // 1. Get ALL students assigned to this class (for the modal + summary)
-    const { data: assignments } = await this.sb
-      .from("student_section_assignments")
-      .select("students(id, student_number, users(first_name, last_name)), sections!inner(class_id)")
-      .eq("sections.class_id", classId);
-
-    const allStudents = (assignments || [])
-      .filter(a => a.students)
-      .map(a => ({
-        id:             a.students.id,
-        student_number: a.students.student_number,
-        first_name:     a.students.users?.first_name || '',
-        last_name:      a.students.users?.last_name  || '',
-        full_name:      `${a.students.users?.first_name || ''} ${a.students.users?.last_name || ''}`.trim()
-                        || `Student #${a.students.id}`,
-      }));
-
-    // 2. Get attendance sessions for this class
-    let sessionQ = this.sb.from("attendance_sessions")
-      .select("id, has_class").eq("class_id", classId).eq("has_class", true);
-    if (subjectId) sessionQ = sessionQ.eq("subject_id", subjectId);
-    if (term)      sessionQ = sessionQ.eq("term", term);
-    const { data: sessions } = await sessionQ;
-    const sessionIds     = (sessions || []).map(s => s.id);
-    const total_meetings = sessionIds.length;
-
-    // 3. Get attendance records for summary
-    let records = [];
-    if (sessionIds.length) {
-      const { data: recs } = await this.sb.from("attendance_records")
-        .select("student_id, status").in("session_id", sessionIds);
-      records = recs || [];
-    }
-
-    // 4. Merge: every student gets their attendance counts
-    const byStudent = {};
-    records.forEach(r => {
-      if (!byStudent[r.student_id]) byStudent[r.student_id] = { present: 0, late: 0, absent: 0, excused: 0 };
-      byStudent[r.student_id][r.status] = (byStudent[r.student_id][r.status] || 0) + 1;
-    });
-
-    const students = allStudents.map(s => ({
-      ...s,
-      present: byStudent[s.id]?.present  || 0,
-      late:    byStudent[s.id]?.late     || 0,
-      absent:  byStudent[s.id]?.absent   || 0,
-      excused: byStudent[s.id]?.excused  || 0,
-    }));
-
-    return { students, total_meetings };
-  }
+  const { data, error } = await this.sb.rpc('get_teacher_attendance_summary', {
+    p_class_id: classId,
+    p_subject_id: subjectId,
+    p_term: term
+  });
+  if (error) throw new Error(error.message);
+  return data; // { total_meetings, students }
+}
 
   async getAttendanceSessions(classId, { subjectId = null, term = null } = {}) {
-    // Fetch ALL sessions for the class — filter client-side so subject_id/term
-    // mismatches never silently hide sessions from the teacher.
-    const data = this._throwIfError(
-      await this.sb.from("attendance_sessions")
-        .select("*, subjects(name)")
-        .eq("class_id", classId)
-        .order("session_date", { ascending: false })
-    );
-    let results = data || [];
-    if (subjectId) results = results.filter(s => s.subject_id === subjectId);
-    if (term)      results = results.filter(s => s.term === term);
-    return results;
-  }
+  const { data, error } = await this.sb.rpc('get_teacher_attendance_sessions', {
+    p_class_id: classId,
+    p_subject_id: subjectId,
+    p_term: term
+  });
+  if (error) throw new Error(error.message);
+  return data; // array of session objects
+}
 
   async getAttendanceSession(sessionId) {
     return this._throwIfError(
