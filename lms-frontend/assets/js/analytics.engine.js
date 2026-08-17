@@ -116,7 +116,7 @@ const AnalyticsEngine = (() => {
         p_month: month
       });
       if (error) throw new Error(error.message);
-      return data; // returns { calendar, summary }
+      return data;
     });
   }
 
