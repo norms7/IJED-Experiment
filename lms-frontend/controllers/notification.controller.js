@@ -1,6 +1,7 @@
 /* ============================================================
    controllers/notification.controller.js
    Real-time notifications via Supabase Realtime (replaces FastAPI SSE).
+   Robust version with reconnection, dedup, and polling.
    ============================================================ */
 
 "use strict";
@@ -10,19 +11,18 @@ const NotificationController = {
   _pollingInterval: null,
   _unreadCount: 0,
   _notifications: [],
+  _initialized: false,
+  _knownIds: new Set(), // dedup
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
-  init() {
+  init(force = false) {
+    if (this._initialized && !force) return;
     this._buildBellUI();
     this._fetchInitial();
     this._subscribeRealtime();
-    document.addEventListener("click", (e) => {
-      const dropdown = document.getElementById("notif-dropdown");
-      const bell     = document.getElementById("notif-bell-btn");
-      if (dropdown && bell && !dropdown.contains(e.target) && !bell.contains(e.target)) {
-        dropdown.classList.remove("open");
-      }
-    });
+    this._setupReconnection();
+    this._startPolling(30000); // fallback every 30s
+    this._initialized = true;
   },
 
   // ── Build bell icon into topbar ───────────────────────────────────────────
@@ -54,10 +54,16 @@ const NotificationController = {
     else topbarRight.insertAdjacentHTML("afterbegin", bellHTML);
   },
 
-  // ── Supabase Realtime subscription (replaces FastAPI SSE) ─────────────────
+  // ── Supabase Realtime subscription ────────────────────────────────────────
   _subscribeRealtime() {
     const user = api.getCurrentUser();
     if (!user?.id) return;
+
+    // Remove existing channel if any
+    if (this._channel) {
+      api.sb.removeChannel(this._channel);
+      this._channel = null;
+    }
 
     this._channel = api.sb
       .channel("notifications_" + user.id)
@@ -67,27 +73,73 @@ const NotificationController = {
         table: "notifications",
         filter: `target_user_id=eq.${user.id}`,
       }, (payload) => {
-        const n = payload.new;
-        this._unreadCount++;
-        this._notifications.unshift(n);
-        this._updateBadge(this._unreadCount);
-        this._renderList();
-        Toast.show(`🔔 ${n.title}: ${n.message}`, "info");
+        this._addNotification(payload.new);
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log("Notification Realtime connected");
+        } else if (status === "CHANNEL_ERROR") {
+          // Try to resubscribe after a delay
+          setTimeout(() => this._subscribeRealtime(), 3000);
+        }
+      });
   },
 
-  // ── Fetch initial list from DB ─────────────────────────────────────────────
+  // ── Add notification with dedup ───────────────────────────────────────────
+  _addNotification(n) {
+    if (this._knownIds.has(n.id)) return;
+    this._knownIds.add(n.id);
+    this._notifications.unshift(n);
+    if (!n.is_read) this._unreadCount++;
+    this._updateBadge(this._unreadCount);
+    this._renderList();
+    Toast.show(`🔔 ${n.title}: ${n.message}`, "info");
+  },
+
+  // ── Fetch initial list from DB ────────────────────────────────────────────
   async _fetchInitial() {
     try {
       const rows = await api.getNotifications(30);
-      this._notifications = rows || [];
-      this._unreadCount   = this._notifications.filter(n => !n.is_read).length;
+      // Merge, preserving order and dedup
+      const newIds = new Set(rows.map(n => n.id));
+      this._knownIds = new Set([...this._knownIds, ...newIds]);
+      // Keep only the 30 most recent
+      const combined = [...rows, ...this._notifications];
+      const seen = new Set();
+      const merged = combined.filter(n => {
+        if (seen.has(n.id)) return false;
+        seen.add(n.id);
+        return true;
+      });
+      merged.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      this._notifications = merged.slice(0, 30);
+      this._unreadCount = this._notifications.filter(n => !n.is_read).length;
       this._updateBadge(this._unreadCount);
       this._renderList();
     } catch (err) {
       console.warn("Could not load notifications:", err.message);
     }
+  },
+
+  // ── Reconnection handling (visibility change) ─────────────────────────────
+  _setupReconnection() {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        // Re-fetch and re-subscribe to catch missed events
+        this._fetchInitial();
+        this._subscribeRealtime();
+      }
+    });
+  },
+
+  // ── Polling fallback ───────────────────────────────────────────────────────
+  _startPolling(interval = 30000) {
+    if (this._pollingInterval) clearInterval(this._pollingInterval);
+    this._pollingInterval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        this._fetchInitial();
+      }
+    }, interval);
   },
 
   // ── Toggle dropdown ───────────────────────────────────────────────────────
@@ -186,7 +238,9 @@ const NotificationController = {
       this._pollingInterval = null;
     }
     this._notifications = [];
-    this._unreadCount   = 0;
+    this._unreadCount = 0;
+    this._knownIds.clear();
+    this._initialized = false;
   },
 };
 
