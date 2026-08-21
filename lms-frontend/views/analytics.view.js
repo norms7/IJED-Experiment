@@ -321,11 +321,11 @@ const AnalyticsView = {
           ${AnalyticsView._studentsLikeYou(students_like_you)}
         </div>
 
-        <!-- 4. Risk Assessment -->
+        <!-- 4. Overall Performance Rating -->
         <div class="analytics-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">🚦 Academic Risk Assessment</div>
-            <div class="analytics-card-sub">Early warning indicators</div>
+            <div class="analytics-card-title">🚦 Overall Performance Rating</div>
+            <div class="analytics-card-sub">Academic 60% · Attendance 20% · Module Progress 20%</div>
           </div>
           ${AnalyticsView._riskAssessment(risk_assessment)}
         </div>
@@ -430,34 +430,49 @@ const AnalyticsView = {
   },
 
   _riskAssessment(data) {
-    if (!data || !data.risk_level || data.risk_level === 'Unknown') {
-      return AnalyticsView.empty('Risk data will appear once enough performance signals are recorded.');
+    if (!data || data.performance_score === null || data.performance_score === undefined) {
+      return AnalyticsView.empty('Performance data will appear once enough activity, attendance, and module signals are recorded.');
     }
 
-    const colorMap = { 'Low Risk': 'var(--green)', 'Moderate Risk': '#f59e0b', 'High Risk': 'var(--red)' };
-    const bgMap    = { 'Low Risk': 'var(--green-light)', 'Moderate Risk': '#fff8e1', 'High Risk': 'var(--red-light)' };
-    const color = colorMap[data.risk_level] || '#888';
-    const bg    = bgMap[data.risk_level]    || '#f5f5f5';
+    const colorMap = {
+      excellent:          'var(--green)',
+      good:               'var(--green-mid)',
+      fair:               'var(--yellow)',
+      needs_improvement:  'var(--orange)',
+      at_risk:            'var(--red)',
+    };
+    const bgMap = {
+      excellent:          'var(--green-light)',
+      good:               'var(--green-mid-light)',
+      fair:               'var(--yellow-light)',
+      needs_improvement:  'var(--orange-light)',
+      at_risk:            'var(--red-light)',
+    };
+    const color = colorMap[data.color] || '#888';
+    const bg    = bgMap[data.color]    || '#f5f5f5';
+    const bd = data.breakdown;
 
-    const signals = data.signals;
+    // Weighted formula, spelled out plainly for teachers/panelists:
+    //   Performance Score = Academic×60% + Attendance×20% + Modules×20%
+    const formulaRows = [
+      ['Academic Performance', bd.academic],
+      ['Attendance',           bd.attendance],
+      ['Module Progress',      bd.modules],
+    ].filter(([, part]) => part.value !== null);
 
     return `
       <div class="risk-badge" style="background:${bg};border:2px solid ${color}">
         <span class="risk-emoji">${data.emoji}</span>
-        <span class="risk-label" style="color:${color}">${data.risk_level}</span>
+        <span class="risk-label" style="color:${color}">${data.performance_score} — ${data.rating}</span>
       </div>
 
       <div class="risk-signals">
-        ${[
-          ['Attendance',         signals.attendance_rate,    80],
-          ['Module Completion',  signals.module_completion,  60],
-          ['Activity Completion',signals.activity_completion,70],
-          ['Average Score',      signals.avg_score,          75],
-        ].map(([label, val, threshold]) => {
-          const c = val >= threshold ? 'var(--green)' : val >= threshold * 0.75 ? '#f59e0b' : 'var(--red)';
+        ${formulaRows.map(([label, part]) => {
+          const val = part.value;
+          const c = val >= 80 ? 'var(--green)' : val >= 60 ? 'var(--yellow)' : 'var(--red)';
           return `
             <div class="risk-signal-row">
-              <span class="risk-signal-label">${label}</span>
+              <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
               <div class="risk-signal-bar-wrap">
                 <div class="risk-signal-bar" style="width:${Math.min(val,100)}%;background:${c}"></div>
               </div>
@@ -465,6 +480,8 @@ const AnalyticsView = {
             </div>`;
         }).join('')}
       </div>
+
+      <p class="gauge-meta">Score = ${formulaRows.map(([l, p]) => `${l.split(' ')[0]}×${Math.round(p.weight*100)}%`).join(' + ')} = <strong>${data.performance_score}</strong> (${data.rating})</p>
 
       <div class="risk-factors">
         <div class="risk-factors-title">Contributing Factors</div>

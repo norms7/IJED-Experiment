@@ -457,68 +457,157 @@ const AnalyticsEngine = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // 9. BAYESIAN — Risk Assessment
+  // 9. PERFORMANCE RATING — Academic 60% / Attendance 20% / Modules 20%
   // ══════════════════════════════════════════════════════════════════════
+  //
+  // Replaces the old logistic-regression "risk assessment" (hardcoded
+  // coefficients wAtt=-3.5, wMod=-1.5, wAct=-2.0, wAvg=-4.0, b=5.5 fed into
+  // a sigmoid). That model was: (a) not explainable in plain language to
+  // teachers/panelists, (b) dominated by avgScorePct's -4.0 weight so a
+  // single weak quiz could swing the whole rating, and (c) penalized
+  // "activity completion" against the count of ALL published activities in
+  // every enrolled subject — including ones not yet due — so a student who
+  // was perfectly on track early in the term still scored a low completion
+  // rate and could be misclassified.
+  //
+  // This version is a plain weighted percentage average of three
+  // components, each already expressed on the same 0–100 scale:
+  //   Performance Score = Academic×0.60 + Attendance×0.20 + Modules×0.20
+  //
+  // Academic Performance only ever includes activities that are actually
+  // "applicable" (published, and either due already or undated):
+  //   - graded submission            → counts as score/max_score×100
+  //   - past due, never submitted    → counts as 0 (missed work still
+  //                                     counts against you, but only once
+  //                                     it was actually due)
+  //   - submitted but not yet graded → excluded (can't score what the
+  //                                     teacher hasn't graded yet)
+  //   - not yet due                  → excluded (doesn't unfairly drag the
+  //                                     average down before it's assigned)
+  // ══════════════════════════════════════════════════════════════════════
+  function ratingForScore(score) {
+    if (score >= 90) return { rating: "Excellent", color: "excellent", emoji: "🟢" };
+    if (score >= 80) return { rating: "Good", color: "good", emoji: "🟢" };
+    if (score >= 70) return { rating: "Fair", color: "fair", emoji: "🟡" };
+    if (score >= 60) return { rating: "Needs Improvement", color: "needs_improvement", emoji: "🟠" };
+    return { rating: "At Risk", color: "at_risk", emoji: "🔴" };
+  }
+
   async function getRiskAssessment(sb, studentId) {
-    const cacheKey = "bayesian.risk_assessment";
+    const cacheKey = "performance.rating";
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
-      if (!subjectIds.length) return { risk_level: "Unknown", explanation: "No enrollment data found.", p_fail: null };
+      if (!subjectIds.length) {
+        return { risk_level: "Unknown", rating: "Unknown", explanation: "No enrollment data found.", performance_score: null };
+      }
 
+      const nowIso = new Date().toISOString();
+
+      // ── Attendance (20%) ────────────────────────────────────────────
       const { data: sessions } = await sb
         .from("attendance_sessions").select("id").in("subject_id", subjectIds).eq("has_class", true);
       let attRate = 0.0;
-      if (sessions?.length) {
+      const totalSessions = sessions?.length || 0;
+      if (totalSessions) {
         const { count: presentCount } = await sb
           .from("attendance_records").select("id", { count: "exact", head: true })
           .in("session_id", sessions.map(s => s.id)).eq("student_id", studentId).eq("status", "present");
-        attRate = (presentCount || 0) / sessions.length;
+        attRate = (presentCount || 0) / totalSessions;
       }
 
+      // ── Module Reading Progress (20%) ───────────────────────────────
       const { count: totalMods } = await sb
         .from("modules").select("id", { count: "exact", head: true }).in("subject_id", subjectIds).eq("is_published", true);
       const { count: reads } = await sb
         .from("student_module_reads").select("id", { count: "exact", head: true }).eq("student_id", studentId);
-      const modRate = totalMods ? (reads || 0) / totalMods : 0.0;
+      const modRate = totalMods ? Math.min(1, (reads || 0) / totalMods) : null;
 
-      const { count: totalActs } = await sb
-        .from("activities").select("id", { count: "exact", head: true }).in("subject_id", subjectIds).eq("is_published", true);
+      // ── Academic Performance (60%) ──────────────────────────────────
+      // Only activities that are actually applicable right now: published,
+      // and either already due or with no due date set.
+      const { data: applicableActs } = await sb
+        .from("activities").select("id, due_date")
+        .in("subject_id", subjectIds).eq("is_published", true)
+        .or(`due_date.is.null,due_date.lte.${nowIso}`);
+      const applicableIds = new Set((applicableActs || []).map(a => a.id));
 
       const { data: subs } = await sb
         .from("activity_submissions")
-        .select("score, max_score, activities(subject_id)")
-        .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
-      const filtered = (subs || []).filter(s => s.activities && subjectIds.includes(s.activities.subject_id) && s.max_score > 0);
+        .select("activity_id, score, max_score, is_graded")
+        .eq("student_id", studentId).in("activity_id", [...applicableIds]);
+      const submittedById = new Map((subs || []).map(s => [s.activity_id, s]));
 
-      const actCompletion = totalActs ? filtered.length / totalActs : 0.0;
-      const avgScorePct = filtered.length
-        ? filtered.reduce((acc, s) => acc + (s.score / s.max_score), 0) / filtered.length
-        : 0.0;
+      const academicValues = [];
+      for (const actId of applicableIds) {
+        const sub = submittedById.get(actId);
+        if (sub && sub.is_graded && sub.score !== null && sub.max_score > 0) {
+          academicValues.push((sub.score / sub.max_score) * 100);
+        } else if (sub && !sub.is_graded) {
+          continue; // submitted, awaiting grading — don't penalize or credit yet
+        } else {
+          academicValues.push(0); // past due, never submitted — counts as missed
+        }
+      }
+      const academicPct = academicValues.length
+        ? academicValues.reduce((a, b) => a + b, 0) / academicValues.length
+        : null;
 
-      const wAtt = -3.5, wMod = -1.5, wAct = -2.0, wAvg = -4.0, b = 5.5;
-      const logit = b + wAtt * attRate + wMod * modRate + wAct * actCompletion + wAvg * avgScorePct;
-      const pFail = 1 / (1 + Math.exp(-logit));
+      // Not enough data yet to produce a fair rating (brand-new enrollment,
+      // nothing due, no attendance/module records).
+      if (academicPct === null && !totalSessions && !totalMods) {
+        return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
+      }
 
-      let riskLevel, emoji;
-      if (pFail < 0.25) { riskLevel = "Low Risk"; emoji = "🟢"; }
-      else if (pFail < 0.55) { riskLevel = "Moderate Risk"; emoji = "🟡"; }
-      else { riskLevel = "High Risk"; emoji = "🔴"; }
+      // If a component genuinely has no applicable data yet (e.g. no
+      // modules published, or no activities due yet), redistribute its
+      // weight proportionally across the remaining components rather than
+      // silently treating "no data" as "zero" — that would unfairly punish
+      // a student for something outside their control.
+      const parts = [
+        { key: "academic", value: academicPct, weight: 0.60 },
+        { key: "attendance", value: totalSessions ? attRate * 100 : null, weight: 0.20 },
+        { key: "modules", value: totalMods ? modRate * 100 : null, weight: 0.20 },
+      ];
+      const known = parts.filter(p => p.value !== null);
+      const knownWeightSum = known.reduce((a, p) => a + p.weight, 0);
+      const performanceScore = knownWeightSum
+        ? Math.round(known.reduce((a, p) => a + p.value * (p.weight / knownWeightSum), 0) * 10) / 10
+        : null;
+
+      if (performanceScore === null) {
+        return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
+      }
+
+      const { rating, color, emoji } = ratingForScore(performanceScore);
+
+      const signals = {
+        academic_performance: academicPct !== null ? Math.round(academicPct * 10) / 10 : null,
+        attendance_rate: totalSessions ? Math.round(attRate * 1000) / 10 : null,
+        module_completion: totalMods ? Math.round(modRate * 1000) / 10 : null,
+      };
 
       const factors = [];
-      if (attRate < 0.80) factors.push(`Attendance is ${Math.round(attRate * 100)}% (below the 80% threshold).`);
-      if (modRate < 0.60) factors.push(`Only ${Math.round(modRate * 100)}% of modules have been read.`);
-      if (actCompletion < 0.70) factors.push(`Activity completion stands at ${Math.round(actCompletion * 100)}%.`);
-      if (avgScorePct < 0.75) factors.push(`Average score is ${Math.round(avgScorePct * 100)}%, which is below passing.`);
+      if (signals.academic_performance !== null && signals.academic_performance < 75) {
+        factors.push(`Academic performance is ${signals.academic_performance}% across ${academicValues.length} applicable activit${academicValues.length === 1 ? "y" : "ies"}.`);
+      }
+      if (signals.attendance_rate !== null && signals.attendance_rate < 80) {
+        factors.push(`Attendance is ${signals.attendance_rate}% (below the 80% healthy threshold).`);
+      }
+      if (signals.module_completion !== null && signals.module_completion < 60) {
+        factors.push(`Only ${signals.module_completion}% of modules have been read.`);
+      }
       if (!factors.length) factors.push("All indicators are within healthy ranges.");
 
       return {
-        risk_level: riskLevel, emoji, p_fail: Math.round(pFail * 1000) / 1000, factors,
-        signals: {
-          attendance_rate: Math.round(attRate * 1000) / 10,
-          module_completion: Math.round(modRate * 1000) / 10,
-          activity_completion: Math.round(actCompletion * 1000) / 10,
-          avg_score: Math.round(avgScorePct * 1000) / 10,
+        // New, explainable fields:
+        performance_score: performanceScore, rating, color, emoji, factors, signals,
+        breakdown: {
+          academic: { value: signals.academic_performance, weight: 0.60 },
+          attendance: { value: signals.attendance_rate, weight: 0.20 },
+          modules: { value: signals.module_completion, weight: 0.20 },
         },
+        // Back-compat aliases so any older caller keyed on risk_level still gets something sane:
+        risk_level: rating,
       };
     });
   }

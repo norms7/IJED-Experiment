@@ -37,6 +37,10 @@
   /* Status */
   --green:         #2e6b3e;
   --green-light:   #e6f4ea;
+  --green-mid:       #4c8c3f;  /* "Good" tier — lighter than --green */
+  --green-mid-light: #eef6e8;
+  --yellow:        #a67c00;   /* "Fair" tier */
+  --yellow-light:  #fff8e1;
   --red:           #b71c1c;
   --red-light:     #fdeaea;
   --orange:        #c04a00;
