@@ -298,7 +298,7 @@ const AnalyticsView = {
         <div class="analytics-card">
           <div class="analytics-card-header">
             <div class="analytics-card-title">🎯 Predicted Final Grade</div>
-            <div class="analytics-card-sub">Bayesian estimate based on current performance</div>
+            <div class="analytics-card-sub">Academic 70% · Attendance 20% · Module Progress 10%</div>
           </div>
           ${AnalyticsView._predictedGrade(predicted_grade)}
         </div>
@@ -325,7 +325,7 @@ const AnalyticsView = {
         <div class="analytics-card">
           <div class="analytics-card-header">
             <div class="analytics-card-title">🚦 Overall Performance Rating</div>
-            <div class="analytics-card-sub">Academic 60% · Attendance 20% · Module Progress 20%</div>
+            <div class="analytics-card-sub">Academic 75% · Attendance 15% · Module Progress 10%</div>
           </div>
           ${AnalyticsView._riskAssessment(risk_assessment)}
         </div>
@@ -339,7 +339,12 @@ const AnalyticsView = {
     }
 
     const grade = data.predicted_grade;
-    const color = grade >= 90 ? 'var(--green)' : grade >= 75 ? '#f59e0b' : 'var(--red)';
+    const color = grade >= 90 ? 'var(--green)'
+      : grade >= 85 ? 'var(--green-mid)'
+      : grade >= 80 ? 'var(--blue)'
+      : grade >= 75 ? 'var(--yellow)'
+      : grade >= 70 ? 'var(--orange)'
+      : 'var(--red)';
     const arc = Math.min(grade / 100, 1);
 
     // SVG gauge
@@ -364,10 +369,13 @@ const AnalyticsView = {
         <div class="gauge-label">Predicted Grade</div>
       </div>
       <div class="gauge-ci">
-        <span class="gauge-ci-label">95% Credible Range</span>
+        <span class="gauge-ci-label">Estimated Range</span>
         <span class="gauge-ci-range">${data.range_low}% – ${data.range_high}%</span>
       </div>
-      <div class="gauge-meta">Based on ${data.n_observations} graded activities &middot; Current avg ${data.current_avg}%</div>`;
+      <div class="gauge-meta">Based on ${data.n_observations} graded activities &middot; Current academic avg ${data.current_avg ?? '—'}%</div>
+      ${data.supporting_factors && data.supporting_factors.length
+        ? `<ul class="risk-factors-list" style="margin-top:8px">${data.supporting_factors.map(f => `<li>${escHtml(f)}</li>`).join('')}</ul>`
+        : ''}`;
   },
 
   _improvementProb(data) {
@@ -392,7 +400,8 @@ const AnalyticsView = {
       </div>
       <div class="improv-prob-val" style="color:${color}">${prob}%</div>
       <div class="improv-prob-label">${data.label} — probability of reaching ${data.target_grade}%</div>
-      <div class="gauge-meta">Based on ${data.n_observations} activities · ${data.successes} hit the target so far</div>`;
+      <div class="gauge-meta">Predicted grade ${data.predicted_grade}% · Gap to target: ${Math.max(0, Math.round((data.target_grade - data.predicted_grade) * 10) / 10)}%</div>
+      ${data.recommendation ? `<p class="gauge-meta" style="margin-top:6px"><strong>Recommendation:</strong> ${escHtml(data.recommendation)}</p>` : ''}`;
   },
 
   _studentsLikeYou(data) {
@@ -414,6 +423,10 @@ const AnalyticsView = {
       <p class="peer-message">${escHtml(data.message)}</p>
       <div class="peer-profile-grid">
         <div class="peer-profile-item">
+          <div class="peer-profile-val">${data.engagement_score}%</div>
+          <div class="peer-profile-key">Engagement Score</div>
+        </div>
+        <div class="peer-profile-item">
           <div class="peer-profile-val">${profile.attendance_rate}%</div>
           <div class="peer-profile-key">Attendance</div>
         </div>
@@ -421,12 +434,8 @@ const AnalyticsView = {
           <div class="peer-profile-val">${profile.module_completion}%</div>
           <div class="peer-profile-key">Modules Read</div>
         </div>
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.avg_score}%</div>
-          <div class="peer-profile-key">Avg Score</div>
-        </div>
       </div>
-      <p class="gauge-meta">Compared with ${data.peer_count} anonymous students with similar engagement</p>`;
+      <p class="gauge-meta">Engagement Score = Attendance×40% + Modules×60% (academic score not included) · Compared with ${data.peer_count} anonymous students with similar engagement</p>`;
   },
 
   _riskAssessment(data) {
@@ -434,16 +443,22 @@ const AnalyticsView = {
       return AnalyticsView.empty('Performance data will appear once enough activity, attendance, and module signals are recorded.');
     }
 
+    // Colors follow the Objective §5 rating bands exactly:
+    //   90-100 Excellent (Green) · 85-89 Very Good (Light Green) ·
+    //   80-84 Good (Blue) · 75-79 Fair (Yellow) ·
+    //   70-74 Needs Improvement (Orange) · <70 At Risk (Red)
     const colorMap = {
       excellent:          'var(--green)',
-      good:               'var(--green-mid)',
+      very_good:          'var(--green-mid)',
+      good:               'var(--blue)',
       fair:               'var(--yellow)',
       needs_improvement:  'var(--orange)',
       at_risk:            'var(--red)',
     };
     const bgMap = {
       excellent:          'var(--green-light)',
-      good:               'var(--green-mid-light)',
+      very_good:          'var(--green-mid-light)',
+      good:               'var(--blue-light)',
       fair:               'var(--yellow-light)',
       needs_improvement:  'var(--orange-light)',
       at_risk:            'var(--red-light)',
@@ -453,7 +468,7 @@ const AnalyticsView = {
     const bd = data.breakdown;
 
     // Weighted formula, spelled out plainly for teachers/panelists:
-    //   Performance Score = Academic×60% + Attendance×20% + Modules×20%
+    //   Performance Score = Academic×75% + Attendance×15% + Modules×10%
     const formulaRows = [
       ['Academic Performance', bd.academic],
       ['Attendance',           bd.attendance],
@@ -469,7 +484,7 @@ const AnalyticsView = {
       <div class="risk-signals">
         ${formulaRows.map(([label, part]) => {
           const val = part.value;
-          const c = val >= 80 ? 'var(--green)' : val >= 60 ? 'var(--yellow)' : 'var(--red)';
+          const c = val >= 80 ? 'var(--green)' : val >= 70 ? 'var(--yellow)' : 'var(--red)';
           return `
             <div class="risk-signal-row">
               <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
