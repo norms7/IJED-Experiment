@@ -280,88 +280,96 @@ const AnalyticsEngine = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // 6. BAYESIAN — Predicted Final Grade
+  // 6. PREDICTED FINAL GRADE
+  //    School standard (Objective §6): simple weighted average, NOT Bayesian.
+  //      Predicted Grade = Academic×0.70 + Attendance×0.20 + Module×0.10
+  //    Uses the exact same Academic/Attendance/Module component values as
+  //    getRiskAssessment() (§1–§3 formulas), just recombined with the 70/20/10
+  //    weights instead of 75/15/10, so the two cards never contradict each other.
   // ══════════════════════════════════════════════════════════════════════
   function emptyPrediction() {
-    return { predicted_grade: null, range_low: null, range_high: null, confidence: "95%", n_observations: 0, current_avg: null };
+    return { predicted_grade: null, range_low: null, range_high: null, confidence: "n/a", n_observations: 0, current_avg: null, supporting_factors: [] };
   }
 
   async function getPredictedFinalGrade(sb, studentId, subjectId = null) {
-    const cacheKey = `bayesian.predicted_grade.subject_${subjectId || "all"}`;
+    const cacheKey = `predicted_grade.subject_${subjectId || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
-      if (!subjectIds.length) return emptyPrediction();
-      const filterIds = subjectId ? [subjectId] : subjectIds;
-      const filterSet = new Set(filterIds);
+      const perf = await computePerformanceComponents(sb, studentId, subjectId);
+      if (!perf) return emptyPrediction();
 
-      const { data: subs, error } = await sb
-        .from("activity_submissions")
-        .select("score, max_score, activities(subject_id)")
-        .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
-      if (error) throw new Error(error.message);
+      const { academicPct, attendancePct, modulePct, countedActivities, factors } = perf;
 
-      const observations = (subs || [])
-        .filter(s => s.activities && filterSet.has(s.activities.subject_id) && s.max_score > 0)
-        .map(s => (s.score / s.max_score) * 100);
+      const parts = [
+        { value: academicPct,   weight: 0.70 },
+        { value: attendancePct, weight: 0.20 },
+        { value: modulePct,     weight: 0.10 },
+      ].filter(p => p.value !== null);
 
-      const n = observations.length;
-      if (n === 0) return emptyPrediction();
+      if (!parts.length) return emptyPrediction();
 
-      const MU_0 = 78.0, TAU_0 = 1.0 / (12.0 ** 2);
-      const SIGMA_L = 15.0, TAU_L = 1.0 / (SIGMA_L ** 2);
+      const wSum = parts.reduce((a, p) => a + p.weight, 0);
+      const raw = parts.reduce((a, p) => a + p.value * (p.weight / wSum), 0);
+      const predicted = Math.min(100, Math.max(0, Math.round(raw * 100) / 100));
 
-      const tauN = TAU_0 + n * TAU_L;
-      const muN = (TAU_0 * MU_0 + TAU_L * observations.reduce((a, b) => a + b, 0)) / tauN;
-      const sigmaN = Math.sqrt(1 / tauN);
-
-      const Z_95 = 1.96;
-      const lo = Math.max(0, Math.round((muN - Z_95 * sigmaN) * 10) / 10);
-      const hi = Math.min(100, Math.round((muN + Z_95 * sigmaN) * 10) / 10);
+      // Confidence range: narrows as more graded activities accumulate, so the
+      // prediction visibly firms up over the term (Objective §6 requirement
+      // that the prediction "update dynamically" and "improve" with more data).
+      // This is a stated heuristic (±15 / √n, floor of ±2), not part of the
+      // school's formula — flagged here and in the UI as an estimate.
+      const n = countedActivities || 0;
+      const margin = n > 0 ? Math.max(2, Math.round((15 / Math.sqrt(n)) * 10) / 10) : 15;
+      const lo = Math.max(0, Math.round((predicted - margin) * 10) / 10);
+      const hi = Math.min(100, Math.round((predicted + margin) * 10) / 10);
 
       return {
-        predicted_grade: Math.round(muN * 10) / 10,
-        range_low: lo, range_high: hi, confidence: "95%", n_observations: n,
-        current_avg: Math.round((observations.reduce((a, b) => a + b, 0) / n) * 10) / 10,
+        predicted_grade: predicted,
+        range_low: lo, range_high: hi,
+        confidence: "estimated range",
+        n_observations: n,
+        current_avg: academicPct !== null ? Math.round(academicPct * 100) / 100 : null,
+        supporting_factors: factors,
       };
     });
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // 7. BAYESIAN — Improvement Probability
+  // 7. GRADE IMPROVEMENT PROBABILITY
+  //    School standard (Objective §7): gap-based lookup table against the
+  //    Predicted Final Grade above — NOT a Bayesian Beta posterior.
+  //      Gap = Target Grade − Predicted Grade
+  //      Gap ≤ 2 → 95%, ≤5 → 80%, ≤10 → 60%, ≤15 → 40%, >15 → 20%
   // ══════════════════════════════════════════════════════════════════════
   async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null) {
-    const cacheKey = `bayesian.improvement_prob.subject_${subjectId || "all"}.target_${Math.trunc(targetGrade)}`;
+    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.target_${Math.trunc(targetGrade)}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
-      if (!subjectIds.length) return { probability: null, target_grade: targetGrade, n_observations: 0 };
-      const filterIds = subjectId ? [subjectId] : subjectIds;
-      const filterSet = new Set(filterIds);
+      const prediction = await getPredictedFinalGrade(sb, studentId, subjectId);
+      const predicted = prediction.predicted_grade;
+      if (predicted === null) {
+        return { probability: null, target_grade: targetGrade, predicted_grade: null, n_observations: 0, recommendation: null };
+      }
 
-      const { data: subs, error } = await sb
-        .from("activity_submissions")
-        .select("score, max_score, activities(subject_id)")
-        .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
-      if (error) throw new Error(error.message);
+      const gap = targetGrade - predicted;
+      let probability;
+      if (gap <= 2) probability = 95;
+      else if (gap <= 5) probability = 80;
+      else if (gap <= 10) probability = 60;
+      else if (gap <= 15) probability = 40;
+      else probability = 20;
 
-      const filtered = (subs || []).filter(s => s.activities && filterSet.has(s.activities.subject_id) && s.max_score > 0);
-      if (!filtered.length) return { probability: null, target_grade: targetGrade, n_observations: 0 };
+      const label = probability >= 80 ? "Very likely" : probability >= 60 ? "Likely" : probability >= 40 ? "Possible" : "Challenging";
 
-      const ALPHA_0 = 2.0, BETA_0 = 2.0;
-      const successes = filtered.filter(s => (s.score / s.max_score) * 100 >= targetGrade).length;
-      const failures = filtered.length - successes;
-
-      const alphaN = ALPHA_0 + successes, betaN = BETA_0 + failures;
-      const pPosterior = alphaN / (alphaN + betaN);
-      const probPct = Math.round(pPosterior * 1000) / 10;
-
-      const label = probPct >= 75 ? "Very likely" : probPct >= 55 ? "Likely" : probPct >= 35 ? "Possible" : "Challenging";
-
-      const currentAvg = filtered.reduce((acc, s) => acc + (s.score / s.max_score) * 100, 0) / filtered.length;
+      const recommendation = gap <= 0
+        ? "You're already on track to meet or exceed this target grade."
+        : gap <= 5
+          ? "A small, consistent improvement on upcoming graded activities should close this gap."
+          : gap <= 10
+            ? "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 70% of the prediction."
+            : "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
 
       return {
-        probability: probPct, target_grade: targetGrade, label,
-        n_observations: filtered.length, successes,
-        current_avg: Math.round(currentAvg * 10) / 10,
+        probability, target_grade: targetGrade, predicted_grade: predicted, label,
+        n_observations: prediction.n_observations,
+        recommendation,
       };
     });
   }
@@ -408,7 +416,9 @@ const AnalyticsEngine = (() => {
         for (const r of (readRows || [])) readsByStudent.set(r.student_id, (readsByStudent.get(r.student_id) || 0) + 1);
       }
 
-      // Average score (join via activities, filtered to these subjects)
+      // Average score — kept only for the "My Profile" display card (§8's
+      // requirement to show Engagement Score + peer comparison alongside
+      // context), but it is NOT part of the Engagement Index itself.
       const { data: subRows } = await sb
         .from("activity_submissions")
         .select("student_id, score, max_score, activities!inner(subject_id)")
@@ -421,12 +431,15 @@ const AnalyticsEngine = (() => {
         scoresByStudent.get(r.student_id).push(pct);
       }
 
+      // Engagement Index (Objective §8):
+      //   Engagement Index = Attendance×0.40 + Module Score×0.60
+      // Academic score is intentionally excluded — this metric is about
+      // engagement/participation, not grades, so a high performer with low
+      // engagement isn't misleadingly ranked as "like" a highly-engaged peer.
       const compositeFor = (sid) => {
         const attRate = totalSessions ? (presentByStudent.get(sid) || 0) / totalSessions * 100 : 0;
         const modRate = totalMods ? (readsByStudent.get(sid) || 0) / totalMods * 100 : 0;
-        const scores = scoresByStudent.get(sid) || [];
-        const avgScore = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-        return (attRate + modRate + avgScore) / 3;
+        return attRate * 0.40 + modRate * 0.60;
       };
 
       const myComposite = compositeFor(studentId);
@@ -446,10 +459,11 @@ const AnalyticsEngine = (() => {
 
       return {
         percentile, message,
+        engagement_score: Math.round(myComposite * 100) / 100,
         my_profile: {
           attendance_rate: Math.round(myAttRate * 10) / 10,
           module_completion: Math.round(myModRate * 10) / 10,
-          avg_score: Math.round(myAvgScore * 10) / 10,
+          avg_score: Math.round(myAvgScore * 10) / 10, // shown for context only — not part of the index
         },
         peer_count: peerComposites.length,
       };
@@ -457,121 +471,157 @@ const AnalyticsEngine = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // 9. PERFORMANCE RATING — Academic 60% / Attendance 20% / Modules 20%
+  // SHARED COMPONENT CALCULATOR — Academic / Attendance / Module scores
+  //
+  // Implements the school's three base formulas exactly as specified:
+  //
+  //   §1 Academic Score (%)   = (Total Earned Points / Total Possible Points) × 100
+  //   §2 Attendance Score (%) = (Present + Late×0.5) / Total Meetings × 100
+  //   §3 Module Score (%)     = (Modules Read / Total Modules) × 100
+  //
+  // This single function is the source of truth for these three numbers.
+  // getRiskAssessment() (§4/§5, weights 75/15/10) and getPredictedFinalGrade()
+  // (§6, weights 70/20/10) both call it, so the Academic/Attendance/Module
+  // percentages shown on both cards are always identical — only the blend
+  // weights differ, exactly as the spec defines two separate formulas that
+  // share the same three inputs.
   // ══════════════════════════════════════════════════════════════════════
-  //
-  // Replaces the old logistic-regression "risk assessment" (hardcoded
-  // coefficients wAtt=-3.5, wMod=-1.5, wAct=-2.0, wAvg=-4.0, b=5.5 fed into
-  // a sigmoid). That model was: (a) not explainable in plain language to
-  // teachers/panelists, (b) dominated by avgScorePct's -4.0 weight so a
-  // single weak quiz could swing the whole rating, and (c) penalized
-  // "activity completion" against the count of ALL published activities in
-  // every enrolled subject — including ones not yet due — so a student who
-  // was perfectly on track early in the term still scored a low completion
-  // rate and could be misclassified.
-  //
-  // This version is a plain weighted percentage average of three
-  // components, each already expressed on the same 0–100 scale:
-  //   Performance Score = Academic×0.60 + Attendance×0.20 + Modules×0.20
-  //
-  // Academic Performance only ever includes activities that are actually
-  // "applicable" (published, and either due already or undated):
-  //   - graded submission            → counts as score/max_score×100
-  //   - past due, never submitted    → counts as 0 (missed work still
-  //                                     counts against you, but only once
-  //                                     it was actually due)
-  //   - submitted but not yet graded → excluded (can't score what the
-  //                                     teacher hasn't graded yet)
-  //   - not yet due                  → excluded (doesn't unfairly drag the
-  //                                     average down before it's assigned)
+  async function computePerformanceComponents(sb, studentId, subjectId = null) {
+    const allSubjectIds = await resolveSubjectIds(sb, studentId);
+    if (!allSubjectIds.length) return null;
+    const subjectIds = subjectId ? allSubjectIds.filter(id => id === subjectId) : allSubjectIds;
+    if (!subjectIds.length) return null;
+
+    const nowIso = new Date().toISOString();
+
+    // ── §2 Attendance Score: Present = 100%, Late = 50%, Absent = 0% ──────
+    const { data: sessions } = await sb
+      .from("attendance_sessions").select("id").in("subject_id", subjectIds).eq("has_class", true);
+    const totalSessions = sessions?.length || 0;
+    let attendancePct = null;
+    if (totalSessions) {
+      const { data: records } = await sb
+        .from("attendance_records").select("status")
+        .in("session_id", sessions.map(s => s.id)).eq("student_id", studentId);
+      let present = 0, late = 0;
+      for (const r of (records || [])) {
+        if (r.status === "present") present++;
+        else if (r.status === "late") late++;
+        // "absent" and "excused" both contribute 0 credit, per the spec's
+        // three explicit rules (Present/Late/Absent) — excused is not one
+        // of the spec's rated categories, so it's treated the same as absent
+        // rather than silently invented as a fourth credit tier.
+      }
+      attendancePct = ((present + late * 0.5) / totalSessions) * 100;
+    }
+
+    // ── §3 Module Score: Modules Read / Total Modules ─────────────────────
+    const { count: totalMods } = await sb
+      .from("modules").select("id", { count: "exact", head: true })
+      .in("subject_id", subjectIds).eq("is_published", true);
+    const { count: reads } = await sb
+      .from("student_module_reads").select("id", { count: "exact", head: true }).eq("student_id", studentId);
+    const modulePct = totalMods ? (Math.min(reads || 0, totalMods) / totalMods) * 100 : null;
+
+    // ── §1 Academic Score: Total Earned / Total Possible ──────────────────
+    // Only "applicable" activities count: published, and either already due
+    // or undated. A past-due activity the student never submitted counts as
+    // 0 earned against its own max_score (not a flat 100), so a missed
+    // 10-point quiz doesn't get weighted the same as a missed 100-point exam.
+    const { data: applicableActs } = await sb
+      .from("activities").select("id, max_score, due_date")
+      .in("subject_id", subjectIds).eq("is_published", true)
+      .or(`due_date.is.null,due_date.lte.${nowIso}`);
+
+    const { data: subs } = await sb
+      .from("activity_submissions")
+      .select("activity_id, score, max_score, is_graded")
+      .eq("student_id", studentId)
+      .in("activity_id", (applicableActs || []).map(a => a.id));
+    const submittedById = new Map((subs || []).map(s => [s.activity_id, s]));
+
+    let totalEarned = 0, totalPossible = 0, countedActivities = 0;
+    for (const act of (applicableActs || [])) {
+      const sub = submittedById.get(act.id);
+      if (sub && sub.is_graded && sub.score !== null && sub.max_score > 0) {
+        totalEarned += sub.score;
+        totalPossible += sub.max_score;
+        countedActivities++;
+      } else if (sub && !sub.is_graded) {
+        continue; // submitted, awaiting grading — can't score it yet, don't penalize
+      } else if (act.max_score > 0) {
+        // past due, never submitted → missed work counts as 0/max_score
+        totalPossible += act.max_score;
+        countedActivities++;
+      }
+      // activities with no max_score set are skipped entirely — can't be
+      // graded fairly without a denominator.
+    }
+    const academicPct = totalPossible > 0 ? (totalEarned / totalPossible) * 100 : null;
+
+    if (academicPct === null && !totalSessions && !totalMods) return null;
+
+    const factors = [];
+    if (academicPct !== null && academicPct < 75) {
+      factors.push(`Academic performance is ${Math.round(academicPct * 100) / 100}% (${totalEarned}/${totalPossible} points across ${countedActivities} applicable activit${countedActivities === 1 ? "y" : "ies"}).`);
+    }
+    if (attendancePct !== null && attendancePct < 80) {
+      factors.push(`Attendance is ${Math.round(attendancePct * 100) / 100}% (below the 80% healthy threshold).`);
+    }
+    if (modulePct !== null && modulePct < 60) {
+      factors.push(`Only ${Math.round(modulePct * 100) / 100}% of modules have been read.`);
+    }
+    if (!factors.length) factors.push("All indicators are within healthy ranges.");
+
+    return {
+      academicPct, attendancePct, modulePct,
+      totalEarned, totalPossible, countedActivities,
+      totalSessions, totalMods,
+      factors,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 4/5/9. OVERALL PERFORMANCE RATING
+  //    School standard (Objective §4): Academic 75% / Attendance 15% / Module 10%
+  //    Rating bands (Objective §5), 6 tiers:
+  //      90–100 Excellent · 85–89 Very Good · 80–84 Good ·
+  //      75–79 Fair · 70–74 Needs Improvement · <70 At Risk
   // ══════════════════════════════════════════════════════════════════════
   function ratingForScore(score) {
-    if (score >= 90) return { rating: "Excellent", color: "excellent", emoji: "🟢" };
-    if (score >= 80) return { rating: "Good", color: "good", emoji: "🟢" };
-    if (score >= 70) return { rating: "Fair", color: "fair", emoji: "🟡" };
-    if (score >= 60) return { rating: "Needs Improvement", color: "needs_improvement", emoji: "🟠" };
+    if (score >= 90) return { rating: "Excellent",         color: "excellent",         emoji: "🟢" };
+    if (score >= 85) return { rating: "Very Good",         color: "very_good",         emoji: "🟩" };
+    if (score >= 80) return { rating: "Good",              color: "good",              emoji: "🔵" };
+    if (score >= 75) return { rating: "Fair",              color: "fair",              emoji: "🟡" };
+    if (score >= 70) return { rating: "Needs Improvement", color: "needs_improvement", emoji: "🟠" };
     return { rating: "At Risk", color: "at_risk", emoji: "🔴" };
   }
 
   async function getRiskAssessment(sb, studentId) {
     const cacheKey = "performance.rating";
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
-      if (!subjectIds.length) {
-        return { risk_level: "Unknown", rating: "Unknown", explanation: "No enrollment data found.", performance_score: null };
-      }
-
-      const nowIso = new Date().toISOString();
-
-      // ── Attendance (20%) ────────────────────────────────────────────
-      const { data: sessions } = await sb
-        .from("attendance_sessions").select("id").in("subject_id", subjectIds).eq("has_class", true);
-      let attRate = 0.0;
-      const totalSessions = sessions?.length || 0;
-      if (totalSessions) {
-        const { count: presentCount } = await sb
-          .from("attendance_records").select("id", { count: "exact", head: true })
-          .in("session_id", sessions.map(s => s.id)).eq("student_id", studentId).eq("status", "present");
-        attRate = (presentCount || 0) / totalSessions;
-      }
-
-      // ── Module Reading Progress (20%) ───────────────────────────────
-      const { count: totalMods } = await sb
-        .from("modules").select("id", { count: "exact", head: true }).in("subject_id", subjectIds).eq("is_published", true);
-      const { count: reads } = await sb
-        .from("student_module_reads").select("id", { count: "exact", head: true }).eq("student_id", studentId);
-      const modRate = totalMods ? Math.min(1, (reads || 0) / totalMods) : null;
-
-      // ── Academic Performance (60%) ──────────────────────────────────
-      // Only activities that are actually applicable right now: published,
-      // and either already due or with no due date set.
-      const { data: applicableActs } = await sb
-        .from("activities").select("id, due_date")
-        .in("subject_id", subjectIds).eq("is_published", true)
-        .or(`due_date.is.null,due_date.lte.${nowIso}`);
-      const applicableIds = new Set((applicableActs || []).map(a => a.id));
-
-      const { data: subs } = await sb
-        .from("activity_submissions")
-        .select("activity_id, score, max_score, is_graded")
-        .eq("student_id", studentId).in("activity_id", [...applicableIds]);
-      const submittedById = new Map((subs || []).map(s => [s.activity_id, s]));
-
-      const academicValues = [];
-      for (const actId of applicableIds) {
-        const sub = submittedById.get(actId);
-        if (sub && sub.is_graded && sub.score !== null && sub.max_score > 0) {
-          academicValues.push((sub.score / sub.max_score) * 100);
-        } else if (sub && !sub.is_graded) {
-          continue; // submitted, awaiting grading — don't penalize or credit yet
-        } else {
-          academicValues.push(0); // past due, never submitted — counts as missed
-        }
-      }
-      const academicPct = academicValues.length
-        ? academicValues.reduce((a, b) => a + b, 0) / academicValues.length
-        : null;
-
-      // Not enough data yet to produce a fair rating (brand-new enrollment,
-      // nothing due, no attendance/module records).
-      if (academicPct === null && !totalSessions && !totalMods) {
+      const perf = await computePerformanceComponents(sb, studentId, null);
+      if (!perf) {
         return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
       }
 
-      // If a component genuinely has no applicable data yet (e.g. no
-      // modules published, or no activities due yet), redistribute its
+      const { academicPct, attendancePct, modulePct, totalSessions, totalMods, factors } = perf;
+
+      // If a component genuinely has no applicable data yet (e.g. no modules
+      // published, or no attendance sessions recorded), redistribute its
       // weight proportionally across the remaining components rather than
-      // silently treating "no data" as "zero" — that would unfairly punish
-      // a student for something outside their control.
+      // treating "no data" as "zero" — this is what stops a student from
+      // being wrongly flagged At Risk purely for low module completion when
+      // academics are strong (Objective §5's explicit fairness rule).
       const parts = [
-        { key: "academic", value: academicPct, weight: 0.60 },
-        { key: "attendance", value: totalSessions ? attRate * 100 : null, weight: 0.20 },
-        { key: "modules", value: totalMods ? modRate * 100 : null, weight: 0.20 },
+        { key: "academic",   value: academicPct,   weight: 0.75 },
+        { key: "attendance", value: attendancePct,  weight: 0.15 },
+        { key: "modules",    value: modulePct,      weight: 0.10 },
       ];
       const known = parts.filter(p => p.value !== null);
       const knownWeightSum = known.reduce((a, p) => a + p.weight, 0);
       const performanceScore = knownWeightSum
-        ? Math.round(known.reduce((a, p) => a + p.value * (p.weight / knownWeightSum), 0) * 10) / 10
+        ? Math.round(known.reduce((a, p) => a + p.value * (p.weight / knownWeightSum), 0) * 100) / 100
         : null;
 
       if (performanceScore === null) {
@@ -581,32 +631,19 @@ const AnalyticsEngine = (() => {
       const { rating, color, emoji } = ratingForScore(performanceScore);
 
       const signals = {
-        academic_performance: academicPct !== null ? Math.round(academicPct * 10) / 10 : null,
-        attendance_rate: totalSessions ? Math.round(attRate * 1000) / 10 : null,
-        module_completion: totalMods ? Math.round(modRate * 1000) / 10 : null,
+        academic_performance: academicPct !== null ? Math.round(academicPct * 100) / 100 : null,
+        attendance_rate: attendancePct !== null ? Math.round(attendancePct * 100) / 100 : null,
+        module_completion: modulePct !== null ? Math.round(modulePct * 100) / 100 : null,
       };
 
-      const factors = [];
-      if (signals.academic_performance !== null && signals.academic_performance < 75) {
-        factors.push(`Academic performance is ${signals.academic_performance}% across ${academicValues.length} applicable activit${academicValues.length === 1 ? "y" : "ies"}.`);
-      }
-      if (signals.attendance_rate !== null && signals.attendance_rate < 80) {
-        factors.push(`Attendance is ${signals.attendance_rate}% (below the 80% healthy threshold).`);
-      }
-      if (signals.module_completion !== null && signals.module_completion < 60) {
-        factors.push(`Only ${signals.module_completion}% of modules have been read.`);
-      }
-      if (!factors.length) factors.push("All indicators are within healthy ranges.");
-
       return {
-        // New, explainable fields:
         performance_score: performanceScore, rating, color, emoji, factors, signals,
         breakdown: {
-          academic: { value: signals.academic_performance, weight: 0.60 },
-          attendance: { value: signals.attendance_rate, weight: 0.20 },
-          modules: { value: signals.module_completion, weight: 0.20 },
+          academic:   { value: signals.academic_performance, weight: 0.75 },
+          attendance: { value: signals.attendance_rate,       weight: 0.15 },
+          modules:    { value: signals.module_completion,     weight: 0.10 },
         },
-        // Back-compat aliases so any older caller keyed on risk_level still gets something sane:
+        // Back-compat alias so any older caller keyed on risk_level still gets something sane:
         risk_level: rating,
       };
     });
