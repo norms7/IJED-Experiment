@@ -391,18 +391,24 @@ const AnalyticsEngine = (() => {
       const peerPoolIds = allStudentIds.filter(id => id !== studentId).slice(0, 200);
       const targetIds = [...peerPoolIds, studentId];
 
-      // Attendance
+      // Attendance — Present + Late×0.5, matching Objective §2 exactly
+      // (previously this only counted status='present', silently giving
+      // 'late' students zero credit here even though every other card
+      // gives them 50% credit for it).
       const { data: sessions } = await sb
         .from("attendance_sessions").select("id").in("subject_id", subjectIds).eq("has_class", true);
       const sessionIds = (sessions || []).map(s => s.id);
       const totalSessions = sessionIds.length;
 
-      const presentByStudent = new Map();
+      const attendanceCreditByStudent = new Map();
       if (sessionIds.length) {
-        const { data: presentRows } = await sb
-          .from("attendance_records").select("student_id")
-          .in("session_id", sessionIds).in("student_id", targetIds).eq("status", "present");
-        for (const r of (presentRows || [])) presentByStudent.set(r.student_id, (presentByStudent.get(r.student_id) || 0) + 1);
+        const { data: attRows } = await sb
+          .from("attendance_records").select("student_id, status")
+          .in("session_id", sessionIds).in("student_id", targetIds).in("status", ["present", "late"]);
+        for (const r of (attRows || [])) {
+          const credit = r.status === "present" ? 1 : 0.5;
+          attendanceCreditByStudent.set(r.student_id, (attendanceCreditByStudent.get(r.student_id) || 0) + credit);
+        }
       }
 
       // Module completion
@@ -436,10 +442,21 @@ const AnalyticsEngine = (() => {
       // Academic score is intentionally excluded — this metric is about
       // engagement/participation, not grades, so a high performer with low
       // engagement isn't misleadingly ranked as "like" a highly-engaged peer.
+      //
+      // If totalSessions is 0, there is genuinely no attendance data yet —
+      // this must NOT be scored as 0% (a real, poor attendance record).
+      // The same distinction the Overall Rating card makes (null → "No
+      // data yet", never silently 0) applies here too.
       const compositeFor = (sid) => {
-        const attRate = totalSessions ? (presentByStudent.get(sid) || 0) / totalSessions * 100 : 0;
-        const modRate = totalMods ? (readsByStudent.get(sid) || 0) / totalMods * 100 : 0;
-        return attRate * 0.40 + modRate * 0.60;
+        const attRate = totalSessions ? (attendanceCreditByStudent.get(sid) || 0) / totalSessions * 100 : null;
+        const modRate = totalMods ? (readsByStudent.get(sid) || 0) / totalMods * 100 : null;
+        const parts = [
+          { value: attRate, weight: 0.40 },
+          { value: modRate, weight: 0.60 },
+        ].filter(p => p.value !== null);
+        if (!parts.length) return 0; // no signal at all for this student — falls to the bottom of the ranking, not a misleading mid-pack score
+        const wSum = parts.reduce((a, p) => a + p.weight, 0);
+        return parts.reduce((a, p) => a + p.value * (p.weight / wSum), 0);
       };
 
       const myComposite = compositeFor(studentId);
@@ -452,8 +469,8 @@ const AnalyticsEngine = (() => {
       else if (percentile >= 25) message = `There is room to grow. You are currently ahead of ${percentile}% of similar students.`;
       else message = `You are in the bottom ${100 - percentile}% of similar students — this is a great moment to step up!`;
 
-      const myAttRate = totalSessions ? (presentByStudent.get(studentId) || 0) / totalSessions * 100 : 0;
-      const myModRate = totalMods ? (readsByStudent.get(studentId) || 0) / totalMods * 100 : 0;
+      const myAttRate = totalSessions ? (attendanceCreditByStudent.get(studentId) || 0) / totalSessions * 100 : null;
+      const myModRate = totalMods ? (readsByStudent.get(studentId) || 0) / totalMods * 100 : null;
       const myScores = scoresByStudent.get(studentId) || [];
       const myAvgScore = myScores.length ? myScores.reduce((a, b) => a + b, 0) / myScores.length : 0;
 
@@ -461,8 +478,8 @@ const AnalyticsEngine = (() => {
         percentile, message,
         engagement_score: Math.round(myComposite * 100) / 100,
         my_profile: {
-          attendance_rate: Math.round(myAttRate * 10) / 10,
-          module_completion: Math.round(myModRate * 10) / 10,
+          attendance_rate: myAttRate !== null ? Math.round(myAttRate * 10) / 10 : null,
+          module_completion: myModRate !== null ? Math.round(myModRate * 10) / 10 : null,
           avg_score: Math.round(myAvgScore * 10) / 10, // shown for context only — not part of the index
         },
         peer_count: peerComposites.length,
@@ -656,3 +673,4 @@ const AnalyticsEngine = (() => {
     getPredictedFinalGrade, getImprovementProbability, getStudentsLikeYou, getRiskAssessment,
   };
 })();
+a
