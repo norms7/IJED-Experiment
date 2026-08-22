@@ -469,11 +469,20 @@ const AnalyticsView = {
 
     // Weighted formula, spelled out plainly for teachers/panelists:
     //   Performance Score = Academic×75% + Attendance×15% + Modules×10%
-    const formulaRows = [
+    //
+    // All three rows are always shown, even when a component has no data
+    // yet (e.g. no attendance sessions recorded so far) — hiding a row
+    // silently would make it look like that factor doesn't count at all,
+    // when really its weight was fairly redistributed across the known
+    // components (Objective §5's "don't red-flag on missing data" rule).
+    // The formula line at the bottom only sums components that actually
+    // had data, so the displayed math still matches performance_score exactly.
+    const allRows = [
       ['Academic Performance', bd.academic],
       ['Attendance',           bd.attendance],
       ['Module Progress',      bd.modules],
-    ].filter(([, part]) => part.value !== null);
+    ];
+    const formulaRows = allRows.filter(([, part]) => part.value !== null);
 
     return `
       <div class="risk-badge" style="background:${bg};border:2px solid ${color}">
@@ -482,8 +491,18 @@ const AnalyticsView = {
       </div>
 
       <div class="risk-signals">
-        ${formulaRows.map(([label, part]) => {
+        ${allRows.map(([label, part]) => {
           const val = part.value;
+          if (val === null) {
+            return `
+              <div class="risk-signal-row">
+                <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
+                <div class="risk-signal-bar-wrap">
+                  <div class="risk-signal-bar" style="width:100%;background:var(--gray-100)"></div>
+                </div>
+                <span class="risk-signal-pct" style="color:var(--gray-400)">No data yet</span>
+              </div>`;
+          }
           const c = val >= 80 ? 'var(--green)' : val >= 70 ? 'var(--yellow)' : 'var(--red)';
           return `
             <div class="risk-signal-row">
@@ -495,6 +514,10 @@ const AnalyticsView = {
             </div>`;
         }).join('')}
       </div>
+
+      ${formulaRows.length < allRows.length
+        ? `<p class="gauge-meta" style="font-style:italic">Weight for components with no data yet is redistributed proportionally across the rest, so this student isn't penalized for something not yet measurable.</p>`
+        : ''}
 
       <p class="gauge-meta">Score = ${formulaRows.map(([l, p]) => `${l.split(' ')[0]}×${Math.round(p.weight*100)}%`).join(' + ')} = <strong>${data.performance_score}</strong> (${data.rating})</p>
 
