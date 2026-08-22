@@ -375,114 +375,46 @@ const AnalyticsEngine = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // 8. BAYESIAN — "Students Like You"
+  // 8. "Students Like You" — Engagement Index & peer percentile (§8)
+  //
+  //    Computed entirely server-side via get_engagement_percentile().
+  //    A client-side implementation is architecturally impossible to do
+  //    correctly here: RLS correctly restricts a student to reading only
+  //    their OWN attendance_records / student_module_reads rows, so any
+  //    attempt to read other students' rows from the browser to build a
+  //    peer comparison silently returns empty data for every peer. The
+  //    SECURITY DEFINER RPC computes the full Engagement Index and
+  //    percentile inside Postgres, where it can see the rows it needs, and
+  //    returns only the requesting student's own numbers + an aggregate
+  //    percentile — no peer identities or raw peer scores ever reach the
+  //    client, preserving the spec's "Never expose student identities"
+  //    requirement.
   // ══════════════════════════════════════════════════════════════════════
   async function getStudentsLikeYou(sb, studentId) {
     const cacheKey = "bayesian.students_like_you";
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
-      if (!subjectIds.length) return { percentile: null, message: "Not enough data yet." };
+      const { data, error } = await sb.rpc("get_engagement_percentile", { p_student_id: studentId });
+      if (error) throw new Error(error.message);
 
-      const { data: enrollRows } = await sb
-        .from("student_subject_enrollments").select("student_id").in("subject_id", subjectIds);
-      const allStudentIds = [...new Set((enrollRows || []).map(r => r.student_id))];
-      if (!allStudentIds.includes(studentId)) allStudentIds.push(studentId);
-
-      const peerPoolIds = allStudentIds.filter(id => id !== studentId).slice(0, 200);
-      const targetIds = [...peerPoolIds, studentId];
-
-      // Attendance — Present + Late×0.5, matching Objective §2 exactly
-      // (previously this only counted status='present', silently giving
-      // 'late' students zero credit here even though every other card
-      // gives them 50% credit for it).
-      const { data: sessions } = await sb
-        .from("attendance_sessions").select("id").in("subject_id", subjectIds).eq("has_class", true);
-      const sessionIds = (sessions || []).map(s => s.id);
-      const totalSessions = sessionIds.length;
-
-      const attendanceCreditByStudent = new Map();
-      if (sessionIds.length) {
-        const { data: attRows } = await sb
-          .from("attendance_records").select("student_id, status")
-          .in("session_id", sessionIds).in("student_id", targetIds).in("status", ["present", "late"]);
-        for (const r of (attRows || [])) {
-          const credit = r.status === "present" ? 1 : 0.5;
-          attendanceCreditByStudent.set(r.student_id, (attendanceCreditByStudent.get(r.student_id) || 0) + credit);
-        }
+      if (data?.percentile === null || data?.percentile === undefined) {
+        return { percentile: null, message: "Not enough data yet." };
       }
 
-      // Module completion
-      const { count: totalMods } = await sb
-        .from("modules").select("id", { count: "exact", head: true }).in("subject_id", subjectIds).eq("is_published", true);
-
-      const readsByStudent = new Map();
-      if (totalMods) {
-        const { data: readRows } = await sb
-          .from("student_module_reads").select("student_id").in("student_id", targetIds);
-        for (const r of (readRows || [])) readsByStudent.set(r.student_id, (readsByStudent.get(r.student_id) || 0) + 1);
-      }
-
-      // Average score — kept only for the "My Profile" display card (§8's
-      // requirement to show Engagement Score + peer comparison alongside
-      // context), but it is NOT part of the Engagement Index itself.
-      const { data: subRows } = await sb
-        .from("activity_submissions")
-        .select("student_id, score, max_score, activities!inner(subject_id)")
-        .in("student_id", targetIds).eq("is_graded", true).not("score", "is", null).gt("max_score", 0)
-        .in("activities.subject_id", subjectIds);
-      const scoresByStudent = new Map();
-      for (const r of (subRows || [])) {
-        const pct = (r.score / r.max_score) * 100;
-        if (!scoresByStudent.has(r.student_id)) scoresByStudent.set(r.student_id, []);
-        scoresByStudent.get(r.student_id).push(pct);
-      }
-
-      // Engagement Index (Objective §8):
-      //   Engagement Index = Attendance×0.40 + Module Score×0.60
-      // Academic score is intentionally excluded — this metric is about
-      // engagement/participation, not grades, so a high performer with low
-      // engagement isn't misleadingly ranked as "like" a highly-engaged peer.
-      //
-      // If totalSessions is 0, there is genuinely no attendance data yet —
-      // this must NOT be scored as 0% (a real, poor attendance record).
-      // The same distinction the Overall Rating card makes (null → "No
-      // data yet", never silently 0) applies here too.
-      const compositeFor = (sid) => {
-        const attRate = totalSessions ? (attendanceCreditByStudent.get(sid) || 0) / totalSessions * 100 : null;
-        const modRate = totalMods ? (readsByStudent.get(sid) || 0) / totalMods * 100 : null;
-        const parts = [
-          { value: attRate, weight: 0.40 },
-          { value: modRate, weight: 0.60 },
-        ].filter(p => p.value !== null);
-        if (!parts.length) return 0; // no signal at all for this student — falls to the bottom of the ranking, not a misleading mid-pack score
-        const wSum = parts.reduce((a, p) => a + p.weight, 0);
-        return parts.reduce((a, p) => a + p.value * (p.weight / wSum), 0);
-      };
-
-      const myComposite = compositeFor(studentId);
-      const peerComposites = peerPoolIds.map(compositeFor);
-      const percentile = percentileRank(myComposite, peerComposites);
-
+      const percentile = data.percentile;
       let message;
       if (percentile >= 75) message = `You perform better than ${percentile}% of students with similar engagement patterns.`;
       else if (percentile >= 50) message = `You are performing above the median — better than ${percentile}% of similar students.`;
       else if (percentile >= 25) message = `There is room to grow. You are currently ahead of ${percentile}% of similar students.`;
       else message = `You are in the bottom ${100 - percentile}% of similar students — this is a great moment to step up!`;
 
-      const myAttRate = totalSessions ? (attendanceCreditByStudent.get(studentId) || 0) / totalSessions * 100 : null;
-      const myModRate = totalMods ? (readsByStudent.get(studentId) || 0) / totalMods * 100 : null;
-      const myScores = scoresByStudent.get(studentId) || [];
-      const myAvgScore = myScores.length ? myScores.reduce((a, b) => a + b, 0) / myScores.length : 0;
-
       return {
         percentile, message,
-        engagement_score: Math.round(myComposite * 100) / 100,
+        engagement_score: data.engagement_score,
         my_profile: {
-          attendance_rate: myAttRate !== null ? Math.round(myAttRate * 10) / 10 : null,
-          module_completion: myModRate !== null ? Math.round(myModRate * 10) / 10 : null,
-          avg_score: Math.round(myAvgScore * 10) / 10, // shown for context only — not part of the index
+          attendance_rate: data.my_attendance_rate,
+          module_completion: data.my_module_completion,
         },
-        peer_count: peerComposites.length,
+        peer_count: data.peer_count,
       };
     });
   }
@@ -512,25 +444,20 @@ const AnalyticsEngine = (() => {
     const nowIso = new Date().toISOString();
 
     // ── §2 Attendance Score: Present = 100%, Late = 50%, Absent = 0% ──────
-    const { data: sessions } = await sb
-      .from("attendance_sessions").select("id").in("subject_id", subjectIds).eq("has_class", true);
-    const totalSessions = sessions?.length || 0;
-    let attendancePct = null;
-    if (totalSessions) {
-      const { data: records } = await sb
-        .from("attendance_records").select("status")
-        .in("session_id", sessions.map(s => s.id)).eq("student_id", studentId);
-      let present = 0, late = 0;
-      for (const r of (records || [])) {
-        if (r.status === "present") present++;
-        else if (r.status === "late") late++;
-        // "absent" and "excused" both contribute 0 credit, per the spec's
-        // three explicit rules (Present/Late/Absent) — excused is not one
-        // of the spec's rated categories, so it's treated the same as absent
-        // rather than silently invented as a fourth credit tier.
-      }
-      attendancePct = ((present + late * 0.5) / totalSessions) * 100;
-    }
+    // Computed server-side via get_attendance_score(). Direct client-side
+    // queries against attendance_sessions/attendance_records were unreliable
+    // for some students (returned 0 sessions even when the student's own
+    // "My Attendance" page — powered by a separate, already-correct RPC —
+    // showed real data). Routing through a SECURITY DEFINER RPC removes
+    // that ambiguity and guarantees this number always matches what the
+    // student sees on their Attendance page.
+    const { data: attScore, error: attErr } = await sb.rpc("get_attendance_score", {
+      p_student_id: studentId,
+      p_subject_ids: subjectIds,
+    });
+    if (attErr) throw new Error(attErr.message);
+    const totalSessions = attScore?.total_sessions || 0;
+    const attendancePct = attScore?.attendance_pct ?? null;
 
     // ── §3 Module Score: Modules Read / Total Modules ─────────────────────
     const { count: totalMods } = await sb
@@ -673,4 +600,3 @@ const AnalyticsEngine = (() => {
     getPredictedFinalGrade, getImprovementProbability, getStudentsLikeYou, getRiskAssessment,
   };
 })();
-a
