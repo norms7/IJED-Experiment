@@ -343,9 +343,14 @@ const TeacherView = {
     ).join('');
 
     // ── Per-student grade rows ─────────────────────────────────────────────
-    const WEIGHT_ACTIVITIES = 0.60;
-    const WEIGHT_MODULES    = 0.30;
-    const WEIGHT_ATTENDANCE = 0.10;
+    // Objective §4: Overall Score = Academic×75% + Attendance×15% + Module×10%
+    // (previously 60/30/10 — stale weights that predate the school standard
+    // being applied to the student-facing dashboard. A teacher viewing this
+    // table must see the same numbers a student sees on their own
+    // Performance Analytics page, or the two screens silently disagree.)
+    const WEIGHT_ACTIVITIES = 0.75;
+    const WEIGHT_ATTENDANCE = 0.15;
+    const WEIGHT_MODULES    = 0.10;
 
     const rows = loading
       ? `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">⏳ Loading grades…</td></tr>`
@@ -371,16 +376,18 @@ const TeacherView = {
           const activityPct   = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
           const readCount     = stu._modulesRead ?? 0;
           const attPresent    = stu._attPresent  ?? 0;
+          const attLate       = stu._attLate     ?? 0;
           const stuAttTotal   = stu._attTotal    ?? 0;
           const modulePct     = totalModules > 0 ? Math.round((readCount / totalModules) * 100) : 0;
-          const attendancePct = stuAttTotal  > 0 ? Math.round((attPresent / stuAttTotal) * 100) : null;
+          // Objective §2: Attendance Score = (Present + Late×0.5) / Total × 100
+          const attendancePct = stuAttTotal  > 0 ? Math.round(((attPresent + attLate * 0.5) / stuAttTotal) * 100) : null;
 
           let overallPct = null;
           if (activityPct !== null || attendancePct !== null) {
             overallPct = Math.round(
-              (activityPct  ?? 0) * WEIGHT_ACTIVITIES +
-               modulePct          * WEIGHT_MODULES    +
-              (attendancePct ?? 0) * WEIGHT_ATTENDANCE
+              (activityPct   ?? 0) * WEIGHT_ACTIVITIES +
+              (attendancePct ?? 0) * WEIGHT_ATTENDANCE +
+               modulePct           * WEIGHT_MODULES
             );
           }
 
@@ -395,7 +402,7 @@ const TeacherView = {
             : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
           const attBadge = stuAttTotal > 0
-            ? `<span style="font-weight:600">${attPresent}</span><span style="color:var(--gray-400)">/${stuAttTotal}</span>`
+            ? `<span style="font-weight:600">${attPresent}</span><span style="color:var(--gray-400)">${attLate > 0 ? ` +${attLate}L` : ''}/${stuAttTotal}</span>`
             : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
           const overallBadge = overallPct !== null
