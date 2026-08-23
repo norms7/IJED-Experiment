@@ -298,7 +298,7 @@ const AnalyticsView = {
         <div class="analytics-card">
           <div class="analytics-card-header">
             <div class="analytics-card-title">🎯 Predicted Final Grade</div>
-            <div class="analytics-card-sub">Academic 70% · Attendance 20% · Module Progress 10%</div>
+            <div class="analytics-card-sub">Academic 75% · Attendance 15% · Module Progress 10%</div>
           </div>
           ${AnalyticsView._predictedGrade(predicted_grade)}
         </div>
@@ -427,11 +427,11 @@ const AnalyticsView = {
           <div class="peer-profile-key">Engagement Score</div>
         </div>
         <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.attendance_rate}%</div>
+          <div class="peer-profile-val">${profile.attendance_rate !== null ? profile.attendance_rate + '%' : 'No data yet'}</div>
           <div class="peer-profile-key">Attendance</div>
         </div>
         <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.module_completion}%</div>
+          <div class="peer-profile-val">${profile.module_completion !== null ? profile.module_completion + '%' : 'No data yet'}</div>
           <div class="peer-profile-key">Modules Read</div>
         </div>
       </div>
