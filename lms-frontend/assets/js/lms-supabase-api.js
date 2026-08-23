@@ -1035,7 +1035,7 @@ class LMSAdminAPI {
       AnalyticsEngine.getPredictedFinalGrade(this.sb, studentId, subjectId),
       AnalyticsEngine.getImprovementProbability(this.sb, studentId, targetGrade, subjectId),
       AnalyticsEngine.getStudentsLikeYou(this.sb, studentId),
-      AnalyticsEngine.getRiskAssessment(this.sb, studentId),
+      AnalyticsEngine.getRiskAssessment(this.sb, studentId, subjectId),
     ]);
     return { predicted_grade, improvement_probability, students_like_you, risk_assessment };
   }
@@ -1048,10 +1048,10 @@ class LMSAdminAPI {
     return AnalyticsEngine.getImprovementProbability(this.sb, await this._myStudentId(), targetGrade, subjectId);
   }
 
-  async getRiskAssessment() {
-    return AnalyticsEngine.getRiskAssessment(this.sb, await this._myStudentId());
+  async getRiskAssessment(subjectId = null) {
+    return AnalyticsEngine.getRiskAssessment(this.sb, await this._myStudentId(), subjectId);
   }
 }
 
 // Global singleton — all controllers reference this as `api`
-const api = new LMSAdminAPI();
+const api = new LMSAdminAPI();3
