@@ -517,10 +517,10 @@ const AnalyticsEngine = (() => {
     return { rating: "At Risk", color: "at_risk", emoji: "🔴" };
   }
 
-  async function getRiskAssessment(sb, studentId) {
-    const cacheKey = "performance.rating";
+  async function getRiskAssessment(sb, studentId, subjectId = null) {
+    const cacheKey = `performance.rating.subject_${subjectId || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const perf = await computePerformanceComponents(sb, studentId, null);
+      const perf = await computePerformanceComponents(sb, studentId, subjectId);
       if (!perf) {
         return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
       }
