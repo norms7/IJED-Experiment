@@ -201,6 +201,7 @@ const GradebookController = {
         ...stu,
         _modulesRead: moduleReads[stu.id] ?? 0,
         _attPresent:  attMap[stu.id]?.present ?? 0,
+        _attLate:     attMap[stu.id]?.late ?? 0,
         _attTotal:    attTotal,
       }));
 
@@ -314,7 +315,7 @@ const GradebookController = {
     const headerRow = [
       'Student Name', 'LRN / Student No.',
       `Activities Submitted (/${activities.length})`, 'Activity Score %',
-      `Modules (/${modules.length})`, 'Attendance Present', 'Attendance Total', 'Attendance %',
+      `Modules (/${modules.length})`, 'Attendance Present', 'Attendance Total', 'Attendance % (Present+Late×0.5)',
       'Overall %', 'Final Grade (PH)',
     ];
 
@@ -341,15 +342,26 @@ const GradebookController = {
       const readCount     = stu._modulesRead ?? 0;
       const modulePct     = modules.length > 0 ? Math.round((readCount / modules.length) * 100) : 0;
       const attPresent    = stu._attPresent ?? 0;
+      const attLate       = stu._attLate ?? 0;
       const attTotal      = stu._attTotal   ?? 0;
-      const attendancePct = attTotal > 0 ? Math.round((attPresent / attTotal) * 100) : null;
+      // Objective §2: Attendance Score = (Present + Late×0.5) / Total × 100
+      // (previously this was plain present/total, giving 'late' students
+      // zero credit — inconsistent with the school's own formula, and with
+      // the student-facing Overall Performance Rating card, which already
+      // uses this same weighting.)
+      const attendancePct = attTotal > 0 ? Math.round(((attPresent + attLate * 0.5) / attTotal) * 100) : null;
 
+      // Objective §4: Overall Score = Academic×75% + Attendance×15% + Module×10%
+      // (previously this used 60/30/10 — an old weighting left over from
+      // before the school standard was implemented on the student-facing
+      // dashboard. This export must use the same official weights so a
+      // teacher's downloaded report always matches what students see.)
       let overallPct = null;
       if (activityPct !== null || attendancePct !== null) {
         overallPct = Math.round(
-          (activityPct  ?? 0) * 0.60 +
-           modulePct          * 0.30 +
-          (attendancePct ?? 0) * 0.10
+          (activityPct   ?? 0) * 0.75 +
+          (attendancePct ?? 0) * 0.15 +
+           modulePct           * 0.10
         );
       }
 
