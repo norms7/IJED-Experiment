@@ -122,51 +122,24 @@ const AnalyticsEngine = (() => {
 
   // ══════════════════════════════════════════════════════════════════════
   // 3. DESCRIPTIVE — Score vs Class Average
+  //
+  //    Computed server-side via get_score_vs_class_average(). The previous
+  //    implementation queried activity_submissions for ALL students in the
+  //    browser to build a class average — but RLS correctly restricts a
+  //    student to reading only their own submission rows, so every "class
+  //    average" silently collapsed to the requesting student's own score
+  //    (class_size was always 1). Same bug class, same fix pattern, as
+  //    "Students Like You" (§8).
   // ══════════════════════════════════════════════════════════════════════
   async function getScoreVsClassAverage(sb, studentId, subjectId = null) {
     const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
-      if (!subjectIds.length) return { data: [] };
-      const filterIds = subjectId ? [subjectId] : subjectIds;
-
-      const { data: activities, error: aErr } = await sb
-        .from("activities").select("*").in("subject_id", filterIds).eq("is_published", true).order("created_at");
-      if (aErr) throw new Error(aErr.message);
-      if (!activities?.length) return { data: [] };
-
-      const actIds = activities.map(a => a.id);
-      const actMap = new Map(activities.map(a => [a.id, a]));
-
-      const { data: allSubs, error: sErr } = await sb
-        .from("activity_submissions").select("activity_id, student_id, score, max_score")
-        .in("activity_id", actIds).eq("is_graded", true).not("score", "is", null).gt("max_score", 0);
-      if (sErr) throw new Error(sErr.message);
-
-      const classScores = new Map();
-      const studentScore = new Map();
-      for (const sub of (allSubs || [])) {
-        const pct = Math.round((sub.score / sub.max_score) * 1000) / 10;
-        if (!classScores.has(sub.activity_id)) classScores.set(sub.activity_id, []);
-        classScores.get(sub.activity_id).push(pct);
-        if (sub.student_id === studentId) studentScore.set(sub.activity_id, pct);
-      }
-
-      const data = [];
-      for (const [actId, pcts] of classScores.entries()) {
-        if (!pcts.length) continue;
-        const avg = Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 10) / 10;
-        const my = studentScore.has(actId) ? studentScore.get(actId) : null;
-        const act = actMap.get(actId);
-        const diff = my !== null ? Math.round((my - avg) * 10) / 10 : null;
-        data.push({
-          activity_id: actId, activity_name: act.title, activity_type: act.activity_type,
-          subject_id: act.subject_id, my_score_pct: my, class_avg_pct: avg,
-          diff_pct: diff, class_size: pcts.length,
-        });
-      }
-      data.sort((a, b) => (a.subject_id - b.subject_id) || (a.activity_id - b.activity_id));
-      return { data };
+      const { data, error } = await sb.rpc("get_score_vs_class_average", {
+        p_student_id: studentId,
+        p_subject_ids: subjectId ? [subjectId] : null,
+      });
+      if (error) throw new Error(error.message);
+      return { data: data?.data || [] };
     });
   }
 
@@ -257,11 +230,14 @@ const AnalyticsEngine = (() => {
 
   // ══════════════════════════════════════════════════════════════════════
   // 6. PREDICTED FINAL GRADE
-  //    School standard (Objective §6): simple weighted average, NOT Bayesian.
-  //      Predicted Grade = Academic×0.70 + Attendance×0.20 + Module×0.10
+  //    Weights unified with Overall Performance Rating (§4) by school
+  //    decision: Academic 75% / Attendance 15% / Module 10% — same weights,
+  //    same formula, for both "all subjects" and any specific subject.
+  //    (Originally this used 70/20/10 per a separate §6 weighting in the
+  //    objective doc, but the school opted to make both cards agree.)
   //    Uses the exact same Academic/Attendance/Module component values as
-  //    getRiskAssessment() (§1–§3 formulas), just recombined with the 70/20/10
-  //    weights instead of 75/15/10, so the two cards never contradict each other.
+  //    getRiskAssessment(), so the two cards can never show different
+  //    Academic/Attendance/Module inputs for the same student+subject.
   // ══════════════════════════════════════════════════════════════════════
   function emptyPrediction() {
     return { predicted_grade: null, range_low: null, range_high: null, confidence: "n/a", n_observations: 0, current_avg: null, supporting_factors: [] };
@@ -276,8 +252,8 @@ const AnalyticsEngine = (() => {
       const { academicPct, attendancePct, modulePct, countedActivities, factors } = perf;
 
       const parts = [
-        { value: academicPct,   weight: 0.70 },
-        { value: attendancePct, weight: 0.20 },
+        { value: academicPct,   weight: 0.75 },
+        { value: attendancePct, weight: 0.15 },
         { value: modulePct,     weight: 0.10 },
       ].filter(p => p.value !== null);
 
@@ -339,7 +315,7 @@ const AnalyticsEngine = (() => {
         : gap <= 5
           ? "A small, consistent improvement on upcoming graded activities should close this gap."
           : gap <= 10
-            ? "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 70% of the prediction."
+            ? "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 75% of the prediction."
             : "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
 
       return {
