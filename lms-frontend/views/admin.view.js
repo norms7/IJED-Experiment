@@ -1,532 +1,415 @@
 /* ============================================================
-   views/analytics.view.js
-   Pure render functions for the Performance Analytics tab.
-   Follows the same pattern as student.view.js — returns HTML
-   strings only; no direct DOM manipulation.
-
-   Charts are rendered via Chart.js (CDN), loaded lazily inside
-   AnalyticsController._postRender().
+   views/admin.view.js
+   Pure render functions for Admin role — returns HTML strings only.
+   No direct DOM manipulation; controllers handle that.
    ============================================================ */
 
 "use strict";
 
-const AnalyticsView = {
+const AdminView = {
 
-  // ── Shell: the two-sub-tab wrapper ───────────────────────────────────────
-
-  shell(subjectOptions = []) {
-    const opts = subjectOptions.map(s =>
-      `<option value="${s.subject_id}">${escHtml(s.subject_name)}</option>`
-    ).join('');
-
-    return `
-      <div class="analytics-header">
-        <div>
-          <h2 class="analytics-title">📊 Performance Analytics</h2>
-          <p class="analytics-sub">Understand your academic journey with data-driven insights.</p>
-        </div>
-        <div class="analytics-filters">
-          <select id="analytics-subject-filter" class="analytics-select" onchange="AnalyticsController.onSubjectChange(this.value)">
-            <option value="">All Subjects</option>
-            ${opts}
-          </select>
-        </div>
-      </div>
-
-      <!-- Sub-tab navigation -->
-      <div class="analytics-tabs">
-        <button class="analytics-tab active" data-tab="descriptive"
-          onclick="AnalyticsController.switchTab('descriptive', this)">
-          📈 Descriptive Analysis
-        </button>
-        <button class="analytics-tab" data-tab="bayesian"
-          onclick="AnalyticsController.switchTab('bayesian', this)">
-          🔮 Bayesian Analysis
-        </button>
-      </div>
-
-      <!-- Tab panels -->
-      <div id="analytics-panel-descriptive" class="analytics-panel">
-        ${AnalyticsView.descriptiveSkeleton()}
-      </div>
-      <div id="analytics-panel-bayesian" class="analytics-panel hidden">
-        ${AnalyticsView.bayesianSkeleton()}
-      </div>`;
-  },
-
-  // ── Skeletons ─────────────────────────────────────────────────────────────
-
-  descriptiveSkeleton() {
-    return `
-      <div class="analytics-grid">
-        ${[1,2,3,4,5].map(() => `
-          <div class="analytics-card">
-            <div class="skeleton-title"></div>
-            <div class="skeleton-chart"></div>
-          </div>`).join('')}
-      </div>`;
-  },
-
-  bayesianSkeleton() {
-    return `
-      <div class="analytics-grid">
-        ${[1,2,3,4].map(() => `
-          <div class="analytics-card">
-            <div class="skeleton-title"></div>
-            <div class="skeleton-chart"></div>
-          </div>`).join('')}
-      </div>`;
-  },
-
-  // ── Empty state ───────────────────────────────────────────────────────────
-
-  empty(message = 'No data available yet. Complete some activities to see your analytics.') {
-    return `
-      <div class="analytics-empty">
-        <div class="analytics-empty-icon">📭</div>
-        <div class="analytics-empty-title">Nothing to show yet</div>
-        <div class="analytics-empty-sub">${escHtml(message)}</div>
-      </div>`;
-  },
-
-  // ── Error state ───────────────────────────────────────────────────────────
-
-  error(msg = 'Could not load analytics. Please try again.') {
-    return `
-      <div class="analytics-empty">
-        <div class="analytics-empty-icon">⚠️</div>
-        <div class="analytics-empty-title">Something went wrong</div>
-        <div class="analytics-empty-sub">${escHtml(msg)}</div>
-        <button class="btn btn-sm btn-outline" style="margin-top:12px"
-          onclick="AnalyticsController.reload()">Try Again</button>
-      </div>`;
-  },
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // DESCRIPTIVE PANEL
-  // ════════════════════════════════════════════════════════════════════════════
-
-  descriptivePanel(data, subjectMap = {}) {
-    const { grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar } = data;
-
-    return `
-      <div class="analytics-grid">
-
-        <!-- 1. Grade Progress — Line Chart -->
-        <div class="analytics-card analytics-card-wide">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">📈 My Grade Progress</div>
-            <div class="analytics-card-sub">Score trends over time</div>
-          </div>
-          ${grade_progress.data.length
-            ? `<div class="chart-wrapper"><canvas id="chart-grade-progress"></canvas></div>`
-            : AnalyticsView.empty('Submit and get graded on activities to see your progress.')
-          }
-        </div>
-
-        <!-- 2. Attendance Calendar — Heatmap -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">🗓️ My Attendance Calendar</div>
-            <div class="analytics-card-sub">Daily attendance patterns</div>
-          </div>
-          <div class="att-legend">
-            <span class="att-dot att-present"></span>Present
-            <span class="att-dot att-absent"></span>Absent
-            <span class="att-dot att-excused"></span>Excused
-            <span class="att-dot att-no-class"></span>No Class
-          </div>
-          ${AnalyticsView._attendanceCalendar(attendance_calendar)}
-          ${AnalyticsView._attendanceSummary(attendance_calendar.summary)}
-        </div>
-
-        <!-- 3. Score vs Class Average — Bar Chart -->
-        <div class="analytics-card analytics-card-wide">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">📊 Activity Score vs Class Average</div>
-            <div class="analytics-card-sub">How you compare to your peers</div>
-          </div>
-          ${score_vs_avg.data.length
-            ? `<div class="chart-wrapper"><canvas id="chart-score-vs-avg"></canvas></div>`
-            : AnalyticsView.empty('Class average data will appear once activities are graded.')
-          }
-        </div>
-
-        <!-- 4. Module Reading Progress — Progress Bars -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">📄 Module Reading Progress</div>
-            <div class="analytics-card-sub">Learning engagement with course materials</div>
-          </div>
-          ${AnalyticsView._moduleProgress(module_progress)}
-        </div>
-
-        <!-- 5. Subject Radar — Radar Chart -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">🕸️ Subject Performance Overview</div>
-            <div class="analytics-card-sub">Strengths and areas for growth</div>
-          </div>
-          ${subject_radar.axes.length >= 3
-            ? `<div class="chart-wrapper chart-wrapper-sm"><canvas id="chart-subject-radar"></canvas></div>`
-            : AnalyticsView.empty('Enroll in at least 3 subjects to see the radar chart.')
-          }
-        </div>
-
-      </div>`;
-  },
-
-  _attendanceCalendar(att) {
-    if (!att || !att.calendar || Object.keys(att.calendar).length === 0) {
-      return AnalyticsView.empty('No attendance sessions recorded yet.');
-    }
-
-    // Group by month
-    const byMonth = {};
-    for (const [dateStr, status] of Object.entries(att.calendar)) {
-      const d = new Date(dateStr + 'T00:00:00');
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!byMonth[key]) byMonth[key] = {};
-      byMonth[key][d.getDate()] = status;
-    }
-
-    const months = Object.keys(byMonth).sort();
-    // Show last 3 months
-    const visible = months.slice(-3);
-
-    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-
-    const statusClass = {
-      present:  'att-present',
-      absent:   'att-absent',
-      excused:  'att-excused',
-      late:     'att-late',
-      no_class: 'att-no-class',
-    };
-
-    return `<div class="att-months-wrapper">` + visible.map(mk => {
-      const [yr, mo] = mk.split('-').map(Number);
-      const firstDay = new Date(yr, mo - 1, 1).getDay();
-      const daysInMonth = new Date(yr, mo, 0).getDate();
-      const dayMap = byMonth[mk] || {};
-
-      let cells = DAY_LABELS.map(d => `<div class="att-day-label">${d}</div>`).join('');
-      // Empty cells before first day
-      for (let i = 0; i < firstDay; i++) cells += `<div class="att-cell att-empty"></div>`;
-      for (let d = 1; d <= daysInMonth; d++) {
-        const st = dayMap[d] || '';
-        const cls = statusClass[st] || 'att-future';
-        const title = st ? `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}: ${st.replace('_',' ')}` : '';
-        cells += `<div class="att-cell ${cls}" title="${title}">${d}</div>`;
-      }
-
+  /** Main admin dashboard – expects stats object from API */
+  dashboard(user, stats = null) {
+    if (!stats) {
       return `
-        <div class="att-month">
-          <div class="att-month-label">${MONTH_NAMES[mo-1]} ${yr}</div>
-          <div class="att-grid">${cells}</div>
+        <div class="welcome-banner">
+          <div class="welcome-text">
+            <div class="welcome-title">Good day, ${escHtml(user.name?.split(' ')[0] || 'Admin')}! 👋</div>
+            <div class="welcome-sub">Loading dashboard data...</div>
+          </div>
+          <div class="welcome-emoji">👨‍💼</div>
+        </div>
+        <div class="stat-grid mb-4">
+          <div class="stat-card"><div class="stat-icon" style="background:#fde8ec">👥</div><div><div class="stat-value">—</div><div class="stat-label">Total Users</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:#e6f4ea">👩‍🏫</div><div><div class="stat-value">—</div><div class="stat-label">Teachers</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:#fff0e6">🎓</div><div><div class="stat-value">—</div><div class="stat-label">Students</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:#e8f0fa">📄</div><div><div class="stat-value">—</div><div class="stat-label">Modules</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:#fde8ec">📝</div><div><div class="stat-value">—</div><div class="stat-label">Activities</div></div></div>
+        </div>
+        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading...</div></div>`;
+    }
+
+    const totalUsers  = stats.total_users     || 0;
+    const teachers    = stats.total_teachers  || 0;
+    const students    = stats.total_students  || 0;
+    const modules     = stats.total_modules   || 0;
+    const activities  = stats.total_activities || 0;
+    const recentUsers = stats.recent_users    || [];
+
+    return `
+      <div class="welcome-banner">
+        <div class="welcome-text">
+          <div class="welcome-title">Good day, ${escHtml(user.name?.split(' ')[0] || 'Admin')}! 👋</div>
+          <div class="welcome-sub">Here's an overview of the IJED Learning Management System.</div>
+        </div>
+        <div class="welcome-emoji">👨‍💼</div>
+      </div>
+
+      <div class="stat-grid mb-4">
+        ${this._statCard('👥', '#fde8ec', totalUsers,  'Total Users')}
+        ${this._statCard('👩‍🏫', '#e6f4ea', teachers,   'Teachers')}
+        ${this._statCard('🎓', '#fff0e6', students,    'Students')}
+        ${this._statCard('📄', '#e8f0fa', modules,     'Modules')}
+        ${this._statCard('📝', '#fde8ec', activities,  'Activities')}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Recent Users</span></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Name</th><th>Role</th><th>Joined</th></tr></thead>
+              <tbody>
+                ${recentUsers.map(u => `
+                  <tr>
+                    <td><strong>${escHtml(u.full_name)}</strong></td>
+                    <td><span class="badge badge-maroon">${escHtml(u.role?.name || u.role)}</span></td>
+                    <td class="text-sm text-muted">${fmtDate(u.created_at)}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-muted text-center">No users yet</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">Quick Actions</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+            <button class="btn btn-primary w-full" style="justify-content:center" onclick="AdminController.openAddUser()">➕ Add New User</button>
+            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-teachers')">👩‍🏫 Manage Teachers</button>
+            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-students')">🎓 Manage Students</button>
+            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-users')">👥 All Users</button>
+            <button class="btn btn-outline w-full" style="justify-content:center;border-color:var(--maroon);color:var(--maroon)" onclick="AdminController.openAnnouncement()">📢 Send Announcement</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Announcement Modal -->
+      <div id="announcement-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:var(--radius);padding:28px;width:440px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+          <h3 style="margin:0 0 16px;color:var(--maroon-dark)">📢 Send Announcement</h3>
+          <div style="margin-bottom:12px">
+            <label class="form-label">Send To</label>
+            <select id="announce-target" class="form-control">
+              <option value="all">Everyone</option>
+              <option value="teachers">Teachers only</option>
+              <option value="students">Students only</option>
+            </select>
+          </div>
+          <div style="margin-bottom:12px">
+            <label class="form-label">Title</label>
+            <input id="announce-title" class="form-control" placeholder="Announcement title…" maxlength="200"/>
+          </div>
+          <div style="margin-bottom:20px">
+            <label class="form-label">Message</label>
+            <textarea id="announce-msg" class="form-control" rows="4" placeholder="Write your announcement here…" style="resize:vertical"></textarea>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-outline" onclick="AdminController.closeAnnouncement()">Cancel</button>
+            <button class="btn btn-primary" onclick="AdminController.sendAnnouncement()">Send 📢</button>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  _statCard(icon, bg, value, label) {
+    return `<div class="stat-card">
+      <div class="stat-icon" style="background:${bg}">${icon}</div>
+      <div><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>
+    </div>`;
+  },
+
+  /* ── Unified Manage Users shell (data loaded in controller) ── */
+  manageUsers() {
+    return `
+      <div class="um-page">
+        <div class="um-header">
+          <div>
+            <h2 style="margin:0;font-size:22px;color:var(--maroon-dark)">Manage Users</h2>
+            <p id="um-stats" style="margin:4px 0 0;color:var(--gray-400);font-size:13px">Loading...</p>
+          </div>
+          <div class="um-header-actions">
+            <button class="btn btn-outline btn-sm" onclick="AdminController.exportCSV('all')">⬇ Export Students</button>
+            <button class="btn btn-outline btn-sm" onclick="AdminController.openImportStudents()">⬆ Import Students</button>
+            <button class="btn btn-primary" onclick="AdminController.openAddUser()">➕ Add User</button>
+          </div>
+        </div>
+        <div class="um-tabs" id="um-tabs">
+          <button class="um-tab active" data-tab="all">All Users (<span id="tab-all-count">0</span>)</button>
+          <button class="um-tab" data-tab="teachers">👩‍🏫 Teachers (<span id="tab-teachers-count">0</span>)</button>
+          <button class="um-tab" data-tab="students">🎓 Students (<span id="tab-students-count">0</span>)</button>
+          <button class="um-tab" data-tab="sections">🏫 Sections (<span id="tab-sections-count">0</span>)</button>
+          <button class="um-tab" data-tab="audit">📋 Audit Log</button>
+        </div>
+        <div id="um-pane-all"></div>
+        <div id="um-pane-teachers" style="display:none"></div>
+        <div id="um-pane-students" style="display:none"></div>
+        <div id="um-pane-sections" style="display:none"></div>
+        <div id="um-pane-audit" style="display:none"></div>
+      </div>`;
+  },
+
+  /* ── All Users pane ── */
+  _allUsersPane(users) {
+    if (!users.length) return '<div class="empty-state"><div class="empty-state-icon">👥</div><div class="empty-state-title">No users found</div></div>';
+    const rows = users.map(u => {
+      const roleTag = `<span class="badge badge-${u.role?.name === 'teacher' ? 'blue' : u.role?.name === 'student' ? 'green' : 'maroon'}">${u.role?.name || u.role}</span>`;
+      const extra = u.role?.name === 'teacher' ? '—' : (u.student_number || '—');
+      return `<tr data-searchable>
+        <td><strong>${escHtml(u.full_name)}</strong></td>
+        <td class="text-sm">${escHtml(u.email)}</td>
+        <td>${roleTag}</td>
+        <td class="text-sm">${extra}</td>
+        <td class="text-sm text-muted">${fmtDate(u.created_at)}</td>
+        <td><span class="badge ${u.is_active ? 'badge-green' : 'badge-red'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
+        <td>
+          <div class="actions-cell">
+            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${u.id})">✏️ Edit</button>
+            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${u.id})">🗑 Remove</button>
+          </div>
+         </td>
+       </tr>`;
+    }).join('');
+
+    return `
+      <div class="um-toolbar">
+        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search by name, email…"/></div>
+        <select class="form-control" style="width:140px" onchange="AdminController._filterRole(this.value)">
+          <option value="">All Roles</option><option value="teacher">Teacher</option><option value="student">Student</option>
+        </select>
+        <select class="form-control" style="width:140px" onchange="AdminController._filterStatus(this.value)">
+          <option value="">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="card table-card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>LRN / ID</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="user-table-body">${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  /* ── Teachers pane ── */
+  _teachersPane(teachers) {
+    if (!teachers.length) return '<div class="empty-state"><div class="empty-state-icon">👩‍🏫</div><div class="empty-state-title">No teachers yet</div></div>';
+    const cards = teachers.map(t => this._teacherCard(t)).join('');
+    return `
+      <div class="um-toolbar">
+        <div class="search-box"><span>🔍</span><input type="text" placeholder="Search teachers…" oninput="AdminController._filterCards(this.value,'teacher-card')"/></div>
+        <button class="btn btn-primary" onclick="AdminController.openAddUser('teacher')">➕ Add Teacher</button>
+      </div>
+      <div class="teacher-grid">${cards}</div>`;
+  },
+
+  /* ── Teacher card ── */
+  _teacherCard(t) {
+    const fullName = `${t.user.first_name} ${t.user.last_name}`;
+    const email    = t.user.email;
+    const isActive = t.user.is_active;
+    const initials = fullName.split(' ').map(n => n[0] || '').join('').slice(0,2).toUpperCase() || '?';
+    let assignmentsHtml = '';
+    let schRows = '';
+    if (t.class_assignments && t.class_assignments.length) {
+      assignmentsHtml = t.class_assignments.map(a => `
+        <div class="assignment-item">
+          <div class="assignment-subject">📘 ${escHtml(a.subject.name)}</div>
+          <div class="assignment-class">🏫 ${escHtml(a.class_.name)} (${escHtml(a.class_.grade_level || '')})</div>
+          <div class="assignment-schedule">⏰ ${a.schedule || 'No schedule'}</div>
+        </div>
+      `).join('');
+      schRows = t.class_assignments.map(a => `
+        <div class="sch-row">
+          <span class="sch-info" style="font-size:12px">
+            <strong>${escHtml(a.subject.name)}</strong> · ${escHtml(a.class_.name)} · ${escHtml(a.schedule || 'No schedule')}
+          </span>
+        </div>
+      `).join('');
+    } else {
+      assignmentsHtml = '<div class="text-muted">No subjects assigned</div>';
+      schRows = '<div class="text-muted">No schedule</div>';
+    }
+    return `
+      <div class="teacher-card ${isActive ? '' : 'card-inactive'}">
+        <div class="teacher-card-header">
+          <div class="teacher-avatar">${initials}</div>
+          <div class="teacher-info">
+            <div class="teacher-name">${escHtml(fullName)}</div>
+            <div class="teacher-email">${escHtml(email)}</div>
+            <span class="badge ${isActive ? 'badge-green' : 'badge-red'}">${isActive ? 'Active' : 'Inactive'}</span>
+          </div>
+          <div class="teacher-actions">
+            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${t.user.id})">✏️ Edit</button>
+            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${t.user.id})">🗑</button>
+          </div>
+        </div>
+        <div class="teacher-card-body">
+          <div class="teacher-section-label">📚 ASSIGNMENTS</div>
+          <div class="assignments-list">${assignmentsHtml}</div>
+          <div class="teacher-section-label" style="margin-top:10px">📅 WEEKLY SCHEDULE</div>
+          <div class="sch-list">${schRows}</div>
+        </div>
+      </div>`;
+  },
+
+  /* ── Students pane ── */
+  _studentsPane(students, sections) {
+    if (!students.length) return '<div class="empty-state"><div class="empty-state-icon">🎓</div><div class="empty-state-title">No students yet</div></div>';
+
+    const sectionMap = {};
+    sections.forEach(sec => { sectionMap[sec.id] = sec.name; });
+
+    const bySection = {};
+    students.forEach(s => {
+      const sectionId = s.section_assignments?.[0]?.section_id || 'unassigned';
+      if (!bySection[sectionId]) bySection[sectionId] = [];
+      bySection[sectionId].push(s);
+    });
+
+    const sectionBlocks = Object.keys(bySection).map(sectionId => {
+      const grp = bySection[sectionId];
+      const sectionName = sectionId === 'unassigned' ? 'Unassigned' : (sectionMap[sectionId] || 'Unknown Section');
+      const rows = grp.map(s => {
+        const fullName = `${s.user.first_name} ${s.user.last_name}`;
+        const lrn = s.student_number || '—';
+        return `<tr data-searchable>
+          <td><strong>${escHtml(fullName)}</strong></td>
+          <td class="text-sm">${escHtml(s.user.email)}</td>
+          <td class="text-sm">${escHtml(lrn)}</td>
+          <td class="text-sm">${escHtml(sectionName)}</td>
+          <td class="text-sm"><span class="badge ${s.user.is_active ? 'badge-green' : 'badge-red'}">${s.user.is_active ? 'Active' : 'Inactive'}</span></td>
+          <td class="actions-cell">
+            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${s.user.id})">✏️ Edit</button>
+            <button class="btn btn-xs btn-primary" onclick="AdminController.openEnrollSubjects(${s.id}, '${escHtml(fullName)}')">📚 Subjects</button>
+            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${s.user.id})">🗑</button>
+          </td>
+        </tr>`;
+      }).join('');
+      return `
+        <div class="section-block">
+          <div class="section-block-header">
+            <span class="section-block-title">🏫 ${escHtml(sectionName)}</span>
+            <span class="section-block-count">${grp.length} student${grp.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Name</th><th>Email</th><th>LRN</th><th>Section</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
         </div>`;
-    }).join('') + `</div>`;
+    }).join('');
+    return `
+      <div class="um-toolbar">
+        <div class="search-box"><span>🔍</span><input type="text" id="student-search" placeholder="Search students…" oninput="AdminController._filterStudents(this.value)"/></div>
+        <button class="btn btn-primary" onclick="AdminController.openAddUser('student')">➕ Add Student</button>
+        <button class="btn btn-outline btn-sm" onclick="AdminController.openImportStudents()">⬆ Import</button>
+        <button class="btn btn-outline btn-sm" onclick="AdminController.exportCSV('student')">⬇ Export</button>
+      </div>
+      <div id="student-section-blocks">${sectionBlocks}</div>`;
   },
 
-  _attendanceSummary(summary) {
-    if (!summary) return '';
-    const total = (summary.present || 0) + (summary.absent || 0) + (summary.late || 0) + (summary.excused || 0);
-    const rate = total > 0 ? Math.round(((summary.present || 0) / total) * 100) : 0;
-    const rateColor = rate >= 80 ? 'var(--green)' : rate >= 60 ? '#f59e0b' : 'var(--red)';
+  /* ── Sections pane ── */
+  _sectionsPane(sections) {
+    if (!sections || !sections.length) {
+      return '<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">No sections yet</div><button class="btn btn-primary mt-3" onclick="AdminController.openAddSection()">➕ Add Section</button></div>';
+    }
+    const rows = sections.map(sec => `
+      <tr>
+        <td><strong>${escHtml(sec.name)}</strong> (Class ID: ${sec.class_id})</td>
+        <td class="text-sm">—</td>
+        <td class="text-sm">—</td>
+        <td class="text-sm">—</td>
+        <td class="text-sm">—</td>
+        <td class="text-sm text-muted">—</td>
+        <td class="actions-cell">
+          <button class="btn btn-xs btn-outline" onclick="AdminController.openEditSection(${sec.id})">✏️ Edit</button>
+          <button class="btn btn-xs btn-danger" onclick="AdminController.deleteSection(${sec.id})">🗑</button>
+        </td>
+      </tr>
+    `).join('');
     return `
-      <div class="att-summary">
-        <div class="att-summary-rate" style="color:${rateColor}">${rate}%</div>
-        <div class="att-summary-label">Attendance Rate</div>
-        <div class="att-summary-pills">
-          <span class="att-pill att-present">${summary.present || 0} Present</span>
-          <span class="att-pill att-absent">${summary.absent || 0} Absent</span>
-          <span class="att-pill att-excused">${summary.excused || 0} Excused</span>
+      <div class="um-toolbar"><button class="btn btn-primary" onclick="AdminController.openAddSection()">➕ Add Section</button></div>
+      <div class="card table-card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Section</th><th>Room</th><th>Adviser</th><th>Students</th><th>School Year</th><th>Actions</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
         </div>
       </div>`;
   },
 
-  _moduleProgress(data) {
-    if (!data || !data.subjects || data.subjects.length === 0) {
-      return AnalyticsView.empty('No published modules found for your subjects.');
-    }
-
-    const subjects = data.subjects;
-    const totals = data.totals;
-    const overallColor = totals.pct >= 80 ? 'var(--green)' : totals.pct >= 50 ? '#f59e0b' : 'var(--red)';
-
+  /* ── Audit Log pane ── */
+  _auditPane() {
+    const logs = auditModel.getRecent(100);
+    if (!logs.length) return `<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">No audit records yet</div></div>`;
+    const actionColor = { CREATE:'#2e6b3e', UPDATE:'#1a4a8a', DELETE:'#b71c1c', ASSIGN:'#c04a00', IMPORT:'#6a0dad' };
+    const rows = logs.map(l => {
+      const admin = userModel.getById(l.adminId);
+      const dt    = new Date(l.timestamp);
+      const fmt   = dt.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) + ' ' + dt.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
+      const col   = actionColor[l.action] || '#666';
+      return `<tr>
+        <td><span class="tag" style="background:${col}20;color:${col};border:1px solid ${col}40;font-size:11px;font-weight:700">${l.action}</span></td>
+        <td class="text-sm">${escHtml(l.entity)}</td>
+        <td class="text-sm">${escHtml(l.details)}</td>
+        <td class="text-sm">${admin ? escHtml(admin.name) : 'System'}</td>
+        <td class="text-sm text-muted">${fmt}</td>
+      </tr>`;
+    }).join('');
     return `
-      <div class="mod-overall">
-        <div class="mod-overall-bar-wrap">
-          <div class="mod-overall-bar" style="width:${totals.pct}%;background:${overallColor}"></div>
-        </div>
-        <span class="mod-overall-label">${totals.pct}% overall (${totals.read}/${totals.total} modules)</span>
+      <div class="um-toolbar">
+        <div class="search-box"><span>🔍</span><input type="text" placeholder="Search logs…" oninput="AdminController._filterTable(this.value,'audit-body')"/></div>
+        <button class="btn btn-outline btn-sm" onclick="AdminController.clearAuditLog()">🗑 Clear Log</button>
       </div>
-      <div class="mod-list">
-        ${subjects.map(s => {
-          const c = s.completion_pct >= 80 ? 'var(--green)' : s.completion_pct >= 50 ? '#f59e0b' : 'var(--red)';
-          return `
-            <div class="mod-subject-row">
-              <div class="mod-subject-name" title="Subject ID ${s.subject_id}">
-                Subject ${s.subject_id}
-              </div>
-              <div class="mod-bar-wrap">
-                <div class="mod-bar" style="width:${s.completion_pct}%;background:${c}"></div>
-              </div>
-              <span class="mod-pct" style="color:${c}">${s.completion_pct}%</span>
-              <span class="mod-count">${s.modules_read}/${s.modules_total}</span>
-            </div>`;
-        }).join('')}
-      </div>
-      ${totals.total - totals.read > 0
-        ? `<p class="mod-remaining">${totals.total - totals.read} module(s) remaining</p>`
-        : `<p class="mod-remaining" style="color:var(--green)">✅ All modules read!</p>`
-      }`;
-  },
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // BAYESIAN PANEL
-  // ════════════════════════════════════════════════════════════════════════════
-
-  bayesianPanel(data) {
-    const { predicted_grade, improvement_probability, students_like_you, risk_assessment } = data;
-
-    return `
-      <div class="analytics-grid">
-
-        <!-- 1. Predicted Final Grade — Gauge -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">🎯 Predicted Final Grade</div>
-            <div class="analytics-card-sub">Academic 70% · Attendance 20% · Module Progress 10%</div>
-          </div>
-          ${AnalyticsView._predictedGrade(predicted_grade)}
+      <div class="card table-card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Action</th><th>Entity</th><th>Details</th><th>Admin</th><th>Timestamp</th></tr></thead>
+            <tbody id="audit-body">${rows}</tbody>
+          </table>
         </div>
-
-        <!-- 2. Grade Improvement Probability -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">📈 Grade Improvement Probability</div>
-            <div class="analytics-card-sub">Chance of reaching your target grade</div>
-          </div>
-          ${AnalyticsView._improvementProb(improvement_probability)}
-        </div>
-
-        <!-- 3. Students Like You -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">👥 Students Like You</div>
-            <div class="analytics-card-sub">Anonymous comparison with similar engagement profiles</div>
-          </div>
-          ${AnalyticsView._studentsLikeYou(students_like_you)}
-        </div>
-
-        <!-- 4. Overall Performance Rating -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">🚦 Overall Performance Rating</div>
-            <div class="analytics-card-sub">Academic 75% · Attendance 15% · Module Progress 10%</div>
-          </div>
-          ${AnalyticsView._riskAssessment(risk_assessment)}
-        </div>
-
       </div>`;
   },
 
-  _predictedGrade(data) {
-    if (!data || data.predicted_grade === null) {
-      return AnalyticsView.empty('Submit more graded activities to generate a prediction.');
-    }
-
-    const grade = data.predicted_grade;
-    const color = grade >= 90 ? 'var(--green)'
-      : grade >= 85 ? 'var(--green-mid)'
-      : grade >= 80 ? 'var(--blue)'
-      : grade >= 75 ? 'var(--yellow)'
-      : grade >= 70 ? 'var(--orange)'
-      : 'var(--red)';
-    const arc = Math.min(grade / 100, 1);
-
-    // SVG gauge
-    const R = 60, CX = 80, CY = 80;
-    const arcLen = Math.PI * R;
-    const dashOffset = arcLen * (1 - arc);
-
-    return `
-      <div class="gauge-wrapper">
-        <svg width="160" height="100" viewBox="0 0 160 100" class="gauge-svg">
-          <!-- Track arc -->
-          <path d="M20,80 A${R},${R} 0 0,1 140,80"
-            fill="none" stroke="var(--gray-100)" stroke-width="14" stroke-linecap="round"/>
-          <!-- Value arc -->
-          <path d="M20,80 A${R},${R} 0 0,1 140,80"
-            fill="none" stroke="${color}" stroke-width="14" stroke-linecap="round"
-            stroke-dasharray="${arcLen}"
-            stroke-dashoffset="${dashOffset}"
-            style="transition:stroke-dashoffset .8s ease"/>
-        </svg>
-        <div class="gauge-value" style="color:${color}">${grade}%</div>
-        <div class="gauge-label">Predicted Grade</div>
-      </div>
-      <div class="gauge-ci">
-        <span class="gauge-ci-label">Estimated Range</span>
-        <span class="gauge-ci-range">${data.range_low}% – ${data.range_high}%</span>
-      </div>
-      <div class="gauge-meta">Based on ${data.n_observations} graded activities &middot; Current academic avg ${data.current_avg ?? '—'}%</div>
-      ${data.supporting_factors && data.supporting_factors.length
-        ? `<ul class="risk-factors-list" style="margin-top:8px">${data.supporting_factors.map(f => `<li>${escHtml(f)}</li>`).join('')}</ul>`
-        : ''}`;
+  /* ── Redirect helpers (for legacy nav items) ── */
+  manageTeachers() {
+    AdminController._pendingTab = 'teachers';
+    return this.manageUsers();
+  },
+  manageStudents() {
+    AdminController._pendingTab = 'students';
+    return this.manageUsers();
   },
 
-  _improvementProb(data) {
-    if (!data || data.probability === null) {
-      return AnalyticsView.empty('Not enough graded activities yet.');
-    }
-
-    const prob = data.probability;
-    const color = prob >= 70 ? 'var(--green)' : prob >= 45 ? '#f59e0b' : 'var(--red)';
-
+  settings(user) {
     return `
-      <div class="improv-target-row">
-        <span class="improv-label">Target Grade</span>
-        <div class="improv-target-control">
-          <button onclick="AnalyticsController.adjustTarget(-5)" class="improv-btn">−</button>
-          <span id="improv-target-display" class="improv-target-val">${data.target_grade}%</span>
-          <button onclick="AnalyticsController.adjustTarget(+5)" class="improv-btn">+</button>
+      <div class="section-header">
+        <div class="section-header-left"><h2>Settings</h2><p>Manage your account preferences</p></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:820px;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Profile Information</span></div>
+          <div class="card-body">
+            <div class="form-group"><label class="form-label">Full Name</label>
+              <input class="form-control" id="settings-name" value="${escHtml(user.name)}" /></div>
+            <div class="form-group"><label class="form-label">Email Address</label>
+              <input class="form-control" id="settings-email" value="${escHtml(user.email)}" /></div>
+            <button class="btn btn-primary" onclick="AdminController.saveSettings()">Save Changes</button>
+          </div>
         </div>
-      </div>
-      <div class="improv-meter-wrap">
-        <div class="improv-meter-bar" style="width:${prob}%;background:${color};transition:width .6s ease"></div>
-      </div>
-      <div class="improv-prob-val" style="color:${color}">${prob}%</div>
-      <div class="improv-prob-label">${data.label} — probability of reaching ${data.target_grade}%</div>
-      <div class="gauge-meta">Predicted grade ${data.predicted_grade}% · Gap to target: ${Math.max(0, Math.round((data.target_grade - data.predicted_grade) * 10) / 10)}%</div>
-      ${data.recommendation ? `<p class="gauge-meta" style="margin-top:6px"><strong>Recommendation:</strong> ${escHtml(data.recommendation)}</p>` : ''}`;
-  },
-
-  _studentsLikeYou(data) {
-    if (!data || data.percentile === null) {
-      return AnalyticsView.empty('Comparison data will appear once more activity is recorded.');
-    }
-
-    const pct = data.percentile;
-    const color = pct >= 75 ? 'var(--green)' : pct >= 50 ? '#f59e0b' : 'var(--red)';
-    const profile = data.my_profile;
-
-    return `
-      <div class="peer-percentile">
-        <div class="peer-pct-ring" style="border-color:${color}">
-          <span class="peer-pct-val" style="color:${color}">${pct}<sup style="font-size:14px">th</sup></span>
-          <span class="peer-pct-sub">percentile</span>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Change Password</span></div>
+          <div class="card-body">
+            <div class="form-group"><label class="form-label">New Password</label>
+              <input class="form-control" type="password" id="settings-pw" placeholder="Enter new password" /></div>
+            <div class="form-group"><label class="form-label">Confirm Password</label>
+              <input class="form-control" type="password" id="settings-pw2" placeholder="Confirm new password" /></div>
+            <button class="btn btn-primary" onclick="AdminController.changePassword()">Update Password</button>
+          </div>
         </div>
-      </div>
-      <p class="peer-message">${escHtml(data.message)}</p>
-      <div class="peer-profile-grid">
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${data.engagement_score}%</div>
-          <div class="peer-profile-key">Engagement Score</div>
-        </div>
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.attendance_rate !== null ? profile.attendance_rate + '%' : 'No data yet'}</div>
-          <div class="peer-profile-key">Attendance</div>
-        </div>
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.module_completion !== null ? profile.module_completion + '%' : 'No data yet'}</div>
-          <div class="peer-profile-key">Modules Read</div>
-        </div>
-      </div>
-      <p class="gauge-meta">Engagement Score = Attendance×40% + Modules×60% (academic score not included) · Compared with ${data.peer_count} anonymous students with similar engagement</p>`;
-  },
-
-  _riskAssessment(data) {
-    if (!data || data.performance_score === null || data.performance_score === undefined) {
-      return AnalyticsView.empty('Performance data will appear once enough activity, attendance, and module signals are recorded.');
-    }
-
-    // Colors follow the Objective §5 rating bands exactly:
-    //   90-100 Excellent (Green) · 85-89 Very Good (Light Green) ·
-    //   80-84 Good (Blue) · 75-79 Fair (Yellow) ·
-    //   70-74 Needs Improvement (Orange) · <70 At Risk (Red)
-    const colorMap = {
-      excellent:          'var(--green)',
-      very_good:          'var(--green-mid)',
-      good:               'var(--blue)',
-      fair:               'var(--yellow)',
-      needs_improvement:  'var(--orange)',
-      at_risk:            'var(--red)',
-    };
-    const bgMap = {
-      excellent:          'var(--green-light)',
-      very_good:          'var(--green-mid-light)',
-      good:               'var(--blue-light)',
-      fair:               'var(--yellow-light)',
-      needs_improvement:  'var(--orange-light)',
-      at_risk:            'var(--red-light)',
-    };
-    const color = colorMap[data.color] || '#888';
-    const bg    = bgMap[data.color]    || '#f5f5f5';
-    const bd = data.breakdown;
-
-    // Weighted formula, spelled out plainly for teachers/panelists:
-    //   Performance Score = Academic×75% + Attendance×15% + Modules×10%
-    //
-    // All three rows are always shown, even when a component has no data
-    // yet (e.g. no attendance sessions recorded so far) — hiding a row
-    // silently would make it look like that factor doesn't count at all,
-    // when really its weight was fairly redistributed across the known
-    // components (Objective §5's "don't red-flag on missing data" rule).
-    // The formula line at the bottom only sums components that actually
-    // had data, so the displayed math still matches performance_score exactly.
-    const allRows = [
-      ['Academic Performance', bd.academic],
-      ['Attendance',           bd.attendance],
-      ['Module Progress',      bd.modules],
-    ];
-    const formulaRows = allRows.filter(([, part]) => part.value !== null);
-
-    return `
-      <div class="risk-badge" style="background:${bg};border:2px solid ${color}">
-        <span class="risk-emoji">${data.emoji}</span>
-        <span class="risk-label" style="color:${color}">${data.performance_score} — ${data.rating}</span>
-      </div>
-
-      <div class="risk-signals">
-        ${allRows.map(([label, part]) => {
-          const val = part.value;
-          if (val === null) {
-            return `
-              <div class="risk-signal-row">
-                <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
-                <div class="risk-signal-bar-wrap">
-                  <div class="risk-signal-bar" style="width:100%;background:var(--gray-100)"></div>
-                </div>
-                <span class="risk-signal-pct" style="color:var(--gray-400)">No data yet</span>
-              </div>`;
-          }
-          const c = val >= 80 ? 'var(--green)' : val >= 70 ? 'var(--yellow)' : 'var(--red)';
-          return `
-            <div class="risk-signal-row">
-              <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
-              <div class="risk-signal-bar-wrap">
-                <div class="risk-signal-bar" style="width:${Math.min(val,100)}%;background:${c}"></div>
-              </div>
-              <span class="risk-signal-pct" style="color:${c}">${val}%</span>
-            </div>`;
-        }).join('')}
-      </div>
-
-      ${formulaRows.length < allRows.length
-        ? `<p class="gauge-meta" style="font-style:italic">Weight for components with no data yet is redistributed proportionally across the rest, so this student isn't penalized for something not yet measurable.</p>`
-        : ''}
-
-      <p class="gauge-meta">Score = ${formulaRows.map(([l, p]) => `${l.split(' ')[0]}×${Math.round(p.weight*100)}%`).join(' + ')} = <strong>${data.performance_score}</strong> (${data.rating})</p>
-
-      <div class="risk-factors">
-        <div class="risk-factors-title">Contributing Factors</div>
-        <ul class="risk-factors-list">
-          ${data.factors.map(f => `<li>${escHtml(f)}</li>`).join('')}
-        </ul>
       </div>`;
   },
-
 };
