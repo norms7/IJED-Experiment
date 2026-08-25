@@ -899,13 +899,415 @@ const AdminController = {
   saveSchedule(tid)           { /* legacy */ },
   deleteSchedule(sid, tid)    { /* legacy */ },
   viewSectionSchedule(secId)  { /* legacy */ },
-  exportCSV(type)             { /* legacy */ },
-  openImportCSV()             { /* legacy */ },
-  processImportCSV()          { /* legacy */ },
   clearAuditLog()             { /* legacy */ },
   saveSettings()              { /* legacy */ },
   changePassword()            { /* legacy */ },
   _filterBySection(secId)     { /* legacy */ },
+
+  /* ── Bulk Student Import / Export ────────────────────────────────────────
+     Excel template columns (row 1 = headers, exact match required):
+       First Name | Last Name | Email | LRN | Grade Level | Strand |
+       Section | School Year | Semester | Guardian Name | Guardian Contact |
+       Contact Number
+     Grouping/placement: rows are grouped by (School Year + Grade + Strand +
+     Section); each group is placed into the matching Class + Section,
+     auto-creating them if they don't exist yet — same find-or-create pattern
+     the single "Add Student" form already uses. Class names are generated
+     as "<STRAND> G<grade>" (e.g. "ICT G11") to stay consistent with the
+     existing strand/grade subject-matching logic in openAddUser().
+     Passwords: auto-generated as "<LastName>_<LRN>" (e.g. "Dancalan_179741")
+     — hashing is handled entirely by Supabase Auth server-side; nothing
+     here ever sees or stores a plain-text password beyond this one request.
+     Duplicates (matched by Email OR LRN already existing): the student's
+     account is left untouched — only their section placement and subject
+     enrollment are updated to match the file.
+  ───────────────────────────────────────────────────────────────────────── */
+
+  _STUDENT_TEMPLATE_HEADERS: [
+    'First Name', 'Last Name', 'Email', 'LRN', 'Grade Level', 'Strand',
+    'Section', 'School Year', 'Semester', 'Guardian Name', 'Guardian Contact', 'Contact Number',
+  ],
+
+  downloadStudentImportTemplate() {
+    const headers = this._STUDENT_TEMPLATE_HEADERS;
+    const example = [
+      'Juan', 'Dancalan', 'juan.dancalan@ijed.test', '179741', '11', 'ICT',
+      'A', '2025-2026', '1', 'Maria Dancalan', '09171234567', '09179876543',
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+    ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 14) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
+
+    const notes = XLSX.utils.aoa_to_sheet([
+      ['Column', 'Required?', 'Notes'],
+      ['First Name', 'Yes', ''],
+      ['Last Name', 'Yes', 'Used in the auto-generated password: LastName_LRN'],
+      ['Email', 'Yes', 'Must be unique — used for login'],
+      ['LRN', 'Yes', 'Student ID number. Must be unique. Also used in the auto-generated password.'],
+      ['Grade Level', 'Yes', 'Just the number, e.g. 11 or 12'],
+      ['Strand', 'Yes (if SHS)', 'e.g. ICT, HUMSS, STEM, GAS — leave blank for non-SHS grades'],
+      ['Section', 'Yes', 'e.g. A, Rizal — students with the same School Year + Grade + Strand + Section are grouped into the same section automatically'],
+      ['School Year', 'Yes', 'e.g. 2025-2026'],
+      ['Semester', 'No', '1 or 2 — only affects which semester-specific subjects are auto-enrolled'],
+      ['Guardian Name', 'No', ''],
+      ['Guardian Contact', 'No', ''],
+      ['Contact Number', 'No', "Student's own contact number"],
+      [],
+      ['Password:', 'Auto-generated as LastName_LRN, e.g. Dancalan_179741. Hashed automatically by Supabase Auth.'],
+      ['Existing students:', 'Matched by Email or LRN. Their account is left untouched — only section/subject placement is updated to match this file.'],
+    ]);
+    notes['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 70 }];
+    XLSX.utils.book_append_sheet(wb, notes, 'Instructions');
+
+    XLSX.writeFile(wb, 'IJED-LMS_Student_Import_Template.xlsx');
+  },
+
+  openImportStudents() {
+    Modal.show('Import Students', `
+      <div class="form-group">
+        <p style="margin-top:0;color:var(--gray-500);font-size:13px">
+          Upload an Excel file to bulk-add students and place them into their sections automatically.
+          Students already in the system (matched by Email or LRN) will have their section/subject
+          placement updated — their account and password are left untouched.
+        </p>
+        <button class="btn btn-outline btn-sm" onclick="AdminController.downloadStudentImportTemplate()">⬇ Download Template</button>
+      </div>
+      <div class="form-group">
+        <label>Excel File (.xlsx)</label>
+        <input type="file" class="form-control" id="import-students-file" accept=".xlsx,.xls" />
+      </div>
+      <div id="import-students-progress" style="display:none;margin-top:12px">
+        <div class="empty-state-sub">Processing… this may take a moment for large files.</div>
+      </div>
+      <div id="import-students-results" style="margin-top:12px"></div>
+    `, `
+      <button class="btn btn-ghost" onclick="Modal.close()">Close</button>
+      <button class="btn btn-primary" id="import-students-submit" onclick="AdminController.processImportStudents()">Import</button>
+    `);
+  },
+
+  async processImportStudents() {
+    const fileInput = document.getElementById('import-students-file');
+    const file = fileInput?.files?.[0];
+    if (!file) { Toast.show('Please choose an Excel file first.', 'error'); return; }
+
+    const submitBtn = document.getElementById('import-students-submit');
+    const progressEl = document.getElementById('import-students-progress');
+    const resultsEl  = document.getElementById('import-students-results');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Importing…'; }
+    if (progressEl) progressEl.style.display = '';
+    if (resultsEl) resultsEl.innerHTML = '';
+
+    try {
+      const rows = await this._readStudentExcelFile(file);
+      if (!rows.length) throw new Error('No data rows found in the file.');
+
+      const result = await this._runStudentImport(rows);
+      this._renderImportResults(result);
+      DashboardController.loadSection(DashboardController.currentSection);
+    } catch (err) {
+      Toast.show(`❌ Import failed: ${err.message}`, 'error');
+    } finally {
+      if (progressEl) progressEl.style.display = 'none';
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Import'; }
+    }
+  },
+
+  _readStudentExcelFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: 'array' });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const raw = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          resolve(raw.map((r, i) => ({ ...this._normalizeImportRow(r), _rowNum: i + 2 })));
+        } catch (err) {
+          reject(new Error('Could not read this file — is it a valid .xlsx export?'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read the file.'));
+      reader.readAsArrayBuffer(file);
+    });
+  },
+
+  _normalizeImportRow(r) {
+    // Tolerate header casing/spacing differences (e.g. "first name", "LRN ")
+    const get = (...keys) => {
+      for (const k of keys) {
+        for (const rk of Object.keys(r)) {
+          if (rk.trim().toLowerCase() === k.toLowerCase()) {
+            const v = r[rk];
+            return typeof v === 'string' ? v.trim() : v;
+          }
+        }
+      }
+      return '';
+    };
+    return {
+      firstName: get('First Name'),
+      lastName:  get('Last Name'),
+      email:     get('Email'),
+      lrn:       String(get('LRN') || '').trim(),
+      grade:     String(get('Grade Level') || '').trim(),
+      strand:    String(get('Strand') || '').trim().toUpperCase(),
+      section:   get('Section'),
+      schoolYear: get('School Year'),
+      semester:  String(get('Semester') || '').trim(),
+      guardianName: get('Guardian Name'),
+      guardianContact: get('Guardian Contact'),
+      contactNumber: get('Contact Number'),
+    };
+  },
+
+  _generateStudentPassword(lastName, lrn) {
+    return `${lastName}_${lrn}`;
+  },
+
+  async _runStudentImport(rows) {
+    const created = [], updated = [], errors = [];
+
+    // ── 1. Validate every row up front, before creating anything ──────────
+    const valid = [];
+    const seenEmails = new Set(), seenLrns = new Set();
+    for (const row of rows) {
+      const missing = [];
+      if (!row.firstName) missing.push('First Name');
+      if (!row.lastName)  missing.push('Last Name');
+      if (!row.email)     missing.push('Email');
+      if (!row.lrn)        missing.push('LRN');
+      if (!row.grade)      missing.push('Grade Level');
+      if (!row.section)    missing.push('Section');
+      if (!row.schoolYear) missing.push('School Year');
+      if (missing.length) {
+        errors.push({ row: row._rowNum, reason: `Missing: ${missing.join(', ')}` });
+        continue;
+      }
+      const emailKey = row.email.toLowerCase();
+      if (seenEmails.has(emailKey) || seenLrns.has(row.lrn)) {
+        errors.push({ row: row._rowNum, reason: `Duplicate Email or LRN within this file (already listed on an earlier row).` });
+        continue;
+      }
+      seenEmails.add(emailKey);
+      seenLrns.add(row.lrn);
+      valid.push(row);
+    }
+    if (!valid.length) return { created, updated, errors };
+
+    // ── 2. Resolve/create one Class+Section per unique (year, grade, strand, section) group ──
+    const groupKey = (r) => `${r.schoolYear}|${r.grade}|${r.strand}|${r.section}`.toLowerCase();
+    const groups = new Map();
+    for (const r of valid) {
+      const k = groupKey(r);
+      if (!groups.has(k)) groups.set(k, { schoolYear: r.schoolYear, grade: r.grade, strand: r.strand, section: r.section, rows: [] });
+      groups.get(k).rows.push(r);
+    }
+
+    const sectionIdByGroup = new Map();
+    const [allClasses, allSections, allSubjects] = await Promise.all([
+      api.sb.from('classes').select('*').eq('is_active', true).then(r => r.data || []),
+      api.sb.from('sections').select('*').then(r => r.data || []),
+      api.getSubjects(),
+    ]);
+
+    for (const [key, g] of groups.entries()) {
+      try {
+        const sectionId = await this._resolveClassAndSection(g, allClasses, allSections);
+        sectionIdByGroup.set(key, sectionId);
+      } catch (err) {
+        for (const r of g.rows) errors.push({ row: r._rowNum, reason: `Could not resolve section: ${err.message}` });
+      }
+    }
+
+    // ── 3. Look up existing students by email OR LRN in one query each ────
+    const emails = valid.map(r => r.email.toLowerCase());
+    const lrns = valid.map(r => r.lrn);
+    const [existingByEmail, existingByLrn] = await Promise.all([
+      api.sb.from('users').select('id, email, students(id, student_number)').in('email', emails).then(r => r.data || []),
+      api.sb.from('students').select('id, student_number, user_id, users(email)').in('student_number', lrns).then(r => r.data || []),
+    ]);
+    const userByEmail = new Map(existingByEmail.map(u => [u.email.toLowerCase(), u]));
+    const studentByLrn = new Map(existingByLrn.map(s => [s.student_number, s]));
+
+    // ── 4. Process each row ────────────────────────────────────────────
+    let processed = 0;
+    const progressEl = document.getElementById('import-students-progress');
+    for (const row of valid) {
+      processed++;
+      if (progressEl) progressEl.querySelector('.empty-state-sub').textContent =
+        `Processing ${processed} of ${valid.length}…`;
+
+      const key = groupKey(row);
+      const sectionId = sectionIdByGroup.get(key);
+      if (!sectionId) continue; // already recorded as an error above
+
+      try {
+        const existingUser = userByEmail.get(row.email.toLowerCase());
+        const existingStudentByLrn = studentByLrn.get(row.lrn);
+
+        if (existingUser || existingStudentByLrn) {
+          // ── Update path: leave account untouched, refresh placement only ──
+          const studentId = existingUser?.students?.[0]?.id ?? existingStudentByLrn?.id;
+          if (!studentId) {
+            errors.push({ row: row._rowNum, reason: 'Matched an existing account but no student profile was found for it — skipped.' });
+            continue;
+          }
+          await api.sb.from('student_section_assignments').delete().eq('student_id', studentId);
+          await api.assignStudentToSection({ student_id: studentId, section_id: sectionId });
+
+          const subjectIds = this._matchStrandSubjects(allSubjects, row.strand, row.grade, row.semester);
+          if (subjectIds.length) await api.enrollStudentSubjects(studentId, subjectIds);
+
+          updated.push({ row: row._rowNum, name: `${row.firstName} ${row.lastName}`, email: row.email });
+        } else {
+          // ── Create path: new auth account + profile + placement ──────────
+          const password = this._generateStudentPassword(row.lastName, row.lrn);
+          if (password.length < 8 || !/\d/.test(password)) {
+            errors.push({ row: row._rowNum, reason: `Generated password "${password}" is too short or has no digit (need 8+ characters, incl. at least one digit) — check the LRN value.` });
+            continue;
+          }
+          const newUser = await api.createUser({
+            email: row.email, password,
+            first_name: row.firstName, last_name: row.lastName,
+            role_id: this._STUDENT_ROLE_ID,
+          });
+          const studentProfile = await api.createStudentProfile({
+            user_id: newUser.id,
+            student_number: row.lrn,
+            contact_number: row.contactNumber || null,
+            guardian_name: row.guardianName || null,
+            guardian_contact: row.guardianContact || null,
+          });
+          await api.assignStudentToSection({ student_id: studentProfile.id, section_id: sectionId });
+
+          const subjectIds = this._matchStrandSubjects(allSubjects, row.strand, row.grade, row.semester);
+          if (subjectIds.length) await api.enrollStudentSubjects(studentProfile.id, subjectIds);
+
+          created.push({ row: row._rowNum, name: `${row.firstName} ${row.lastName}`, email: row.email, password });
+        }
+      } catch (err) {
+        errors.push({ row: row._rowNum, reason: err.message });
+      }
+    }
+
+    return { created, updated, errors };
+  },
+
+  // Matches the hardcoded role map already used by saveNewUser() elsewhere
+  // in this controller ({ admin: 1, teacher: 2, student: 3 }). Kept as its
+  // own constant here — if that map ever changes, update this too.
+  _STUDENT_ROLE_ID: 3,
+
+  _matchStrandSubjects(allSubjects, strand, grade, semester) {
+    if (!strand || !grade) return [];
+    const sem = parseInt(semester || '0');
+    return allSubjects.filter(s => {
+      const n = s.name.toUpperCase();
+      const matchStrand = n.includes(strand + ' G' + grade);
+      const matchCore   = n.includes('G' + grade + ' CORE');
+      const matchSem    = !sem || s.semester === sem;
+      return (matchStrand || matchCore) && matchSem;
+    }).map(s => s.id);
+  },
+
+  async _resolveClassAndSection(g, allClasses, allSections) {
+    const gradeLabel = `Grade ${g.grade}`;
+    const className = g.strand ? `${g.strand} G${g.grade}` : gradeLabel;
+
+    let klass = allClasses.find(c =>
+      c.grade_level === gradeLabel &&
+      c.school_year === g.schoolYear &&
+      c.name.toUpperCase().startsWith(g.strand || gradeLabel.toUpperCase())
+    );
+    if (!klass) {
+      const { data, error } = await api.sb.from('classes')
+        .insert({ name: className, grade_level: gradeLabel, school_year: g.schoolYear, is_active: true })
+        .select().single();
+      if (error) throw new Error(error.message);
+      klass = data;
+      allClasses.push(klass);
+    }
+
+    let section = allSections.find(s =>
+      s.class_id === klass.id && s.name.trim().toLowerCase() === g.section.trim().toLowerCase()
+    );
+    if (!section) {
+      const { data, error } = await api.sb.from('sections')
+        .insert({ name: g.section, class_id: klass.id })
+        .select().single();
+      if (error) throw new Error(error.message);
+      section = data;
+      allSections.push(section);
+    }
+    return section.id;
+  },
+
+  _renderImportResults(result) {
+    const { created, updated, errors } = result;
+    const el = document.getElementById('import-students-results');
+    if (!el) return;
+
+    let html = `<div class="import-summary" style="display:flex;gap:16px;margin-bottom:12px">
+      <div>✅ <strong>${created.length}</strong> created</div>
+      <div>🔁 <strong>${updated.length}</strong> updated</div>
+      <div>❌ <strong>${errors.length}</strong> errors</div>
+    </div>`;
+
+    if (created.length) {
+      this._lastImportCredentials = created;
+      html += `<button class="btn btn-outline btn-sm" onclick="AdminController._downloadCredentials(AdminController._lastImportCredentials)">⬇ Download Credentials (${created.length})</button>`;
+    }
+
+    if (errors.length) {
+      html += `<div style="margin-top:12px"><strong style="color:var(--red)">Errors:</strong>
+        <ul style="max-height:180px;overflow-y:auto;font-size:13px">
+          ${errors.map(e => `<li>Row ${e.row}: ${escHtml(e.reason)}</li>`).join('')}
+        </ul></div>`;
+    }
+
+    el.innerHTML = html;
+    Toast.show(`Import finished: ${created.length} created, ${updated.length} updated, ${errors.length} errors.`, errors.length ? 'warning' : 'success');
+  },
+
+  _downloadCredentials(created) {
+    const rows = [['Name', 'Email', 'Password'], ...created.map(c => [c.name, c.email, c.password])];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 24 }, { wch: 28 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Credentials');
+    XLSX.writeFile(wb, `IJED-LMS_New_Student_Credentials_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  },
+
+  async exportCSV(type) {
+    try {
+      const { data: students, error } = await api.sb
+        .from('students')
+        .select('student_number, contact_number, guardian_name, guardian_contact, users(first_name, last_name, email), student_section_assignments(sections(name, classes(name, grade_level, school_year)))');
+      if (error) throw new Error(error.message);
+
+      const headers = this._STUDENT_TEMPLATE_HEADERS;
+      const rows = (students || []).map(s => {
+        const sec = s.student_section_assignments?.[0]?.sections;
+        const klass = sec?.classes;
+        const gradeNum = (klass?.grade_level || '').replace(/[^0-9]/g, '');
+        const strand = klass?.name && gradeNum ? klass.name.split(' G' + gradeNum)[0].trim() : '';
+        return [
+          s.users?.first_name || '', s.users?.last_name || '', s.users?.email || '',
+          s.student_number || '', gradeNum, strand, sec?.name || '',
+          klass?.school_year || '', '', s.guardian_name || '', s.guardian_contact || '', s.contact_number || '',
+        ];
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 14) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Students');
+      XLSX.writeFile(wb, `IJED-LMS_Students_Export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      Toast.show(`Export failed: ${err.message}`, 'error');
+    }
+  },
 
   // ── Announcement modal ────────────────────────────────────────────────────
   openAnnouncement() {
