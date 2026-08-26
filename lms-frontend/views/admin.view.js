@@ -341,37 +341,21 @@ const AdminView = {
       </div>`;
   },
 
-  /* ── Audit Log pane ── */
+  /* ── Audit Log pane ──
+     NOTE: there is no real audit_log table or API yet — this was left over
+     from a pre-Supabase mock-data prototype that referenced `auditModel`/
+     `userModel` globals which no longer exist. That undefined reference was
+     crashing on every Manage Users page load (not just when viewing this
+     tab), because dashboard.controller.js renders every pane eagerly up
+     front. This now fails safely with a placeholder instead. Building a
+     real audit trail (new table + logging calls on create/update/delete/
+     import actions) is a separate feature to build when needed. */
   _auditPane() {
-    const logs = auditModel.getRecent(100);
-    if (!logs.length) return `<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">No audit records yet</div></div>`;
-    const actionColor = { CREATE:'#2e6b3e', UPDATE:'#1a4a8a', DELETE:'#b71c1c', ASSIGN:'#c04a00', IMPORT:'#6a0dad' };
-    const rows = logs.map(l => {
-      const admin = userModel.getById(l.adminId);
-      const dt    = new Date(l.timestamp);
-      const fmt   = dt.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) + ' ' + dt.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
-      const col   = actionColor[l.action] || '#666';
-      return `<tr>
-        <td><span class="tag" style="background:${col}20;color:${col};border:1px solid ${col}40;font-size:11px;font-weight:700">${l.action}</span></td>
-        <td class="text-sm">${escHtml(l.entity)}</td>
-        <td class="text-sm">${escHtml(l.details)}</td>
-        <td class="text-sm">${admin ? escHtml(admin.name) : 'System'}</td>
-        <td class="text-sm text-muted">${fmt}</td>
-      </tr>`;
-    }).join('');
-    return `
-      <div class="um-toolbar">
-        <div class="search-box"><span>🔍</span><input type="text" placeholder="Search logs…" oninput="AdminController._filterTable(this.value,'audit-body')"/></div>
-        <button class="btn btn-outline btn-sm" onclick="AdminController.clearAuditLog()">🗑 Clear Log</button>
-      </div>
-      <div class="card table-card">
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>Action</th><th>Entity</th><th>Details</th><th>Admin</th><th>Timestamp</th></tr></thead>
-            <tbody id="audit-body">${rows}</tbody>
-          </table>
-        </div>
-      </div>`;
+    return `<div class="empty-state">
+      <div class="empty-state-icon">📋</div>
+      <div class="empty-state-title">Audit log isn't set up yet</div>
+      <div class="empty-state-sub">This needs a dedicated audit table and logging hooks on admin actions — ask to have it built when you're ready.</div>
+    </div>`;
   },
 
   /* ── Redirect helpers (for legacy nav items) ── */

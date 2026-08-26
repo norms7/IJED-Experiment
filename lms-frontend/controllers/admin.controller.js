@@ -507,22 +507,6 @@ const AdminController = {
   /* ── Edit User ───────────────────────────────────────────── */
 
   async openEditUser(id) {
-    const isLegacy = typeof id === 'string' && id.startsWith('u');
-    if (isLegacy) {
-      const user = userModel.getById(id);
-      if (!user) return;
-      Toast.show('This is a demo/seed user. Only name, email, and status can be edited here.', 'warning');
-      Modal.show(`Edit User — ${escHtml(user.name)}`, `
-        <div class="form-row">
-          <div class="form-group"><label>Full Name</label><input class="form-control" id="e-name" value="${escHtml(user.name)}" /></div>
-          <div class="form-group"><label>Email</label><input class="form-control" id="e-email" value="${escHtml(user.email)}" /></div>
-        </div>
-        <div class="form-group"><label>Status</label><select class="form-control" id="e-active"><option value="1" ${user.isActive ? 'selected' : ''}>Active</option><option value="0" ${!user.isActive ? 'selected' : ''}>Inactive</option></select></div>`,
-        `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button><button class="btn btn-primary" onclick="AdminController.saveEditUser('${id}')">Save Changes</button>`
-      );
-      return;
-    }
-
     try {
       const user   = await api.getUser(id);
       const role   = user.role.name;
@@ -624,25 +608,6 @@ const AdminController = {
   openEditTeacher(id) { this.openEditUser(id); },
 
   async saveEditUser(id) {
-    const isLegacy = typeof id === 'string' && id.startsWith('u');
-    if (isLegacy) {
-      const user    = userModel.getById(id);
-      if (!user) return;
-      const updates = {
-        name:     document.getElementById('e-name').value.trim(),
-        email:    document.getElementById('e-email').value.trim(),
-        isActive: document.getElementById('e-active').value === '1',
-      };
-      if (!Validate.required(updates.name, 'Name'))  return;
-      if (!Validate.required(updates.email, 'Email')) return;
-      if (!Validate.email(updates.email))             return;
-      userModel.update(id, updates);
-      Modal.close();
-      Toast.show('User updated.', 'success');
-      DashboardController.loadSection(DashboardController.currentSection);
-      return;
-    }
-
     const email    = document.getElementById('e-email').value.trim();
     const isActive = document.getElementById('e-active').value === '1';
     const password = document.getElementById('e-password')?.value.trim() || '';
@@ -722,15 +687,7 @@ const AdminController = {
   /* ── Delete User ─────────────────────────────────────────── */
 
   async deleteUser(id) {
-    const isLegacy = typeof id === 'string' && id.startsWith('u');
-    const label    = isLegacy ? (userModel.getById(id)?.name || id) : `User #${id}`;
-    if (!confirm(`Deactivate "${label}"?\n\nThis disables their login but keeps all records.`)) return;
-    if (isLegacy) {
-      userModel.softDelete(id);
-      Toast.show(`"${label}" has been deactivated.`, 'info');
-      DashboardController.loadSection(DashboardController.currentSection);
-      return;
-    }
+    if (!confirm(`Deactivate "User #${id}"?\n\nThis disables their login but keeps all records.`)) return;
     try {
       await api.deleteUser(id);
       Toast.show(`✅ User deactivated.`, 'info');

@@ -1269,6 +1269,16 @@ div[style*="overflow-x: auto"] {
 .activity-table td:first-child,
 .data-table td:first-child { max-width: 220px; word-break: break-word; white-space: normal; }
 
+/* Headers should never wrap letter-by-letter. Without a min-width floor,
+   a narrow-content first column (combined with word-break: break-word on
+   its <td>) can make the browser's table auto-layout collapse that whole
+   column to a near-zero measured width — the <th> text then has nowhere
+   to go and wraps one character per line (e.g. "Name" rendering as
+   N / A / M / E stacked vertically on mobile). */
+.data-table th { white-space: nowrap; }
+.data-table td:first-child,
+.data-table th:first-child { min-width: 130px; }
+
 /* ── Attendance cards — badge row wraps ── */
 .attendance-badge-row {
   display: flex;
