@@ -1,0 +1,601 @@
+/* ============================================================
+   claymorphism.css
+   ------------------------------------------------------------
+   Visual-only design layer for the IJED LMS.
+
+   WHAT THIS FILE IS:
+   A "skin" that re-styles the SAME class names already used by
+   index.html / views / controllers (.btn, .card, .stat-card,
+   .modal, .form-control, .data-table, .badge, .sidebar,
+   .nav-item, .topbar, .toast, .module-card, .um-tab, etc.) with
+   a soft, tactile Claymorphism treatment: rounded surfaces,
+   dual-tone soft shadows, gentle depth, and pressed/inset states
+   on interaction.
+
+   WHAT THIS FILE DOES NOT DO:
+   - No HTML/JS is required for this file to work — it only
+     targets classes/attributes that already exist in the DOM.
+   - No backend, controller, model, or API logic is touched.
+   - Brand colors (maroon/gold) are preserved; only surface
+     treatment (radius, shadow, gradient, spacing polish) changes.
+
+   Loaded LAST (after main/layout/components/notifications/
+   analytics/loading) so it can safely override prior rules.
+   ============================================================ */
+
+/* ── Global surface & scroll polish ─────────────────────────── */
+body {
+  background: var(--clay-bg);
+}
+#page-app .main-content,
+#page-app .content-area {
+  background: var(--clay-bg);
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(109,0,25,.18);
+  border-radius: 10px;
+  border: 2px solid var(--clay-bg);
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(109,0,25,.32); }
+
+/* Consistent, calmer focus ring across every interactive control */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.nav-item:focus-visible,
+.role-tab:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2.5px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================================
+   BUTTONS — soft raised pillows, gentle press-in on click
+   ============================================================ */
+.btn {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-out-sm);
+  transition: transform var(--clay-bounce), box-shadow var(--transition), background var(--transition);
+  font-weight: 600;
+  letter-spacing: .1px;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0) scale(.97); box-shadow: var(--clay-shadow-in); }
+
+.btn-primary {
+  background: linear-gradient(150deg, var(--maroon-light) 0%, var(--maroon) 55%, var(--maroon-dark) 100%);
+  box-shadow: var(--clay-shadow-out-sm), 0 2px 0 rgba(0,0,0,.08) inset;
+}
+.btn-primary:hover {
+  background: linear-gradient(150deg, var(--maroon-light) 0%, var(--maroon) 60%, var(--maroon-dark) 100%);
+  box-shadow: var(--clay-shadow-hover);
+}
+.btn-gold {
+  background: linear-gradient(150deg, var(--gold-light) 0%, var(--gold) 100%);
+  box-shadow: var(--clay-shadow-out-sm);
+}
+.btn-gold:hover { box-shadow: var(--clay-shadow-hover), var(--shadow-gold); }
+.btn-outline {
+  background: var(--clay-bg);
+  box-shadow: var(--clay-shadow-out-sm);
+  border-color: transparent;
+}
+.btn-outline:hover { background: var(--rose-tint); }
+.btn-ghost { box-shadow: none; }
+.btn-ghost:hover { box-shadow: var(--clay-shadow-out-sm); background: var(--white); }
+.btn-danger { box-shadow: var(--clay-shadow-out-sm); }
+.btn-icon {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-out-sm);
+  background: var(--white);
+  transition: transform var(--clay-bounce), box-shadow var(--transition);
+}
+.btn-icon:hover { transform: translateY(-2px) rotate(-2deg); }
+.btn-icon:active { transform: scale(.94); box-shadow: var(--clay-shadow-in); }
+
+/* ============================================================
+   CARDS / SURFACES — tactile raised pillows
+   ============================================================ */
+.card,
+.stat-card,
+.module-card,
+.activity-card,
+.teacher-card,
+.teacher-subject-card,
+.student-subject-card,
+.section-block,
+.table-card,
+.login-box,
+.role-card,
+.feature-card,
+.about-card,
+.contact-card {
+  background: var(--white);
+  border: 1px solid var(--clay-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--clay-shadow-out);
+  transition: box-shadow var(--transition-lg), transform var(--transition-lg);
+}
+.card:hover,
+.stat-card:hover,
+.module-card:hover,
+.activity-card:hover,
+.teacher-card:hover,
+.teacher-subject-card:hover,
+.student-subject-card:hover {
+  box-shadow: var(--clay-shadow-hover);
+  transform: translateY(-3px);
+}
+.card-header { border-bottom: 1px solid var(--clay-border); }
+.card-footer { border-top: 1px solid var(--clay-border); }
+.module-card-header,
+.module-card-footer,
+.teacher-card-body {
+  border-color: var(--clay-border) !important;
+}
+
+/* Stat icon chips — consistent circular "icon system" treatment for the
+   emoji glyphs used throughout the app, so every icon sits in the same
+   soft rounded badge regardless of which view renders it. */
+.stat-icon,
+.feature-icon,
+.about-card-icon,
+.contact-card-icon,
+.role-emoji,
+.activity-type-icon,
+.acc-item-icon,
+.tab-icon,
+.empty-state-icon {
+  background: linear-gradient(150deg, var(--rose-tint), var(--rose-light));
+  box-shadow: var(--clay-shadow-in-deep);
+  border-radius: var(--radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.empty-state-icon {
+  width: 64px; height: 64px; font-size: 28px; margin: 0 auto 12px;
+  border-radius: 50%;
+}
+
+/* ============================================================
+   FORMS — inset "carved" fields, raised on focus
+   ============================================================ */
+.form-control,
+.search-box,
+select.form-control,
+textarea.form-control {
+  background: var(--clay-bg);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-in);
+  transition: box-shadow var(--transition), border-color var(--transition), background var(--transition);
+}
+.form-control:focus {
+  background: var(--white);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(212,160,23,.18), var(--clay-shadow-in);
+}
+.search-box { display: flex; align-items: center; }
+.search-box input.form-control,
+.search-box input {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+}
+.form-label { font-weight: 700; letter-spacing: .2px; color: var(--gray-600); }
+
+/* Checkboxes / radios: keep native control but give it a bit more presence */
+input[type="checkbox"],
+input[type="radio"] { accent-color: var(--maroon); width: 16px; height: 16px; }
+
+/* ── Selectable cards ─────────────────────────────────────────
+   Every existing radio/checkbox in the app is already written as
+   <label><input type="radio">…</label> (attendance marking, quiz
+   answer choices, session-type picker). :has() lets us turn each
+   of those labels into an accessible, tactile "selectable card"
+   purely in CSS — no JS/markup change, and it degrades gracefully
+   (still a normal working radio) in the rare browser without
+   :has() support. */
+label:has(> input[type="radio"]),
+label:has(> input[type="checkbox"]) {
+  border-radius: var(--radius-sm);
+  background: var(--clay-bg);
+  box-shadow: var(--clay-shadow-out-sm);
+  padding: 6px 12px;
+  transition: box-shadow var(--transition), transform var(--transition), background var(--transition);
+}
+label:has(> input[type="radio"]):hover,
+label:has(> input[type="checkbox"]):hover { transform: translateY(-1px); }
+label:has(> input[type="radio"]:checked) {
+  background: var(--rose-tint);
+  box-shadow: var(--clay-shadow-in), 0 0 0 1.5px var(--maroon-light) inset;
+  font-weight: 700;
+}
+label:has(> input[type="checkbox"]:checked) {
+  background: var(--rose-tint);
+  box-shadow: var(--clay-shadow-in), 0 0 0 1.5px var(--gold) inset;
+}
+label:has(> input:focus-visible) { outline: 2.5px solid var(--gold); outline-offset: 2px; }
+
+/* ============================================================
+   TABLES — clay panel with soft header
+   ============================================================ */
+.table-wrap {
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--clay-shadow-out);
+  padding: 4px;
+}
+thead th {
+  background: linear-gradient(180deg, var(--rose-tint), var(--white));
+  border-bottom: 2px solid var(--rose-mid);
+  border-radius: 0;
+}
+tbody tr { transition: background var(--transition); }
+tbody tr:hover td { background: var(--rose-tint); }
+tbody td { border-bottom: 1px solid var(--clay-border); }
+
+/* ============================================================
+   BADGES / PILLS / TAGS
+   ============================================================ */
+.badge, .tag, .grade-pill {
+  border-radius: 100px;
+  box-shadow: var(--clay-shadow-out-sm);
+  font-weight: 700;
+}
+
+/* ============================================================
+   MODALS — floating clay panel
+   ============================================================ */
+.modal-overlay { backdrop-filter: blur(3px); background: rgba(58,36,38,.45); }
+.modal {
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(58,36,38,.35), var(--clay-shadow-out);
+  border: 1px solid var(--clay-border);
+}
+.modal-header { border-bottom: 1px solid var(--clay-border); }
+.modal-footer { border-top: 1px solid var(--clay-border); }
+.modal-close {
+  border-radius: 50%;
+  box-shadow: var(--clay-shadow-out-sm);
+  transition: transform var(--clay-bounce), box-shadow var(--transition);
+}
+.modal-close:hover { transform: rotate(90deg); }
+
+/* ============================================================
+   TOASTS
+   ============================================================ */
+.toast {
+  border-radius: var(--radius);
+  box-shadow: var(--clay-shadow-hover);
+  border: 1px solid var(--clay-border);
+  backdrop-filter: saturate(1.1);
+}
+
+/* ============================================================
+   SIDEBAR / NAVIGATION
+   ============================================================ */
+.sidebar {
+  background: linear-gradient(180deg, var(--maroon-deeper) 0%, #250008 100%);
+  box-shadow: 6px 0 24px rgba(0,0,0,.25);
+}
+.sidebar-brand-icon, .login-logo-icon, .nav-brand-logo {
+  box-shadow: var(--clay-shadow-out-sm);
+}
+.sidebar-user {
+  margin: 4px 10px 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.05);
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,.3), inset -1px -1px 4px rgba(255,255,255,.03);
+}
+.sidebar-avatar {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-out-sm);
+}
+.nav-item { border-radius: var(--radius-sm); }
+.nav-item:hover {
+  background: rgba(255,255,255,.07);
+  transform: translateX(3px);
+}
+.nav-item.active {
+  background: linear-gradient(150deg, var(--gold-light), var(--gold));
+  color: var(--maroon-deeper) !important;
+  box-shadow: var(--clay-shadow-out-sm);
+  font-weight: 700;
+}
+.nav-item.active .nav-icon,
+.nav-item.active .nav-label { color: var(--maroon-deeper) !important; }
+.sidebar-logout {
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), transform var(--clay-bounce);
+}
+.sidebar-logout:hover { background: rgba(255,255,255,.08); transform: translateY(-1px); }
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+.topbar {
+  box-shadow: var(--clay-shadow-out-sm);
+  border-bottom: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.topbar-toggle {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-out-sm);
+  transition: transform var(--clay-bounce), box-shadow var(--transition);
+}
+.topbar-toggle:hover { transform: translateY(-1px); }
+.topbar-avatar {
+  box-shadow: var(--clay-shadow-out-sm);
+  transition: transform var(--clay-bounce);
+}
+.topbar-avatar:hover { transform: scale(1.06); }
+.profile-dropdown {
+  border-radius: var(--radius);
+  box-shadow: var(--clay-shadow-hover);
+  border: 1px solid var(--clay-border);
+}
+.profile-dropdown-item { border-radius: var(--radius-sm); transition: background var(--transition); }
+.profile-dropdown-item:hover { background: var(--rose-tint); }
+
+/* ============================================================
+   TABS (role-tabs, um-tabs, generic tab-nav)
+   ============================================================ */
+.role-tabs { gap: 8px; }
+.role-tab {
+  border-radius: var(--radius-sm);
+  background: var(--clay-bg);
+  box-shadow: var(--clay-shadow-out-sm);
+  transition: box-shadow var(--transition), transform var(--clay-bounce), background var(--transition);
+}
+.role-tab:hover { transform: translateY(-2px); }
+.role-tab.active {
+  background: linear-gradient(150deg, var(--maroon-light), var(--maroon));
+  color: #fff;
+  box-shadow: var(--clay-shadow-in);
+}
+.um-tabs { border-bottom: none; gap: 6px; background: var(--clay-bg); padding: 5px; border-radius: var(--radius-sm); box-shadow: var(--clay-shadow-in); }
+.um-tab, .tab-btn {
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), box-shadow var(--transition), color var(--transition);
+}
+.um-tab.active, .tab-btn.active {
+  background: var(--white);
+  box-shadow: var(--clay-shadow-out-sm);
+  border-bottom-color: transparent !important;
+  color: var(--maroon) !important;
+}
+
+/* ============================================================
+   EMPTY / LOADING / ERROR STATES
+   ============================================================ */
+.empty-state {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--clay-shadow-in);
+  border: 1px dashed var(--rose-mid);
+  padding: 40px 20px;
+}
+
+/* ============================================================
+   PROGRESS BARS
+   ============================================================ */
+.progress-bar-wrap {
+  border-radius: 100px;
+  box-shadow: var(--clay-shadow-in);
+  overflow: hidden;
+  background: var(--clay-bg);
+}
+.progress-bar {
+  border-radius: 100px;
+  background: linear-gradient(90deg, var(--gold), var(--maroon-light));
+}
+
+/* ============================================================
+   WELCOME BANNER
+   ============================================================ */
+.welcome-banner {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--clay-shadow-out);
+  background: linear-gradient(135deg, var(--maroon) 0%, var(--maroon-dark) 55%, var(--maroon-deeper) 100%) !important;
+}
+
+/* ============================================================
+   PAGINATION
+   ============================================================ */
+.page-btn {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-out-sm);
+  transition: box-shadow var(--transition), transform var(--clay-bounce);
+}
+.page-btn:hover { transform: translateY(-2px); }
+.page-btn.active {
+  background: linear-gradient(150deg, var(--maroon-light), var(--maroon));
+  color: #fff;
+  box-shadow: var(--clay-shadow-in);
+}
+
+/* ============================================================
+   CALENDAR
+   ============================================================ */
+.cal-cell { border-radius: var(--radius-sm); transition: background var(--transition), box-shadow var(--transition); }
+.cal-cell:hover { background: var(--rose-tint); }
+.cal-cell.today { box-shadow: var(--clay-shadow-out-sm); }
+.cal-cell.selected { box-shadow: var(--clay-shadow-in); }
+.cal-nav span, .cal-nav button { border-radius: var(--radius-sm); }
+
+/* ============================================================
+   LANDING PAGE polish
+   ============================================================ */
+.landing-nav { box-shadow: var(--clay-shadow-out-sm); }
+.hero-badge {
+  border-radius: 100px;
+  box-shadow: var(--clay-shadow-out-sm);
+  background: rgba(255,255,255,.12);
+}
+.role-card, .feature-card, .about-card, .contact-card { padding: 28px 22px; }
+
+/* ============================================================
+   RESPONSIVE — ensure clay depth doesn't overwhelm small screens
+   ============================================================ */
+@media (max-width: 640px) {
+  .card, .stat-card, .module-card, .activity-card,
+  .teacher-card, .teacher-subject-card, .student-subject-card {
+    box-shadow: var(--clay-shadow-out-sm);
+  }
+  .modal { border-radius: var(--radius) var(--radius) 0 0; }
+}
+
+/* ============================================================
+   REDUCED MOTION — respect user preference
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  .btn:hover, .card:hover, .stat-card:hover, .nav-item:hover,
+  .topbar-avatar:hover, .page-btn:hover { transform: none !important; }
+}
+
+/* ============================================================
+   ANALYTICS — gauges, cards, meters, risk/peer panels
+   ============================================================ */
+.analytics-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--clay-shadow-out);
+  border: 1px solid var(--clay-border);
+  transition: box-shadow var(--transition-lg), transform var(--transition-lg);
+}
+.analytics-card:hover { box-shadow: var(--clay-shadow-hover); transform: translateY(-2px); }
+.analytics-tabs { background: var(--clay-bg); padding: 5px; border-radius: var(--radius-sm); box-shadow: var(--clay-shadow-in); gap: 4px; }
+.analytics-tab { border-radius: var(--radius-sm); transition: background var(--transition), box-shadow var(--transition); }
+.analytics-tab.active { background: var(--white); box-shadow: var(--clay-shadow-out-sm); }
+.analytics-select { border-radius: var(--radius-sm); box-shadow: var(--clay-shadow-in); background: var(--clay-bg); border: none; }
+.gauge-wrapper, .chart-wrapper, .chart-wrapper-sm {
+  background: var(--clay-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--clay-shadow-in);
+  padding: 12px;
+}
+.improv-meter-wrap, .mod-overall-bar-wrap, .mod-bar-wrap, .risk-signal-bar-wrap {
+  border-radius: 100px;
+  box-shadow: var(--clay-shadow-in);
+  overflow: hidden;
+}
+.improv-meter-bar, .mod-overall-bar, .mod-bar, .risk-signal-bar { border-radius: 100px; }
+.risk-badge, .att-pill, .peer-pct-ring {
+  box-shadow: var(--clay-shadow-out-sm);
+  border-radius: 100px;
+}
+.improv-btn { border-radius: var(--radius-sm); box-shadow: var(--clay-shadow-out-sm); transition: transform var(--clay-bounce); }
+.improv-btn:hover { transform: translateY(-1px); }
+.analytics-empty {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--clay-shadow-in);
+  border: 1px dashed var(--rose-mid);
+}
+body.dark-mode .analytics-card { box-shadow: var(--clay-shadow-dark) !important; }
+body.dark-mode .gauge-wrapper,
+body.dark-mode .chart-wrapper,
+body.dark-mode .chart-wrapper-sm,
+body.dark-mode .analytics-tabs,
+body.dark-mode .analytics-select { background: #2a1a1f !important; box-shadow: var(--clay-shadow-dark-in) !important; }
+
+/* ============================================================
+   NOTIFICATIONS — bell + dropdown panel
+   ============================================================ */
+.notif-bell-btn {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-out-sm);
+  background: var(--white);
+  transition: transform var(--clay-bounce), box-shadow var(--transition);
+}
+.notif-bell-btn:hover { transform: translateY(-1px) rotate(-4deg); }
+.notif-dropdown {
+  border-radius: var(--radius);
+  box-shadow: var(--clay-shadow-hover);
+  border: 1px solid var(--clay-border);
+}
+.notif-item { border-radius: var(--radius-sm); transition: background var(--transition); }
+.notif-item:hover { background: var(--rose-tint); }
+.notif-item-icon {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-in-deep);
+  background: linear-gradient(150deg, var(--rose-tint), var(--rose-light));
+}
+.notif-mark-all-btn { border-radius: var(--radius-sm); }
+body.dark-mode .notif-dropdown { background: #2a1a1f !important; box-shadow: var(--clay-shadow-dark) !important; }
+body.dark-mode .notif-bell-btn { background: #2a1a1f !important; box-shadow: var(--clay-shadow-dark) !important; }
+
+/* ============================================================
+   SKELETON / LOADING STATES — clay "pressed" placeholders
+   ============================================================ */
+.skel, .skel-card, .skel-stat-card, .skel-table-row, .skel-list-card,
+.skel-cal-cell, .skel-text, .skel-title, .skel-btn, .skel-circle,
+.skeleton-chart, .skeleton-title {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--clay-shadow-in);
+  background: linear-gradient(100deg, var(--clay-bg) 30%, #ffffff 50%, var(--clay-bg) 70%);
+  background-size: 200% 100%;
+}
+body.dark-mode .skel, body.dark-mode .skel-card, body.dark-mode .skel-stat-card,
+body.dark-mode .skel-table-row, body.dark-mode .skel-list-card,
+body.dark-mode .skel-cal-cell, body.dark-mode .skeleton-chart {
+  background: linear-gradient(100deg, #2a1a1f 30%, #3a2126 50%, #2a1a1f 70%) !important;
+  background-size: 200% 100% !important;
+  box-shadow: var(--clay-shadow-dark-in) !important;
+}
+
+/* ============================================================
+   DARK MODE — clay treatment adapted to the app's existing
+   dark palette (kept subordinate to main.css's dark-mode rules,
+   loaded before this file, via !important where needed).
+   ============================================================ */
+body.dark-mode { background: #1a1014; }
+body.dark-mode .content-area,
+body.dark-mode .main-content { background: #1a1014 !important; }
+body.dark-mode .card,
+body.dark-mode .stat-card,
+body.dark-mode .module-card,
+body.dark-mode .activity-card,
+body.dark-mode .teacher-card,
+body.dark-mode .teacher-subject-card,
+body.dark-mode .student-subject-card,
+body.dark-mode .table-card,
+body.dark-mode .table-wrap {
+  box-shadow: var(--clay-shadow-dark) !important;
+  border-color: #3a2126 !important;
+}
+body.dark-mode .form-control {
+  box-shadow: var(--clay-shadow-dark-in) !important;
+}
+body.dark-mode .form-control:focus {
+  box-shadow: 0 0 0 3px rgba(212,160,23,.22), var(--clay-shadow-dark-in) !important;
+}
+body.dark-mode label:has(> input[type="radio"]),
+body.dark-mode label:has(> input[type="checkbox"]) {
+  background: #2a1a1f !important;
+  box-shadow: var(--clay-shadow-dark) !important;
+}
+body.dark-mode label:has(> input:checked) {
+  background: #3d1a22 !important;
+  box-shadow: var(--clay-shadow-dark-in), 0 0 0 1.5px var(--gold-light) inset !important;
+}
+body.dark-mode .empty-state {
+  background: #241519 !important;
+  border-color: #4a2d33 !important;
+}
+body.dark-mode .modal { box-shadow: 0 24px 60px rgba(0,0,0,.6), var(--clay-shadow-dark) !important; }
+body.dark-mode .stat-icon,
+body.dark-mode .feature-icon,
+body.dark-mode .activity-type-icon,
+body.dark-mode .empty-state-icon {
+  background: linear-gradient(150deg, #341f24, #2a1a1f) !important;
+  box-shadow: var(--clay-shadow-dark-in) !important;
+}

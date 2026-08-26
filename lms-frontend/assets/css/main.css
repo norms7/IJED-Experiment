@@ -48,21 +48,38 @@
   --blue:          #1a4a8a;
   --blue-light:    #e8f0fa;
 
-  /* Radius */
-  --radius-sm:     6px;
-  --radius:        10px;
-  --radius-lg:     16px;
-  --radius-xl:     22px;
+  /* Radius — softened for Claymorphism (values raised, same variable names
+     so every existing var(--radius*) reference automatically picks up the
+     rounder, clay-style surfaces without any markup changes) */
+  --radius-sm:     12px;
+  --radius:        18px;
+  --radius-lg:     24px;
+  --radius-xl:     30px;
 
-  /* Shadows */
+  /* Shadows — kept as fallbacks for anything not covered by the
+     Claymorphism layer (assets/css/claymorphism.css), which defines the
+     richer dual-tone --clay-* shadow tokens actually used on cards/buttons */
   --shadow-sm:     0 1px 4px rgba(109,0,25,.08);
   --shadow:        0 4px 16px rgba(109,0,25,.13);
   --shadow-lg:     0 8px 32px rgba(109,0,25,.2);
   --shadow-gold:   0 4px 18px rgba(212,160,23,.25);
 
+  /* Claymorphism surface shadows — soft dual-tone (light + dark) "pillowy"
+     depth. Built from the maroon brand color so tone stays on-brand. */
+  --clay-bg:           #f3ecec;
+  --clay-shadow-out:   8px 8px 18px rgba(109,0,25,.14), -8px -8px 18px rgba(255,255,255,.85);
+  --clay-shadow-out-sm: 4px 4px 10px rgba(109,0,25,.10), -4px -4px 10px rgba(255,255,255,.8);
+  --clay-shadow-hover: 10px 10px 22px rgba(109,0,25,.18), -10px -10px 22px rgba(255,255,255,.9);
+  --clay-shadow-in:    inset 3px 3px 8px rgba(109,0,25,.16), inset -3px -3px 8px rgba(255,255,255,.7);
+  --clay-shadow-in-deep: inset 4px 4px 10px rgba(109,0,25,.28), inset -2px -2px 6px rgba(255,255,255,.4);
+  --clay-border:       rgba(109,0,25,.06);
+  --clay-shadow-dark:  8px 8px 18px rgba(0,0,0,.35), -6px -6px 16px rgba(255,255,255,.04);
+  --clay-shadow-dark-in: inset 3px 3px 8px rgba(0,0,0,.4), inset -2px -2px 6px rgba(255,255,255,.03);
+
   /* Transitions */
   --transition:    .2s ease;
   --transition-lg: .35s cubic-bezier(.4,0,.2,1);
+  --clay-bounce:   .25s cubic-bezier(.34,1.56,.64,1);
 
   /* Typography */
   --font-display:  'Lora', Georgia, serif;
