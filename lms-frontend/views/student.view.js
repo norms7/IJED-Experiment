@@ -620,19 +620,22 @@ const StudentView = {
     const questions = (activity.questions || []).map((q, idx) => {
       let answerWidget = '';
       if (q.question_type === 'multiple_choice') {
+        const letters = ['A','B','C','D','E','F'];
         const choices = q.choices.map((c, ci) => `
-          <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;margin-bottom:6px;transition:background .15s" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
-            <input type="radio" name="q_${q.id}" value="${ci}" style="accent-color:var(--maroon)" />
-            <span style="font-size:14px">${escHtml(c.choice_text)}</span>
+          <input type="radio" id="q_${q.id}_${ci}" name="q_${q.id}" value="${ci}" />
+          <label class="quiz-choice-card" for="q_${q.id}_${ci}">
+            <span class="quiz-choice-letter">${letters[ci] || ci + 1}</span>
+            <span class="quiz-choice-text">${escHtml(c.choice_text)}</span>
           </label>`).join('');
-        answerWidget = `<div style="margin-top:10px">${choices}</div>`;
+        answerWidget = `<div class="quiz-choice-group" style="margin-top:10px">${choices}</div>`;
       } else if (q.question_type === 'checkbox') {
         const choices = q.choices.map((c, ci) => `
-          <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;margin-bottom:6px;transition:background .15s" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
-            <input type="checkbox" name="q_${q.id}" value="${ci}" style="accent-color:var(--maroon)" />
-            <span style="font-size:14px">${escHtml(c.choice_text)}</span>
+          <input type="checkbox" id="q_${q.id}_${ci}" name="q_${q.id}" value="${ci}" />
+          <label class="quiz-choice-card" for="q_${q.id}_${ci}">
+            <span class="quiz-choice-letter">✓</span>
+            <span class="quiz-choice-text">${escHtml(c.choice_text)}</span>
           </label>`).join('');
-        answerWidget = `<div style="margin-top:10px">${choices}<small style="color:var(--gray-500);font-size:11px">Select all that apply.</small></div>`;
+        answerWidget = `<div class="quiz-choice-group" style="margin-top:10px">${choices}</div><small style="color:var(--gray-500);font-size:11px">Select all that apply.</small>`;
       } else if (q.question_type === 'fill_blank' || q.question_type === 'enumeration') {
         answerWidget = `<input type="text" id="q_${q.id}" class="form-control" placeholder="Type your answer here…" style="margin-top:10px" />`;
       } else {

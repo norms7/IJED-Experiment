@@ -345,13 +345,16 @@ const TeacherController = {
         : [{ id: 'c0', text: '' }, { id: 'c1', text: '' }, { id: 'c2', text: '' }, { id: 'c3', text: '' }];
       const rows = choices.map((c, ci) => `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <input type="radio" name="correct_${idx}" value="${ci}" ${String(q.correct) === String(ci) ? 'checked' : ''}
-            onchange="TeacherController._qSetCorrect(${idx}, '${ci}')" title="Mark as correct" />
+          <span class="quiz-key-group">
+            <input type="radio" id="correct_${idx}_${ci}" name="correct_${idx}" value="${ci}" ${String(q.correct) === String(ci) ? 'checked' : ''}
+              onchange="TeacherController._qSetCorrect(${idx}, '${ci}')" />
+            <label class="quiz-key-card" for="correct_${idx}_${ci}" title="Mark as correct answer">✓</label>
+          </span>
           <input class="form-control form-control-sm" placeholder="Choice ${ci + 1}" value="${escHtml(c.text)}"
             onchange="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
           ${choices.length > 2 ? `<button class="btn btn-xs btn-ghost" onclick="TeacherController._qRemoveChoice(${idx}, ${ci})">✕</button>` : ''}
         </div>`).join('');
-      return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (select the correct one ◉)</div>${rows}<button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">➕ Add Choice</button></div>`;
+      return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (tap ✓ to mark the correct one)</div>${rows}<button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">➕ Add Choice</button></div>`;
     }
 
     if (q.type === 'checkbox') {
