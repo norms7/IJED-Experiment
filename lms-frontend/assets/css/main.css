@@ -24,11 +24,11 @@
   --rose-light:    #fde8ec;
   --rose-mid:      #f5c6ce;
 
-  /* Neutrals — warmed slightly for the clay surface system */
-  --white:         #fbf7f4;
-  --off-white:     #f1e9e4;
-  --gray-50:       #f6efe9;
-  --gray-100:      #eee3dc;
+  /* Neutrals */
+  --white:         #ffffff;
+  --off-white:     #faf8f8;
+  --gray-50:       #f9f5f5;
+  --gray-100:      #f0eaea;
   --gray-200:      #e2d5d7;
   --gray-400:      #a88f92;
   --gray-600:      #6b4f52;
@@ -48,26 +48,17 @@
   --blue:          #1a4a8a;
   --blue-light:    #e8f0fa;
 
-  /* Radius — softened claymorphism scale (rounder than the original UI, but not maximal) */
-  --radius-sm:     12px;
-  --radius:        16px;
-  --radius-lg:     20px;
-  --radius-xl:     26px;
+  /* Radius */
+  --radius-sm:     6px;
+  --radius:        10px;
+  --radius-lg:     16px;
+  --radius-xl:     22px;
 
-  /* ── Claymorphism shadow pairs ─────────────────────────────
-     Soft dual shadow (light top-left / warm shadow bottom-right)
-     simulates a surface molded from, and resting on, the same
-     material as its background. Kept subtle per design direction. */
-  --clay-light:    rgba(255,255,255,.7);
-  --clay-dark:     rgba(139,60,60,.16);
-  --clay-dark-strong: rgba(109,0,25,.14);
-
-  --shadow-sm:     -3px -3px 7px var(--clay-light), 4px 4px 9px var(--clay-dark);
-  --shadow:        -4px -4px 10px var(--clay-light), 6px 6px 14px var(--clay-dark);
-  --shadow-lg:     -6px -6px 16px var(--clay-light), 10px 10px 24px var(--clay-dark-strong);
-  --shadow-gold:   -3px -3px 8px rgba(255,255,255,.6), 5px 5px 14px rgba(212,160,23,.28);
-  --shadow-inset:  inset 2.5px 2.5px 6px var(--clay-dark), inset -2.5px -2.5px 6px var(--clay-light);
-  --shadow-inset-strong: inset 3px 3px 8px rgba(109,0,25,.22), inset -3px -3px 7px var(--clay-light);
+  /* Shadows */
+  --shadow-sm:     0 1px 4px rgba(109,0,25,.08);
+  --shadow:        0 4px 16px rgba(109,0,25,.13);
+  --shadow-lg:     0 8px 32px rgba(109,0,25,.2);
+  --shadow-gold:   0 4px 18px rgba(212,160,23,.25);
 
   /* Transitions */
   --transition:    .2s ease;

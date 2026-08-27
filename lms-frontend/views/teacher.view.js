@@ -804,28 +804,32 @@ const TeacherView = {
         </td>
         <td style="padding:8px 10px;font-size:12px;color:var(--gray-400);white-space:nowrap">${escHtml(stu.student_number || '—')}</td>
         <td style="padding:8px 10px;text-align:center">
-          <span class="att-status-group">
-            <input type="radio" id="att_${stu.id}_present" name="att_${stu.id}" value="present" ${status === 'present' ? 'checked' : ''} />
-            <label class="att-status-card" for="att_${stu.id}_present"><span class="a-ic">✅</span></label>
-          </span>
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+            <input type="radio" name="att_${stu.id}" value="present"
+              ${status === 'present' ? 'checked' : ''}
+              style="accent-color:var(--green,#16a34a)"> Present
+          </label>
         </td>
         <td style="padding:8px 10px;text-align:center">
-          <span class="att-status-group">
-            <input type="radio" id="att_${stu.id}_absent" name="att_${stu.id}" value="absent" ${status === 'absent' ? 'checked' : ''} />
-            <label class="att-status-card" for="att_${stu.id}_absent"><span class="a-ic">❌</span></label>
-          </span>
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+            <input type="radio" name="att_${stu.id}" value="absent"
+              ${status === 'absent' ? 'checked' : ''}
+              style="accent-color:#dc2626"> Absent
+          </label>
         </td>
         <td style="padding:8px 10px;text-align:center">
-          <span class="att-status-group">
-            <input type="radio" id="att_${stu.id}_late" name="att_${stu.id}" value="late" ${status === 'late' ? 'checked' : ''} />
-            <label class="att-status-card" for="att_${stu.id}_late"><span class="a-ic">⏰</span></label>
-          </span>
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+            <input type="radio" name="att_${stu.id}" value="late"
+              ${status === 'late' ? 'checked' : ''}
+              style="accent-color:#d97706"> Late
+          </label>
         </td>
         <td style="padding:8px 10px;text-align:center">
-          <span class="att-status-group">
-            <input type="radio" id="att_${stu.id}_excused" name="att_${stu.id}" value="excused" ${status === 'excused' ? 'checked' : ''} />
-            <label class="att-status-card" for="att_${stu.id}_excused"><span class="a-ic">📋</span></label>
-          </span>
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+            <input type="radio" name="att_${stu.id}" value="excused"
+              ${status === 'excused' ? 'checked' : ''}
+              style="accent-color:var(--gray-500)"> Excused
+          </label>
         </td>
       </tr>`;
     }).join('');
@@ -856,16 +860,19 @@ const TeacherView = {
       <!-- Row 2: SESSION TYPE (full width, no cramping) -->
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:8px">SESSION TYPE</label>
-        <div class="att-hasclass-group">
-          <input type="radio" id="att-has-class-yes" name="att_has_class" value="yes"
-            ${hasClass ? 'checked' : ''}
-            onchange="AttendanceController.toggleHasClass(true)" />
-          <label class="att-hasclass-card" for="att-has-class-yes">✅ Class held</label>
-
-          <input type="radio" id="att-has-class-no" name="att_has_class" value="no"
-            ${!hasClass ? 'checked' : ''}
-            onchange="AttendanceController.toggleHasClass(false)" />
-          <label class="att-hasclass-card" for="att-has-class-no">🚫 No class</label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;padding:8px 14px;border:1.5px solid var(--rose-tint);border-radius:var(--radius);background:var(--white);transition:border-color .2s">
+            <input type="radio" id="att-has-class-yes" name="att_has_class" value="yes"
+              ${hasClass ? 'checked' : ''}
+              onchange="AttendanceController.toggleHasClass(true)"
+              style="accent-color:var(--maroon);width:16px;height:16px"> Class held
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;padding:8px 14px;border:1.5px solid var(--rose-tint);border-radius:var(--radius);background:var(--white);transition:border-color .2s">
+            <input type="radio" id="att-has-class-no" name="att_has_class" value="no"
+              ${!hasClass ? 'checked' : ''}
+              onchange="AttendanceController.toggleHasClass(false)"
+              style="accent-color:var(--maroon);width:16px;height:16px"> No class
+          </label>
         </div>
       </div>
 
