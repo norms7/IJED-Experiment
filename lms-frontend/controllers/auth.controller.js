@@ -6,17 +6,7 @@
 "use strict";
 
 const AuthController = {
-  selectedRole: 'admin',
-
-  /** Switch role tabs */
-  selectRole(role) {
-    this.selectedRole = role;
-    document.querySelectorAll('.role-tab').forEach(t =>
-      t.classList.toggle('active', t.dataset.role === role)
-    );
-  },
-
-  /** Authenticate user via API, validate role, load dashboard */
+  /** Authenticate user via API and load the dashboard based on their actual role */
   async login() {
     const email    = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value.trim();
@@ -27,11 +17,13 @@ const AuthController = {
     try {
       const data = await api.login(email, password);
       const user = api.getCurrentUser();
-      if (user.role !== this.selectedRole) {
+
+      if (!user || !user.role) {
         api.logout();
-        Toast.show(`This account is a "${user.role}". Please select the correct role tab.`, 'error');
+        Toast.show('Unable to determine your account role.', 'error');
         return;
       }
+
       Toast.show(`Welcome back, ${data.full_name}! 👋`, 'success');
       App.showPage('app');
       DashboardController.load(user);
