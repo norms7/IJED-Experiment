@@ -48,59 +48,21 @@
   --blue:          #1a4a8a;
   --blue-light:    #e8f0fa;
 
-  /* Radius — Claymorphism runs on big, confident radii. Buttons, tabs,
-     search bars, and nav items go all the way to --radius-pill (a true
-     pill). Cards/surfaces stay large but not pill so content still reads. */
-  --radius-sm:     16px;
-  --radius:        22px;
-  --radius-lg:     28px;
-  --radius-xl:     36px;
-  --radius-pill:   999px;
+  /* Radius */
+  --radius-sm:     6px;
+  --radius:        10px;
+  --radius-lg:     16px;
+  --radius-xl:     22px;
 
-  /* Shadows — kept as fallbacks for anything not covered by the
-     Claymorphism layer (assets/css/claymorphism.css) */
+  /* Shadows */
   --shadow-sm:     0 1px 4px rgba(109,0,25,.08);
   --shadow:        0 4px 16px rgba(109,0,25,.13);
   --shadow-lg:     0 8px 32px rgba(109,0,25,.2);
   --shadow-gold:   0 4px 18px rgba(212,160,23,.25);
 
-  /* Claymorphism surface system ------------------------------------
-     A warm matte "clay" palette layered ON TOP of the maroon/gold
-     brand: a soft cream page background, a slightly darker taupe-rose
-     card fill (so cards read as a distinct molded surface rather than
-     a white box with a border), and big, soft, low-contrast ambient
-     shadows (large blur, low opacity) instead of thin drop shadows. */
-  --clay-page:         #f4ede3;   /* warm cream page background */
-  --clay-surface:      #efe6da;   /* matte "clay" card fill — a shade off the page */
-  --clay-surface-2:    #f8f2ea;   /* lighter clay panel (nested/inner surfaces) */
-  --clay-bg:           #f4ede3;   /* legacy alias, kept for back-compat */
-
-  --clay-shadow-out:      0 18px 36px -12px rgba(74,20,20,.28), 0 2px 6px rgba(74,20,20,.06);
-  --clay-shadow-out-sm:   0 10px 20px -8px rgba(74,20,20,.22), 0 1px 3px rgba(74,20,20,.06);
-  --clay-shadow-hover:    0 26px 48px -14px rgba(74,20,20,.34), 0 3px 8px rgba(74,20,20,.08);
-  --clay-shadow-flat:     0 1px 0 rgba(255,255,255,.6) inset, 0 8px 18px -10px rgba(74,20,20,.18);
-  --clay-shadow-in:       inset 0 2px 6px rgba(74,20,20,.16), inset 0 -1px 2px rgba(255,255,255,.5);
-  --clay-shadow-in-deep:  inset 0 3px 8px rgba(74,20,20,.22), inset 0 -1px 3px rgba(255,255,255,.35);
-  --clay-border:          rgba(74,20,20,.05);
-
-  --clay-shadow-dark:     0 18px 36px -12px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.2);
-  --clay-shadow-dark-in:  inset 0 2px 6px rgba(0,0,0,.45), inset 0 -1px 2px rgba(255,255,255,.03);
-
-  /* Flat pastel icon-chip palette — used to give every icon badge in the
-     app a consistent, colorful "clay" treatment (rotated per card via
-     nth-child in claymorphism.css so a grid of cards doesn't look
-     monotone), independent of status/semantic color classes. */
-  --clay-chip-1-bg: #fde3cf; --clay-chip-1-fg: #b45309; /* apricot   */
-  --clay-chip-2-bg: #e0e7ff; --clay-chip-2-fg: #3730a3; /* periwinkle*/
-  --clay-chip-3-bg: #dcfce7; --clay-chip-3-fg: #15803d; /* mint      */
-  --clay-chip-4-bg: #fce7f3; --clay-chip-4-fg: #a3195b; /* rose      */
-  --clay-chip-5-bg: #fef3c7; --clay-chip-5-fg: #a16207; /* honey     */
-  --clay-chip-6-bg: #dbeafe; --clay-chip-6-fg: #1d4ed8; /* sky       */
-
   /* Transitions */
   --transition:    .2s ease;
   --transition-lg: .35s cubic-bezier(.4,0,.2,1);
-  --clay-bounce:   .25s cubic-bezier(.34,1.56,.64,1);
 
   /* Typography */
   --font-display:  'Lora', Georgia, serif;
