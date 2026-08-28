@@ -8,6 +8,80 @@
 
 const AdminView = {
 
+  help(user) {
+    const isTeacher = user?.role === 'teacher';
+    const isStudent = user?.role === 'student';
+    const faqTitle = isTeacher ? 'Teacher Frequently Asked Questions' : isStudent ? 'Student Frequently Asked Questions' : 'Frequently Asked Questions';
+    const faqItems = isTeacher ? [
+      ['How do I open my subjects?', 'Open My Subjects from the sidebar to view the classes and subjects assigned to you.'],
+      ['How do I upload modules?', 'Open Modules and use the available module action to add learning materials for your assigned classes.'],
+      ['How do I create activities?', 'Open Activities to create instructions, questions, due dates, and scores for your students.'],
+      ['How do I record attendance?', 'Open Attendance, select a class and subject, then record the attendance for the session.'],
+      ['How do I view student grades?', 'Open Grades to review student submissions, scores, and grade information for your classes.'],
+    ] : isStudent ? [
+      ['How do I sign in?', 'Enter your LMS email and password on the sign-in page, then select Sign In.'],
+      ['How do I open my subjects?', 'Open My Subjects from the sidebar to view the classes and subjects connected to your account.'],
+      ['How do I use modules and activities?', 'Open Modules to read learning materials. Open Activities to answer questions and submit work when available.'],
+      ['Where can I see my grades and attendance?', 'Use My Grades and Attendance from the sidebar to review your academic records.'],
+      ['How do I update my profile?', 'Open Settings from the sidebar to update your available profile information and preferences.'],
+    ] : [
+      ['How do I sign in?', 'Enter your LMS email and password on the sign-in page, then select Sign In.'],
+      ['How do I manage users?', 'Open Manage Users to view accounts, update user details, and manage teacher and student records.'],
+      ['How do I use the calendar?', 'Open Calendar from the sidebar to review dates, events, deadlines, and announcements.'],
+      ['How do I update my profile?', 'Open Settings from the sidebar to update your available profile information and preferences.'],
+    ];
+    const faqHtml = faqItems.map(([question, answer], index) => `
+            <details ${index === 0 ? 'open' : ''} style="padding:${index === 0 ? '0 0 14px' : '14px 0'};border-bottom:1px solid var(--gray-100);">
+              <summary style="cursor:pointer;font-weight:600;color:var(--maroon-dark);">${question}</summary>
+              <p class="text-sm text-muted" style="margin:8px 0 0;">${answer}</p>
+            </details>`).join('');
+    return `
+      <div class="section-header">
+        <div class="section-header-left"><h2>Help</h2><p>Find answers and support for using the LMS</p></div>
+      </div>
+      <div class="help-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;gap:20px;max-width:none;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">${faqTitle}</span></div>
+          <div class="card-body">
+            ${faqHtml}
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Contact Support</span></div>
+          <div class="card-body">
+            <div class="form-group"><div class="form-label">School/LMS Administrator</div><div>School LMS Administrator</div></div>
+            <div class="form-group"><div class="form-label">Support Email</div><div>support@ijla.edu</div></div>
+            <div class="form-group"><div class="form-label">Office Contact</div><div>Contact the school office during operating hours.</div></div>
+            <div class="form-group"><div class="form-label">Office Hours</div><div>Monday to Friday, 8:00 AM to 5:00 PM</div></div>
+            <div class="form-group" style="margin-bottom:0"><div class="form-label">Urgent Issues</div><div>For urgent account or safety concerns, contact the school office directly.</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Report a Problem</span></div>
+          <div class="card-body">
+            <div class="form-group"><label class="form-label" for="help-problem-type">Problem Type</label>
+              <select class="form-control" id="help-problem-type">
+                <option value="">Select a problem type</option>
+                <option>Login issue</option>
+                <option>Activities or modules</option>
+                <option>Grades</option>
+                <option>Attendance</option>
+                <option>Calendar</option>
+                <option>Profile/settings</option>
+                <option>Other</option>
+              </select></div>
+            <div class="form-group"><label class="form-label" for="help-problem-description">Description</label>
+              <textarea class="form-control" id="help-problem-description" rows="4" placeholder="Describe the problem"></textarea></div>
+            <div class="form-group"><label class="form-label" for="help-problem-screenshot">Screenshot (optional)</label>
+              <input class="form-control" type="file" id="help-problem-screenshot" accept="image/*" /></div>
+            <div class="form-group"><label class="form-label" for="help-contact">Contact Information</label>
+              <input class="form-control" id="help-contact" placeholder="Email or phone number" /></div>
+            <button class="btn btn-primary" type="button">Submit Report</button>
+          </div>
+        </div>
+      </div>`;
+  },
+
   /** Main admin dashboard – expects stats object from API */
   dashboard(user, stats = null) {
     if (!stats) {
@@ -54,7 +128,7 @@ const AdminView = {
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap;">
-        <div class="card">
+        <div class="card" style="order:1;">
           <div class="card-header"><span class="card-title">Recent Users</span></div>
           <div class="table-wrap">
             <table class="data-table">
@@ -72,7 +146,7 @@ const AdminView = {
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" style="order:4;">
           <div class="card-header"><span class="card-title">Quick Actions</span></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
             <button class="btn btn-primary w-full" style="justify-content:center" onclick="AdminController.openAddUser()">➕ Add New User</button>
@@ -369,22 +443,43 @@ const AdminView = {
   },
 
   settings(user) {
+    const isAdmin = user.role === 'admin';
+    const contact = Storage.get(`ijed_profile_contact_${user.id}`) || {};
+    const savedImage = Storage.get(`ijed_profile_image_${user.id}`);
+    const initials = (user.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const imageStyle = savedImage
+      ? `background-image:url("${savedImage}");background-size:cover;background-position:center;`
+      : 'background:linear-gradient(135deg,var(--maroon-light),var(--maroon-mid));';
     return `
       <div class="section-header">
-        <div class="section-header-left"><h2>Settings</h2><p>Manage your account preferences</p></div>
+        <div class="section-header-left"><h2>Settings</h2><p>Manage your profile and account preferences</p></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:820px;">
-        <div class="card">
+      <div class="settings-grid" style="display:grid;grid-template-columns:repeat(${isAdmin ? 3 : 4},minmax(0,1fr));align-items:start;gap:20px;max-width:none;">
+        <div class="card" style="order:1;">
           <div class="card-header"><span class="card-title">Profile Information</span></div>
           <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Profile Image</label>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div id="settings-image-preview" style="width:56px;height:56px;flex:0 0 56px;border-radius:50%;display:flex;align-items:center;justify-content:center;${imageStyle}color:#fff;font-weight:700;overflow:hidden;">${savedImage ? '' : escHtml(initials)}</div>
+                <div>
+                  <label class="btn btn-outline btn-sm" for="settings-image">Choose Image</label>
+                  <input id="settings-image" type="file" accept="image/png,image/jpeg,image/webp" onchange="App.previewProfileImage(this)" style="display:none;" />
+                </div>
+              </div>
+            </div>
             <div class="form-group"><label class="form-label">Full Name</label>
               <input class="form-control" id="settings-name" value="${escHtml(user.name)}" /></div>
-            <div class="form-group"><label class="form-label">Email Address</label>
-              <input class="form-control" id="settings-email" value="${escHtml(user.email)}" /></div>
+            <div class="form-group"><label class="form-label">LMS Email Address</label>
+              <input class="form-control" type="email" id="settings-email" value="${escHtml(user.email)}" readonly /></div>
+            ${isAdmin ? '' : `<div class="form-group"><label class="form-label">Personal Email</label>
+              <input class="form-control" type="email" id="settings-personal-email" value="${escHtml(contact.personalEmail || '')}" placeholder="you@example.com" /></div>
+            <div class="form-group"><label class="form-label">Phone Number</label>
+              <input class="form-control" type="tel" id="settings-phone" value="${escHtml(contact.phoneNumber || '')}" placeholder="e.g. 09XXXXXXXXX" maxlength="30" /></div>`}
             <button class="btn btn-primary" onclick="AdminController.saveSettings()">Save Changes</button>
           </div>
         </div>
-        <div class="card">
+        <div class="card" style="order:${isAdmin ? 3 : 4};grid-column:${isAdmin ? 3 : 4};grid-row:1;">
           <div class="card-header"><span class="card-title">Change Password</span></div>
           <div class="card-body">
             <div class="form-group"><label class="form-label">New Password</label>
@@ -393,6 +488,49 @@ const AdminView = {
               <input class="form-control" type="password" id="settings-pw2" placeholder="Confirm new password" /></div>
             <button class="btn btn-primary" onclick="AdminController.changePassword()">Update Password</button>
           </div>
+        </div>
+        ${isAdmin ? '' : `<div class="card" style="order:2;grid-column:2;grid-row:1;">
+          <div class="card-header"><span class="card-title">Location</span></div>
+          <div class="card-body">
+            <div class="form-group"><label class="form-label">Address Line 1</label>
+              <input class="form-control" id="settings-address-line1" value="${escHtml(contact.addressLine1 || '')}" /></div>
+            <div class="form-group"><label class="form-label">Address Line 2</label>
+              <input class="form-control" id="settings-address-line2" value="${escHtml(contact.addressLine2 || '')}" /></div>
+            <div class="form-group"><label class="form-label">City</label>
+              <input class="form-control" id="settings-city" value="${escHtml(contact.city || '')}" /></div>
+            <div class="form-group"><label class="form-label">State/Province</label>
+              <input class="form-control" id="settings-state" value="${escHtml(contact.state || '')}" /></div>
+            <div class="form-group"><label class="form-label">Zip/Postal Code</label>
+              <input class="form-control" id="settings-postal-code" value="${escHtml(contact.postalCode || '')}" /></div>
+            <button class="btn btn-primary" onclick="AdminController.saveSettings()">Save Changes</button>
+          </div>
+        </div>`}
+        <div class="settings-side-stack" style="display:flex;flex-direction:column;gap:20px;min-width:0;grid-column:${isAdmin ? 2 : 3};grid-row:1;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Notifications</span></div>
+          <div class="card-body">
+            <label style="display:flex;align-items:center;gap:10px;margin-top:18px;cursor:pointer;">
+              <input type="checkbox" checked style="accent-color:var(--maroon);" />
+              <span style="font-size:13px;">Audio Notifications</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer;">
+              <input type="checkbox" checked style="accent-color:var(--maroon);" />
+              <span style="font-size:13px;">Remind me about deadlines</span>
+            </label>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Appearance</span></div>
+          <div class="card-body">
+            <div class="form-group"><label class="form-label" for="settings-theme">Default Theme</label>
+              <select class="form-control" id="settings-theme" onchange="DarkMode.setTheme(this.value)">
+                <option value="system" ${DarkMode.getTheme() === 'system' ? 'selected' : ''}>System default</option>
+                <option value="light" ${DarkMode.getTheme() === 'light' ? 'selected' : ''}>Light</option>
+                <option value="dark" ${DarkMode.getTheme() === 'dark' ? 'selected' : ''}>Dark</option>
+              </select>
+            </div>
+          </div>
+        </div>
         </div>
       </div>`;
   },
