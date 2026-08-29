@@ -13,6 +13,10 @@ const App = {
     document.getElementById('page-landing').classList.toggle('hidden', page !== 'landing');
     document.getElementById('page-login').classList.toggle('hidden',   page !== 'login');
     document.getElementById('page-app').classList.toggle('hidden',     page !== 'app');
+    if (typeof DarkMode !== 'undefined') {
+      if (page === 'app') DarkMode.init();
+      else DarkMode.disable();
+    }
   },
 
   /** Toggle sidebar collapse (desktop) or slide-out (mobile) */
@@ -36,7 +40,6 @@ const App = {
 
   /** Bootstrap the app: dark mode, clock, session restore */
   init() {
-    DarkMode.init();
     document.getElementById('sidebar-overlay').addEventListener('click', () => {
       document.getElementById('sidebar').classList.remove('mobile-open');
       document.getElementById('sidebar-overlay').classList.remove('show');
@@ -106,15 +109,60 @@ const App = {
   toggleProfileMenu() {
     document.getElementById('profile-dropdown')?.classList.toggle('open');
   },
-};
 
+  applyProfileImage(user = DashboardController.currentUser || Storage.get('ijla_session')) {
+    const image = user?.id ? Storage.get(`ijed_profile_image_${user.id}`) : null;
+    if (!image) return;
+    const imageUrl = `url("${image}")`;
+    ['settings-image-preview', 'sb-avatar', 'topbar-avatar'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.backgroundImage = imageUrl;
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.textContent = '';
+    });
+  },
+
+  previewProfileImage(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const user = DashboardController.currentUser || Storage.get('ijla_session');
+      this._pendingProfileImage = reader.result;
+      this.applyProfileImage(user);
+    };
+    reader.readAsDataURL(file);
+  },
+};
 /* ── Dark Mode ──────────────────────────────────────────────── */
 const DarkMode = {
   KEY: 'ijed_dark_mode',
-  init()   { if (Storage.get(this.KEY) === true) { document.body.classList.add('dark-mode'); this._setIcon(true); } },
-  toggle() { const isDark = document.body.classList.toggle('dark-mode'); Storage.set(this.KEY, isDark); this._setIcon(isDark); },
+  getTheme() {
+    const saved = Storage.get(this.KEY);
+    if (saved === 'light' || saved === 'dark' || saved === 'system') return saved;
+    return saved === true ? 'dark' : 'system';
+  },
+  init() { this.apply(this.getTheme()); },
+  setTheme(theme) {
+    if (!['light', 'dark', 'system'].includes(theme)) theme = 'system';
+    Storage.set(this.KEY, theme);
+    this.apply(theme);
+  },
+  apply(theme) {
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.body.classList.toggle('dark-mode', isDark);
+    this._setIcon(isDark);
+  },
+  disable() {
+    document.body.classList.remove('dark-mode');
+    this._setIcon(false);
+  },
+  toggle() { this.setTheme(document.body.classList.contains('dark-mode') ? 'light' : 'dark'); },
   _setIcon(isDark) {
     const btn = document.getElementById('dark-mode-toggle');
     if (btn) btn.textContent = isDark ? '☀️' : '🌙';
   },
 };
+

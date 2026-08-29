@@ -857,8 +857,36 @@ const AdminController = {
   deleteSchedule(sid, tid)    { /* legacy */ },
   viewSectionSchedule(secId)  { /* legacy */ },
   clearAuditLog()             { /* legacy */ },
-  saveSettings()              { /* legacy */ },
-  changePassword()            { /* legacy */ },
+  saveSettings() {
+    const user = DashboardController.currentUser;
+    const name = document.getElementById('settings-name')?.value.trim() || '';
+    const personalEmail = document.getElementById('settings-personal-email')?.value.trim() || '';
+    const phoneNumber = document.getElementById('settings-phone')?.value.trim() || '';
+    const location = {
+      addressLine1: document.getElementById('settings-address-line1')?.value.trim() || '',
+      addressLine2: document.getElementById('settings-address-line2')?.value.trim() || '',
+      city: document.getElementById('settings-city')?.value.trim() || '',
+      state: document.getElementById('settings-state')?.value.trim() || '',
+      postalCode: document.getElementById('settings-postal-code')?.value.trim() || '',
+    };
+    if (!name) { Toast.show('Full name is required.', 'error'); return; }
+    if (personalEmail && !Validate.email(personalEmail)) return;
+    if (phoneNumber && !/^[0-9+()\-\s]{7,30}$/.test(phoneNumber)) {
+      Toast.show('Please enter a valid phone number.', 'error');
+      return;
+    }
+    user.name = name;
+    user.full_name = name;
+    Storage.set(`ijed_profile_contact_${user.id}`, { personalEmail, phoneNumber, ...location });
+    Storage.set('ijla_session', user);
+    Storage.set('lms_user', user);
+    document.getElementById('sb-username').textContent = name;
+    App.populateProfileDropdown(user);
+    Toast.show('Profile information saved on this device.', 'success');
+  },
+  changePassword() {
+    Toast.show('Password changes require backend access and are not available yet.', 'info');
+  },
   _filterBySection(secId)     { /* legacy */ },
 
   /* ── Bulk Student Import / Export ────────────────────────────────────────

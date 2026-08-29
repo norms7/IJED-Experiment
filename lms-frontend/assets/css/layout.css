@@ -666,6 +666,10 @@ body.dark-mode .profile-dropdown-logout:hover { background: #3a1a24; }
 .content-area::-webkit-scrollbar-track { background: transparent; }
 .content-area::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 4px; }
 
+.settings-grid > .card { min-width: 0; }
+.settings-side-stack { min-width: 0; }
+.help-grid > .card { min-width: 0; }
+
 .page-section        { display: none; }
 .page-section.active { display: block; animation: sectionIn .25s ease; }
 @keyframes sectionIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -684,6 +688,10 @@ body.dark-mode .profile-dropdown-logout:hover { background: #3a1a24; }
    RESPONSIVE
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
+  .help-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .settings-grid > .card { grid-column: auto !important; grid-row: auto !important; }
+  .settings-side-stack { grid-column: auto !important; grid-row: auto !important; }
   .sidebar {
     position: fixed;
     top: 0;
@@ -765,6 +773,8 @@ body.dark-mode .profile-dropdown-logout:hover { background: #3a1a24; }
   .topbar-toggle { display: none; }
 }
 @media (max-width: 480px) {
+  .help-grid { grid-template-columns: 1fr !important; }
+  .settings-grid { grid-template-columns: 1fr !important; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .features-grid, .roles-grid { grid-template-columns: 1fr; }
   /* Prevent banner overflow on mid-small screens */

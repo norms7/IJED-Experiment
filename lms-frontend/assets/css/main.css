@@ -276,6 +276,8 @@ body.dark-mode strong { color: #f5e8ea !important; }
 body.dark-mode label  { color: #e8d0d4 !important; }
 body.dark-mode span   { color: inherit; }
 body.dark-mode a      { color: #f5a0b0 !important; }
+body.dark-mode details summary { color: #f5c6ce !important; }
+body.dark-mode details { border-bottom-color: #4a2d33 !important; }
 
 /* ── Sidebar text & icons ── */
 body.dark-mode .sb-username  { color: #fff !important; }

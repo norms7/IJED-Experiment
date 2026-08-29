@@ -26,6 +26,7 @@ const DashboardController = {
       { id: "grades", icon: "📊", label: "Grades" },
       { id: "attendance", icon: "🗓️", label: "Attendance" },
       { id: "calendar", icon: "📅", label: "Calendar" },
+      { id: "settings", icon: "⚙️", label: "Settings" },
     ],
     student: [
       { id: "dashboard", icon: "🏠", label: "Dashboard" },
@@ -40,6 +41,7 @@ const DashboardController = {
         icon: "📊",
         label: "Performance Analytics",
       },
+      { id: "settings", icon: "⚙️", label: "Settings" },
     ],
   },
 
@@ -58,6 +60,7 @@ const DashboardController = {
     document.getElementById("sb-username").textContent = displayName;
     document.getElementById("sb-role").textContent = user.role;
     document.getElementById("topbar-avatar").textContent = initials;
+    App.applyProfileImage(user);
     this.buildNav(user.role);
     this.loadSection("dashboard");
   },
@@ -110,9 +113,10 @@ const DashboardController = {
       if (role === "teacher") return TeacherView.dashboard(user, null);
       if (role === "student") return StudentView.dashboard(user, null, [], []);
     }
+    if (id === "settings") return AdminView.settings(user);
+    if (id === "help") return AdminView.help(user);
     if (role === "admin") {
       if (id === "manage-users") return AdminView.manageUsers();
-      if (id === "settings") return AdminView.settings(user);
     }
     if (role === "teacher") {
       if (id === "my-subjects") return TeacherView.mySubjects(user, null);

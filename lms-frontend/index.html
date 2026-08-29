@@ -389,10 +389,7 @@
             <button class="profile-dropdown-item" onclick="App.toggleProfileMenu(); DarkMode.toggle()">
               🌙 Toggle Dark Mode
             </button>
-            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu()">
-              ⚙️ Settings
-            </button>
-            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu()">
+            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu(); DashboardController.loadSection('help')">
               ❓ Report / Help
             </button>
             <div class="profile-dropdown-divider"></div>
