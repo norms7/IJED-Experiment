@@ -137,7 +137,7 @@ const AdminController = {
                   <label class="form-label">Section *</label>
                   <select class="form-control assignment-class" data-index="0">
                     <option value="">— Select Section —</option>
-                    ${classOpts}
+                    ${sectionOpts.replace('<option value="">— Select Section —</option>', '')}
                   </select>
                 </div>
               </div>
@@ -287,12 +287,12 @@ const AdminController = {
         refreshRemoveButtons();
       };
 
-      // Filter subjects by strand+grade when class changes
+      // Filter subjects by strand+grade when section changes
       const _filterSubjects = async (classSelect, subjectSelect) => {
         const opt = classSelect.options[classSelect.selectedIndex];
-        const className = opt ? opt.text : '';
-        const strand = className.replace(/\d.*/, '').toUpperCase();
-        const gradeMatch = className.match(/(\d{2})/);
+        const sectionName = opt ? opt.text : '';
+        const strand = sectionName.replace(/\d.*/, '').toUpperCase();
+        const gradeMatch = sectionName.match(/(\d{2})/);
         const grade = gradeMatch ? gradeMatch[1] : null;
         const allSubjects = await api.getSubjects();
         const filtered = allSubjects.filter(s => {
@@ -420,22 +420,23 @@ const AdminController = {
         const assignments = [];
         document.querySelectorAll('#teacher-assignments-container .assignment-row').forEach(row => {
           const subjectId = row.querySelector('.assignment-subject').value;
-          const classId   = row.querySelector('.assignment-class').value;
+          const sectionId = row.querySelector('.assignment-class').value;
           const days      = row.querySelector('.assignment-days')?.value || '';
           const time      = row.querySelector('.assignment-time')?.value || '';
           const room      = row.querySelector('.assignment-room')?.value || '';
           const schedule  = [days, time, room ? `(${room})` : ''].filter(Boolean).join(' ') || null;
-          if (subjectId && classId) assignments.push({ subjectId: parseInt(subjectId), classId: parseInt(classId), schedule });
+          if (subjectId && sectionId) assignments.push({ subjectId: parseInt(subjectId), sectionId: parseInt(sectionId), schedule });
         });
         if (assignments.length === 0) {
-          Toast.show('Please add at least one subject & class assignment.', 'error');
+          Toast.show('Please add at least one subject & section assignment.', 'error');
           if (btn) btn.disabled = false;
           return;
         }
         for (const a of assignments) {
-          await api.assignTeacherToClass({ teacher_id: teacherProfile.id, class_id: a.classId, subject_id: a.subjectId, schedule: a.schedule });
+          const { data: secRow } = await api.sb.from('sections').select('class_id').eq('id', a.sectionId).single();
+          await api.assignTeacherToClass({ teacher_id: teacherProfile.id, class_id: secRow.class_id, section_id: a.sectionId, subject_id: a.subjectId, schedule: a.schedule });
         }
-        Toast.show(`${assignments.length} subject(s)/class(es) assigned.`, 'info');
+        Toast.show(`${assignments.length} subject(s)/section(s) assigned.`, 'info');
       }
 
       if (role === 'student') {
@@ -511,27 +512,28 @@ const AdminController = {
       const user   = await api.getUser(id);
       const role   = user.role.name;
       let teacherProfile = null;
-      let subjects = [], classes = [], existingAssignments = [];
+      let subjects = [], classes = [], sections = [], existingAssignments = [];
 
       if (role === 'teacher') {
         teacherProfile = await api.getTeacherByUserId(id);
-        const [subjectsRes, classesRes] = await Promise.all([api.getSubjects(), api.getClasses()]);
+        const [subjectsRes, classesRes, sectionsRes] = await Promise.all([api.getSubjects(), api.getClasses(), api.getSections()]);
         subjects = subjectsRes.items || (Array.isArray(subjectsRes) ? subjectsRes : []);
         classes  = classesRes.items  || (Array.isArray(classesRes)  ? classesRes  : []);
+        sections = sectionsRes.items || (Array.isArray(sectionsRes) ? sectionsRes : []);
         existingAssignments = teacherProfile?.class_assignments || [];
       }
 
       let extraFields = '';
       if (role === 'teacher') {
         const subjectOpts = subjects.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
-        const classOpts   = classes.map(c  => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+        const sectionOpts = sections.map(sec => `<option value="${sec.id}">${escHtml(sec.name)}</option>`).join('');
         let assignmentsHtml = '';
         existingAssignments.forEach((ass, idx) => {
           assignmentsHtml += `
             <div class="assignment-row" data-assignment-id="${ass.id}">
               <div class="form-row">
                 <div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject" data-idx="${idx}"><option value="">— Select Subject —</option>${subjects.map(s => `<option value="${s.id}" ${s.id === ass.subject_id ? 'selected' : ''}>${escHtml(s.name)}</option>`).join('')}</select></div>
-                <div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class" data-idx="${idx}"><option value="">— Select Section —</option>${classes.map(c => `<option value="${c.id}" ${c.id === ass.class_id ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}</select></div>
+                <div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class" data-idx="${idx}"><option value="">— Select Section —</option>${sections.map(sec => `<option value="${sec.id}" ${sec.id === ass.section_id ? 'selected' : ''}>${escHtml(sec.name)}</option>`).join('')}</select></div>
               </div>
               <div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" value="${escHtml(ass.schedule || '')}" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div>
               <button type="button" class="btn btn-xs btn-danger remove-existing-assignment" data-id="${ass.id}">✕ Remove</button>
@@ -539,7 +541,7 @@ const AdminController = {
             </div>`;
         });
         if (!existingAssignments.length) {
-          assignmentsHtml = `<div class="assignment-row" data-original="false"><div class="form-row"><div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject"><option value="">— Select Subject —</option>${subjectOpts}</select></div><div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class"><option value="">— Select Section —</option>${classOpts}</select></div></div><div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div><button type="button" class="btn btn-xs btn-danger remove-assignment-btn" style="display:none;">✕ Remove</button><hr></div>`;
+          assignmentsHtml = `<div class="assignment-row" data-original="false"><div class="form-row"><div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject"><option value="">— Select Subject —</option>${subjectOpts}</select></div><div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class"><option value="">— Select Section —</option>${sectionOpts}</select></div></div><div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div><button type="button" class="btn btn-xs btn-danger remove-assignment-btn" style="display:none;">✕ Remove</button><hr></div>`;
         }
         extraFields = `
           <hr><h4>Teacher Details</h4>
@@ -652,19 +654,20 @@ const AdminController = {
             const scheduleInput = row.querySelector('.edit-assignment-schedule');
             if (!subjectSelect || !classSelect) continue;
             const subjectId    = subjectSelect.value;
-            const classId      = classSelect.value;
+            const sectionId    = classSelect.value;
             const schedule     = scheduleInput?.value.trim() || '';
-            if (!subjectId || !classId) {
-              Toast.show('Each assignment must have a subject and a class.', 'error');
+            if (!subjectId || !sectionId) {
+              Toast.show('Each assignment must have a subject and a section.', 'error');
               if (btn) btn.disabled = false;
               return;
             }
+            const { data: secRow } = await api.sb.from('sections').select('class_id').eq('id', parseInt(sectionId)).single();
             const assignmentId = row.getAttribute('data-assignment-id');
             if (assignmentId) {
               currentAssignmentIds.push(parseInt(assignmentId));
-              await api.updateTeacherAssignment(assignmentId, { class_id: parseInt(classId), subject_id: parseInt(subjectId), schedule: schedule || null });
+              await api.updateTeacherAssignment(assignmentId, { class_id: secRow.class_id, section_id: parseInt(sectionId), subject_id: parseInt(subjectId), schedule: schedule || null });
             } else {
-              await api.assignTeacherToClass({ teacher_id: teacherId, class_id: parseInt(classId), subject_id: parseInt(subjectId), schedule: schedule || null });
+              await api.assignTeacherToClass({ teacher_id: teacherId, class_id: secRow.class_id, section_id: parseInt(sectionId), subject_id: parseInt(subjectId), schedule: schedule || null });
             }
           }
           const toDelete = originalIds.filter(id => !currentAssignmentIds.includes(id));

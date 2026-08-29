@@ -223,9 +223,9 @@ class LMSAdminAPI {
     return result;
   }
 
-  async assignTeacherToClass({ teacher_id, class_id, subject_id, schedule }) {
+  async assignTeacherToClass({ teacher_id, class_id, section_id, subject_id, schedule }) {
     const result = this._throwIfError(
-      await this.sb.from("teacher_class_assignments").insert({ teacher_id, class_id, subject_id, schedule }).select().single()
+      await this.sb.from("teacher_class_assignments").insert({ teacher_id, class_id, section_id, subject_id, schedule }).select().single()
     );
     this.clearCache("teachers");
     return result;
