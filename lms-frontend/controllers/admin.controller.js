@@ -1197,14 +1197,46 @@ const AdminController = {
   },
 
   async _resolveClassAndSection(g, allClasses, allSections) {
+    // Section-name-first matching, in three tiers. The previous version
+    // matched the Class first via exact grade_level/school_year string
+    // equality, then looked for a section under it — but that broke
+    // completely for real data where grade_level/school_year weren't
+    // stored in exactly the format assumed here, silently creating a
+    // brand-new duplicate Class + Section every time instead of reusing
+    // what already existed (e.g. "ICT1101" ended up as two separate
+    // sections under two different classes).
+    const wantedSectionName = g.section.trim().toLowerCase();
     const gradeLabel = `Grade ${g.grade}`;
-    const className = g.strand ? `${g.strand} G${g.grade}` : gradeLabel;
+    const strandUpper = (g.strand || '').toUpperCase();
 
-    let klass = allClasses.find(c =>
-      c.grade_level === gradeLabel &&
-      c.school_year === g.schoolYear &&
-      c.name.toUpperCase().startsWith(g.strand || gradeLabel.toUpperCase())
-    );
+    const classLooselyMatches = (c) => {
+      const gradeMatches = c.grade_level === gradeLabel || (c.grade_level || '').includes(String(g.grade));
+      const yearMatches  = c.school_year === g.schoolYear;
+      const nameMatches  = strandUpper && (c.name || '').toUpperCase().includes(strandUpper);
+      return gradeMatches || yearMatches || nameMatches;
+    };
+
+    // Tier 1: section with this name, whose class loosely matches grade/year/strand.
+    let section = allSections.find(s => {
+      if (s.name.trim().toLowerCase() !== wantedSectionName) return false;
+      const klass = allClasses.find(c => c.id === s.class_id);
+      return klass && classLooselyMatches(klass);
+    });
+
+    // Tier 2: same section name anywhere at all — safer than creating an
+    // outright duplicate, but flagged here since it could theoretically
+    // merge two different sections that happen to share a name across
+    // different grades/years. Worth revisiting if that ever comes up.
+    if (!section) {
+      section = allSections.find(s => s.name.trim().toLowerCase() === wantedSectionName);
+    }
+
+    if (section) return section.id;
+
+    // Tier 3: genuinely nothing matches — create a new Class (if needed) + Section.
+    const className = g.strand ? `${g.strand} G${g.grade}` : gradeLabel;
+    let klass = allClasses.find(classLooselyMatches);
+
     if (!klass) {
       const { data, error } = await api.sb.from('classes')
         .insert({ name: className, grade_level: gradeLabel, school_year: g.schoolYear, is_active: true })
@@ -1214,18 +1246,12 @@ const AdminController = {
       allClasses.push(klass);
     }
 
-    let section = allSections.find(s =>
-      s.class_id === klass.id && s.name.trim().toLowerCase() === g.section.trim().toLowerCase()
-    );
-    if (!section) {
-      const { data, error } = await api.sb.from('sections')
-        .insert({ name: g.section, class_id: klass.id })
-        .select().single();
-      if (error) throw new Error(error.message);
-      section = data;
-      allSections.push(section);
-    }
-    return section.id;
+    const { data, error } = await api.sb.from('sections')
+      .insert({ name: g.section, class_id: klass.id })
+      .select().single();
+    if (error) throw new Error(error.message);
+    allSections.push(data);
+    return data.id;
   },
 
   _renderImportResults(result) {
