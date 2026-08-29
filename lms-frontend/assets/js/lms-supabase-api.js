@@ -22,12 +22,37 @@ class LMSAdminAPI {
   }
 
   async _hydrateSessionUser(session) {
-    const { data: profile } = await this.sb
+    // FIX: was `.single()` + only destructuring `data`. `.single()` treats
+    // "0 rows" as an *error*, and that error (plus any real 500/RLS/apikey
+    // error) was being silently discarded — so every failure looked like
+    // "no profile row", even when the real cause was a bad API key or a
+    // permissions problem. `.maybeSingle()` returns error:null when there's
+    // legitimately no row, so we can now tell the two cases apart.
+    const { data: profile, error } = await this.sb
       .from("users")
-      .select("id, email, first_name, last_name, role_id, roles(name)")
+      .select("id, email, first_name, last_name, role_id, is_active, roles(name)")
       .eq("auth_uid", session.user.id)
-      .single();
-    if (!profile) return null;
+      .maybeSingle();
+
+    if (error) {
+      // A real API/RLS/network failure — NOT "account not provisioned".
+      console.error("[LMS] profile lookup failed:", error);
+      throw new Error(
+        `Could not verify your account (${error.message}). ` +
+        `This is a Supabase connection/permissions issue, not a missing account — ` +
+        `check the API key and RLS policies before assuming the user needs provisioning.`
+      );
+    }
+
+    if (!profile) return null; // genuinely: no `users` row is linked to this auth account yet
+
+    if (profile.is_active === false) {
+      throw new Error("Your account has been deactivated. Contact an administrator.");
+    }
+    if (!profile.roles?.name) {
+      throw new Error("Your account has no role assigned. Contact an administrator.");
+    }
+
     const userPayload = {
       id: profile.id,
       role: profile.roles.name,
@@ -1054,4 +1079,4 @@ class LMSAdminAPI {
 }
 
 // Global singleton — all controllers reference this as `api`
-const api = new LMSAdminAPI();3
+const api = new LMSAdminAPI();
