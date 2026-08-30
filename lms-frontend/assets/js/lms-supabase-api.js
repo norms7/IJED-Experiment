@@ -188,7 +188,7 @@ class LMSAdminAPI {
       const teacherIds = teachers.map(t => t.id);
       const assignments = teacherIds.length ? this._throwIfError(
         await this.sb.from("teacher_class_assignments")
-          .select("*, subjects(id, name), classes(id, name, grade_level)")
+          .select("*, subjects(id, name), classes(id, name, grade_level), sections(id, name)")
           .in("teacher_id", teacherIds)
       ) : [];
       const byTeacher = {};
@@ -197,7 +197,8 @@ class LMSAdminAPI {
         byTeacher[a.teacher_id].push({
           ...a,
           subject: a.subjects,   // view uses a.subject.name
-          class_: a.classes,     // view uses a.class_.name
+          class_: a.classes,     // view uses a.class_.name (whole class, e.g. "ICT G11")
+          section: a.sections,   // view uses a.section.name (the specific section, e.g. "ICT1102")
         });
       });
       // FIX: rename users -> user, attach class_assignments
@@ -239,7 +240,7 @@ class LMSAdminAPI {
     if (!teacher) return null;
     const assignments = this._throwIfError(
       await this.sb.from("teacher_class_assignments")
-        .select("*, subjects(id, name), classes(id, name, grade_level)")
+        .select("*, subjects(id, name), classes(id, name, grade_level), sections(id, name)")
         .eq("teacher_id", teacher.id)
     );
     return {
@@ -248,6 +249,7 @@ class LMSAdminAPI {
         ...a,
         subject: a.subjects,
         class_: a.classes,
+        section: a.sections,
       })),
     };
   }
@@ -502,7 +504,7 @@ class LMSAdminAPI {
     return this._cached("teacher:mysubjects", 60_000, async () => {
       const data = this._throwIfError(
         await this.sb.from("teacher_class_assignments")
-          .select("*, subjects(*), classes(*)")
+          .select("*, subjects(*), classes(*), sections(*)")
           .eq("teacher_id", (await this._myTeacherId()))
       );
       return data.map(row => ({
@@ -513,6 +515,8 @@ class LMSAdminAPI {
         class_id: row.class_id,
         class_name: row.classes?.name || "",
         grade_level: row.classes?.grade_level || "",
+        section_id: row.section_id,
+        section_name: row.sections?.name || row.classes?.name || "",
       }));
     });
   }
