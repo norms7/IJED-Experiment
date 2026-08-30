@@ -38,7 +38,7 @@ const TeacherView = {
       <div class="teacher-subject-card">
         <div class="teacher-subject-header">
           <span class="teacher-subject-name">${escHtml(sub.subject_name)}</span>
-          <span class="badge badge-maroon">${escHtml(sub.class_name)}</span>
+          <span class="badge badge-maroon">${escHtml(sub.section_name)}</span>
         </div>
         <div class="teacher-subject-details">
           <div>🏫 ${escHtml(sub.grade_level)}</div>
@@ -74,7 +74,7 @@ const TeacherView = {
         <div style="font-size:30px">📘</div>
         <div class="subject-info">
           <div class="subject-name">${escHtml(sub.subject_name)}</div>
-          <div class="subject-teacher">${escHtml(sub.class_name)} · ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
+          <div class="subject-teacher">${escHtml(sub.section_name)} · ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
         </div>
         <div class="subject-actions">
           <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.class_id}, '${escHtml(sub.subject_name)}')">👥 Students</button>
