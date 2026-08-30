@@ -754,6 +754,41 @@ class LMSAdminAPI {
     });
   }
 
+  // Weekly class schedule for the logged-in student — scoped through their
+  // ACTUAL section (student_section_assignments), not just "enrolled in the
+  // subject", so a student never sees another section's schedule under the
+  // same subject/class (same mixing bug fixed earlier for attendance).
+  async getStudentWeeklySchedule() {
+    return this._cached('student:weeklyschedule', 60_000, async () => {
+      const studentId = await this._myStudentId();
+      const { data: secRows } = await this.sb
+        .from('student_section_assignments').select('section_id').eq('student_id', studentId);
+      const sectionIds = (secRows || []).map(r => r.section_id);
+      if (!sectionIds.length) return [];
+
+      const { data: enrollRows } = await this.sb
+        .from('student_subject_enrollments').select('subject_id').eq('student_id', studentId);
+      const subjectIds = (enrollRows || []).map(r => r.subject_id);
+      if (!subjectIds.length) return [];
+
+      const data = this._throwIfError(
+        await this.sb.from('teacher_class_assignments')
+          .select('*, subjects(id,name), classes(id,name,grade_level), sections(id,name), teachers(id, users(first_name,last_name))')
+          .in('section_id', sectionIds)
+          .in('subject_id', subjectIds)
+      );
+      return data.map(row => ({
+        subject_id:   row.subject_id,
+        subject_name: row.subjects?.name || '',
+        section_id:   row.section_id,
+        section_name: row.sections?.name || row.classes?.name || '',
+        grade_level:  row.classes?.grade_level || '',
+        schedule:     row.schedule,
+        teacher_name: row.teachers?.users ? `${row.teachers.users.first_name} ${row.teachers.users.last_name}` : '',
+      }));
+    });
+  }
+
   // Returns the "current" semester: the highest semester the student is enrolled in.
   // Used to set the default tab in the My Subjects view.
   async getStudentCurrentSemester() {
