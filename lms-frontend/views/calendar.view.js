@@ -17,6 +17,7 @@ const CalendarView = {
     const rc = roleColors[user.role] || roleColors.student;
 
     const eventTypeLegend = [
+      ['#555',    'Class (your schedule)'],
       ['#d4a017', 'Holiday / No Class'],
       ['#1a4a8a', 'Meeting'],
       ['#8b0020', 'Exam'],
