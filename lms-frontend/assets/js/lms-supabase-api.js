@@ -951,26 +951,33 @@ class LMSAdminAPI {
     const teacherId = await this._myTeacherId();
     const data = this._throwIfError(
       await this.sb.from("teacher_class_assignments")
-        .select("*, subjects(id, name), classes(id, name, grade_level, school_year, sections(id, name))")
+        .select("*, subjects(id, name), classes(id, name, grade_level, school_year), sections(id, name)")
         .eq("teacher_id", teacherId)
     );
 
-    // Group by class so one class with multiple subjects appears as one row
-    const byClass = new Map();
+    // Group by SECTION (not class) — each real section is its own row, so
+    // two sections under one class (e.g. ICT1102 and ICT1103, both under
+    // "ICT G11") never share an attendance roster. A teacher_class_assignments
+    // row with no section_id yet (pre-migration legacy data) is skipped —
+    // re-save that teacher's assignment in Admin > Edit Teacher to pick a
+    // specific section instead of a whole class.
+    const bySection = new Map();
     for (const row of (data || [])) {
+      const sec = row.sections;
       const cls = row.classes;
-      if (!cls) continue;
-      if (!byClass.has(cls.id)) {
-        byClass.set(cls.id, {
-          class_id:    cls.id,
-          class_name:  cls.name,
-          grade_level: cls.grade_level,
-          school_year: cls.school_year,
-          sections:    cls.sections || [],
-          subjects:    [],
+      if (!sec || !cls) continue;
+      if (!bySection.has(sec.id)) {
+        bySection.set(sec.id, {
+          section_id:   sec.id,
+          section_name: sec.name,
+          class_id:     cls.id,
+          class_name:   cls.name,
+          grade_level:  cls.grade_level,
+          school_year:  cls.school_year,
+          subjects:     [],
         });
       }
-      const entry = byClass.get(cls.id);
+      const entry = bySection.get(sec.id);
       if (row.subjects) {
         entry.subjects.push({
           subject_id:   row.subjects.id,
@@ -980,12 +987,12 @@ class LMSAdminAPI {
         });
       }
     }
-    return [...byClass.values()];
+    return [...bySection.values()];
   }
 
-  async getAttendanceSectionStudents(classId, { subjectId = null, term = null } = {}) {
+  async getAttendanceSectionStudents(sectionId, { subjectId = null, term = null } = {}) {
   const { data, error } = await this.sb.rpc('get_teacher_attendance_summary', {
-    p_class_id: classId,
+    p_section_id: sectionId,
     p_subject_id: subjectId,
     p_term: term
   });
@@ -993,9 +1000,9 @@ class LMSAdminAPI {
   return data; // { total_meetings, students }
 }
 
-  async getAttendanceSessions(classId, { subjectId = null, term = null } = {}) {
+  async getAttendanceSessions(sectionId, { subjectId = null, term = null } = {}) {
   const { data, error } = await this.sb.rpc('get_teacher_attendance_sessions', {
-    p_class_id: classId,
+    p_section_id: sectionId,
     p_subject_id: subjectId,
     p_term: term
   });
@@ -1014,7 +1021,7 @@ class LMSAdminAPI {
   async createAttendanceSession(payload) {
     return this._throwIfError(
       await this.sb.rpc("create_attendance_session", {
-        p_class_id: payload.class_id, p_subject_id: payload.subject_id, p_term: payload.term,
+        p_section_id: payload.section_id, p_subject_id: payload.subject_id, p_term: payload.term,
         p_session_date: payload.session_date, p_has_class: payload.has_class,
         p_notes: payload.notes || null, p_records: payload.records || [],
       })
