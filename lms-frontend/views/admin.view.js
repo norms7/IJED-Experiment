@@ -286,20 +286,30 @@ const AdminView = {
     let assignmentsHtml = '';
     let schRows = '';
     if (t.class_assignments && t.class_assignments.length) {
-      assignmentsHtml = t.class_assignments.map(a => `
+      assignmentsHtml = t.class_assignments.map(a => {
+        const sectionLabel = a.section ? a.section.name : (a.class_?.name || '—');
+        const gradeLabel   = a.class_?.grade_level ? ` (${escHtml(a.class_.grade_level)})` : '';
+        const classSub     = (a.section && a.class_ && a.section.name !== a.class_.name)
+          ? `<div class="assignment-parent-class" style="font-size:11px;color:var(--gray-400)">${escHtml(a.class_.name)}</div>` : '';
+        return `
         <div class="assignment-item">
           <div class="assignment-subject">📘 ${escHtml(a.subject.name)}</div>
-          <div class="assignment-class">🏫 ${escHtml(a.class_.name)} (${escHtml(a.class_.grade_level || '')})</div>
+          <div class="assignment-class">🏫 ${escHtml(sectionLabel)}${gradeLabel}</div>
+          ${classSub}
           <div class="assignment-schedule">⏰ ${a.schedule || 'No schedule'}</div>
         </div>
-      `).join('');
-      schRows = t.class_assignments.map(a => `
+      `;
+      }).join('');
+      schRows = t.class_assignments.map(a => {
+        const sectionLabel = a.section ? a.section.name : (a.class_?.name || '—');
+        return `
         <div class="sch-row">
           <span class="sch-info" style="font-size:12px">
-            <strong>${escHtml(a.subject.name)}</strong> · ${escHtml(a.class_.name)} · ${escHtml(a.schedule || 'No schedule')}
+            <strong>${escHtml(a.subject.name)}</strong> · ${escHtml(sectionLabel)} · ${escHtml(a.schedule || 'No schedule')}
           </span>
         </div>
-      `).join('');
+      `;
+      }).join('');
     } else {
       assignmentsHtml = '<div class="text-muted">No subjects assigned</div>';
       schRows = '<div class="text-muted">No schedule</div>';
