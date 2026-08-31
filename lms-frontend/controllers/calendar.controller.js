@@ -27,9 +27,15 @@ const CalendarController = {
     return Promise.allSettled([
       this._buildActivityEvents(DashboardController.currentUser),
       this._buildWeeklySchedule(DashboardController.currentUser),
-    ]).then(() => {
+    ]).then((results) => {
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`[CalendarController] init() step ${i} failed:`, r.reason);
+        }
+      });
       this._render();
-    }).catch(() => {
+    }).catch((err) => {
+      console.error('[CalendarController] init() failed unexpectedly:', err);
       this._render();
     });
   },
@@ -248,12 +254,22 @@ const CalendarController = {
   selectDay(dateStr) {
     this._selectedDate = dateStr;
     this._highlightSelected(dateStr);
-    const user     = DashboardController.currentUser;
-    const events   = this._eventMap[dateStr] || [];
-    const todos    = todoModel.getForUserDate(user.id, dateStr);
-    const dow      = new Date(dateStr + 'T00:00:00').getDay();
-    const classesToday = this._scheduleMap[dow] || [];
-    this._renderDayPanel(dateStr, user, events, todos, classesToday);
+    try {
+      const user     = DashboardController.currentUser;
+      const events   = this._eventMap[dateStr] || [];
+      const todos    = todoModel.getForUserDate(user.id, dateStr);
+      const dow      = new Date(dateStr + 'T00:00:00').getDay();
+      const classesToday = this._scheduleMap[dow] || [];
+      this._renderDayPanel(dateStr, user, events, todos, classesToday);
+    } catch (err) {
+      // Surface the error directly in the panel instead of failing silently
+      // — makes phone-only debugging possible without DevTools.
+      console.error('[CalendarController] selectDay failed:', err);
+      const panel = document.getElementById('cal-day-panel');
+      if (panel) {
+        panel.innerHTML = `<div style="padding:12px;background:#fdecec;border:1px solid #f5b5b5;border-radius:8px;color:#8b0020;font-size:12px;white-space:pre-wrap">⚠️ Calendar error — please screenshot this and send it back:\n\n${escHtml(err.message || String(err))}\n\n${escHtml(err.stack || '')}</div>`;
+      }
+    }
   },
 
   // ── Render the right-hand day detail panel ──
