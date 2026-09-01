@@ -797,8 +797,13 @@ class LMSAdminAPI {
   // Used to set the default tab in the My Subjects view.
   async getStudentCurrentSemester() {
     const all = await this.getStudentSubjects();
-    const semesters = [...new Set(all.map(r => r.semester).filter(Boolean))].sort();
-    return semesters.length ? semesters[semesters.length - 1] : 1;
+    const semesters = [...new Set(all.map(r => r.semester).filter(Boolean))];
+    // FIX: previously picked whichever semester sorted highest — so a
+    // student enrolled in both 1st and 2nd semester subjects (the normal
+    // case for a full school-year enrollment) landed on 2nd Semester by
+    // default. Always prefer 1st when the student has any enrollment there.
+    if (semesters.includes('1st')) return '1st';
+    return semesters.sort()[0] || '1st';
   }
 
   async getStudentModules(subject_id = null) {
@@ -808,9 +813,17 @@ class LMSAdminAPI {
         .from("student_subject_enrollments").select("subject_id").eq("student_id", studentId);
       const subjectIds = subject_id ? [subject_id] : (enrollments || []).map(e => e.subject_id);
       if (!subjectIds.length) return [];
-      return this._throwIfError(
+      const modules = this._throwIfError(
         await this.sb.from("modules").select("*").in("subject_id", subjectIds).eq("is_published", true)
       );
+      if (!modules.length) return modules;
+      // Mark which of these the student has actually opened — needed to
+      // show real completion progress, not just a module count.
+      const { data: reads } = await this.sb.from("student_module_reads")
+        .select("module_id").eq("student_id", studentId)
+        .in("module_id", modules.map(m => m.id));
+      const readIds = new Set((reads || []).map(r => r.module_id));
+      return modules.map(m => ({ ...m, is_read: readIds.has(m.id) }));
     });
   }
 
