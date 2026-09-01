@@ -533,12 +533,16 @@ class LMSAdminAPI {
     return data?.id;
   }
 
-  async getClassStudents(classId) {
-    return this._cached(`teacher:classstudents:${classId}`, 60_000, async () => {
+  // Renamed from getClassStudents(classId) — was pulling every student from
+  // every section under the class, so viewing "ICT G11" mixed ICT1102 and
+  // ICT1103 students together. student_section_assignments already has
+  // section_id directly, so no join needed at all — simpler and correct.
+  async getSectionStudents(sectionId) {
+    return this._cached(`teacher:sectionstudents:${sectionId}`, 60_000, async () => {
       const data = this._throwIfError(
         await this.sb.from("student_section_assignments")
-          .select("students(*, users(first_name, last_name)), sections!inner(class_id)")
-          .eq("sections.class_id", classId)
+          .select("students(*, users(first_name, last_name))")
+          .eq("section_id", sectionId)
       );
       // Flatten: pull students out + rename users -> user so views use stu.user.first_name
       return (data || [])
