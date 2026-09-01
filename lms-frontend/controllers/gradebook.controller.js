@@ -11,12 +11,13 @@ const GradebookController = {
 
   // ── State ─────────────────────────────────────────────────────────────────
   _subjects:          [],   // all subjects for this teacher
-  _currentClassId:    null,
+  _currentClassId:    null, // parent class — still needed: modules are class-scoped by design
+  _currentSectionId:  null, // the actual section being graded — never mixed with sibling sections
   _currentSubjectId:  null, // active subject filter
   _currentName:       '',
   _currentTerm:       '1st',
-  _classSubjects:     [],   // subjects for the open class
-  _allStudents:       [],   // students in this class (fetched once)
+  _classSubjects:     [],   // subjects for the open section
+  _allStudents:       [],   // students in this section (fetched once)
   _subjectCache:      {},   // subjectId → { activities, modules, attendance }
   _lastExportData:    null,
 
@@ -27,7 +28,7 @@ const GradebookController = {
       const subjects = await api.getMySubjects();
       this._subjects = subjects || [];
 
-      const sectionCount = new Set((subjects || []).map(s => s.class_id)).size;
+      const sectionCount = new Set((subjects || []).map(s => s.section_id)).size;
       const countEl = document.getElementById('grade-count');
       if (countEl) countEl.textContent = `${sectionCount} section(s) assigned`;
 
@@ -36,19 +37,21 @@ const GradebookController = {
         DashboardController._attachSearch();
       }
 
-      // Async student counts per section
-      const classIds = [...new Set((subjects || []).map(s => s.class_id))];
-      classIds.forEach(classId => {
-        api.getClassStudents(classId)
+      // Async student counts per section — SECTION, not whole class, so two
+      // sections under one class (e.g. ICT1102 and ICT1103 under "ICT G11")
+      // each get their own accurate count instead of a merged total.
+      const sectionIds = [...new Set((subjects || []).map(s => s.section_id))];
+      sectionIds.forEach(sectionId => {
+        api.getSectionStudents(sectionId)
           .then(students => {
-            const el = document.getElementById(`student-count-${classId}`);
+            const el = document.getElementById(`student-count-${sectionId}`);
             if (el) {
               el.textContent = `${students.length} student${students.length !== 1 ? 's' : ''}`;
               el.className = 'badge badge-green';
             }
           })
           .catch(() => {
-            const el = document.getElementById(`student-count-${classId}`);
+            const el = document.getElementById(`student-count-${sectionId}`);
             if (el) { el.textContent = '—'; el.className = 'badge badge-gray'; }
           });
       });
@@ -64,12 +67,13 @@ const GradebookController = {
     }
   },
 
-  // ── Open a class → show first subject by default ──────────────────────────
-  async openSection(classId, sectionName) {
-    this._currentClassId  = classId;
-    this._currentName     = sectionName;
-    this._subjectCache    = {};   // clear cache on new class
-    this._allStudents     = [];
+  // ── Open a section → show first subject by default ────────────────────────
+  async openSection(sectionId, sectionName) {
+    this._currentSectionId = sectionId;
+    this._currentClassId   = null; // resolved below, once we know the section's subjects
+    this._currentName      = sectionName;
+    this._subjectCache     = {};   // clear cache on new section
+    this._allStudents      = [];
 
     const area = document.getElementById('content-area');
     if (!area) return;
@@ -86,26 +90,30 @@ const GradebookController = {
       <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Building gradebook…</div></div>`;
 
     try {
-      // Resolve subjects for this class
-      let classSubjects = this._subjects.filter(s => s.class_id === classId);
-      if (classSubjects.length === 0) {
+      // Resolve subjects for this section
+      let sectionSubjects = this._subjects.filter(s => s.section_id === sectionId);
+      if (sectionSubjects.length === 0) {
         const allSubjects = await api.getMySubjects().catch(() => []);
-        this._subjects    = allSubjects;
-        classSubjects     = allSubjects.filter(s => s.class_id === classId);
+        this._subjects     = allSubjects;
+        sectionSubjects     = allSubjects.filter(s => s.section_id === sectionId);
       }
-      this._classSubjects = classSubjects;
+      this._classSubjects = sectionSubjects;
+      // Modules are class-scoped by design (shared across a class's sections),
+      // so we still need the parent class_id — derived from whichever subject
+      // row matched, since every row for this section shares the same class.
+      this._currentClassId = sectionSubjects[0]?.class_id ?? null;
 
-      if (classSubjects.length === 0) {
+      if (sectionSubjects.length === 0) {
         area.innerHTML = `<div class="empty-state">
           <div class="empty-state-icon">📋</div>
-          <div class="empty-state-title">No subjects found for this class</div>
+          <div class="empty-state-title">No subjects found for this section</div>
           <button class="btn btn-primary mt-3" onclick="DashboardController.loadSection('grades')">← Back</button>
         </div>`;
         return;
       }
 
-      // Fetch students once for this class
-      this._allStudents = await api.getClassStudents(classId).catch(() => []);
+      // Fetch students once for this section
+      this._allStudents = await api.getSectionStudents(sectionId).catch(() => []);
 
       // Default: first subject, first term
       this._currentSubjectId = classSubjects[0].subject_id;
@@ -173,7 +181,7 @@ const GradebookController = {
         const [activities, modules, attendance, moduleReadsData] = await Promise.all([
           api.getTeacherActivities({ subject_id: subjectId }).catch(() => []),
           api.getMyModules(subjectId).catch(() => []),
-          api.getAttendanceSectionStudents(this._currentClassId, { subjectId, term }).catch(() => ({ students: [], total_meetings: 0 })),
+          api.getAttendanceSectionStudents(this._currentSectionId, { subjectId, term }).catch(() => ({ students: [], total_meetings: 0 })),
           api.getClassModuleReads(this._currentClassId, subjectId).catch(() => ({ module_reads: {}, total_modules: 0 })),
         ]);
 
