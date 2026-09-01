@@ -319,8 +319,20 @@ const StudentView = {
     const cards = apiSubjects.map((s, idx) => {
       const style  = NAMED[s.subject_name] || PALETTE[idx % PALETTE.length];
       const sid    = s.subject_id;
-      const mCount = (apiModules    || []).filter(m => m.subject_id === sid).length;
-      const aCount = (apiActivities || []).filter(a => a.subject_id === sid).length;
+      const subjectModules    = (apiModules    || []).filter(m => m.subject_id === sid);
+      const subjectActivities = (apiActivities || []).filter(a => a.subject_id === sid);
+      const mCount = subjectModules.length;
+      const aCount = subjectActivities.length;
+
+      // Progress = modules actually opened + activities submitted/graded,
+      // out of everything posted for this subject. Reflects real completion,
+      // not just a count of what's been assigned.
+      const modulesRead        = subjectModules.filter(m => m.is_read).length;
+      const activitiesDone     = subjectActivities.filter(a => a.status === 'submitted' || a.status === 'graded').length;
+      const totalItems         = mCount + aCount;
+      const doneItems          = modulesRead + activitiesDone;
+      const progressPct        = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+      const progressColor      = progressPct >= 75 ? '#2e6b3e' : progressPct >= 40 ? '#c08a00' : '#8b1a2e';
 
       return `
         <div class="student-subject-card" data-searchable data-subject-id="${sid}">
@@ -334,6 +346,13 @@ const StudentView = {
                   ${mCount} module${mCount !== 1 ? 's' : ''} · ${aCount} activit${aCount !== 1 ? 'ies' : 'y'}
                 </span>
               </div>
+              ${totalItems > 0 ? `
+              <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+                <div style="flex:1;height:6px;border-radius:3px;background:var(--gray-100,#f0e8e8);overflow:hidden">
+                  <div style="width:${progressPct}%;height:100%;background:${progressColor};border-radius:3px;transition:width .3s"></div>
+                </div>
+                <span style="font-size:11px;font-weight:600;color:${progressColor};white-space:nowrap">${progressPct}% done</span>
+              </div>` : ''}
             </div>
             <span class="accordion-chevron" style="font-size:18px;color:var(--gray-400);transition:transform .25s;flex-shrink:0">▾</span>
           </div>
