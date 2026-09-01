@@ -45,7 +45,7 @@ const TeacherView = {
           <div>⏰ ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
         </div>
         <div class="teacher-subject-actions">
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.class_id}, '${escHtml(sub.subject_name)}')">👥 View Students</button>
+          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.section_id}, '${escHtml(sub.subject_name)}')">👥 View Students</button>
           <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.subject_id}, ${sub.class_id})">📤 Upload Material</button>
           <button class="btn btn-xs btn-primary" onclick="DashboardController.loadSection('modules')">📋 Manage Activities</button>
         </div>
@@ -272,16 +272,20 @@ const TeacherView = {
       </div>`;
     }
 
-    // Group by class (section)
+    // Group by real SECTION — a class with multiple sections (e.g. "ICT G11"
+    // containing both ICT1102 and ICT1103) must never merge their students
+    // into one gradebook row (same fix already applied to Attendance).
     const sectionMap = {};
     subjects.forEach(sub => {
-      const key = sub.class_id;
+      const key = sub.section_id;
       if (!sectionMap[key]) {
         sectionMap[key] = {
-          class_id:    sub.class_id,
-          class_name:  sub.class_name,
-          grade_level: sub.grade_level,
-          subjects:    [],
+          section_id:   sub.section_id,
+          section_name: sub.section_name,
+          class_id:     sub.class_id,
+          class_name:   sub.class_name,
+          grade_level:  sub.grade_level,
+          subjects:     [],
         };
       }
       sectionMap[key].subjects.push(sub);
@@ -289,9 +293,9 @@ const TeacherView = {
     const sections = Object.values(sectionMap);
 
     const rows = sections.map(sec => `
-      <tr data-searchable style="cursor:pointer" onclick="GradebookController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+      <tr data-searchable style="cursor:pointer" onclick="GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
         <td>
-          <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.class_name)}</div>
+          <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.section_name)}</div>
           <div style="font-size:12px;color:var(--gray-400)">${escHtml(sec.grade_level || '')}</div>
         </td>
         <td>
@@ -299,9 +303,9 @@ const TeacherView = {
             ${sec.subjects.map(s => `<span class="badge badge-maroon" style="font-size:11px">${escHtml(s.subject_name)}</span>`).join('')}
           </div>
         </td>
-        <td><span class="badge badge-gray" id="student-count-${sec.class_id}">Loading…</span></td>
+        <td><span class="badge badge-gray" id="student-count-${sec.section_id}">Loading…</span></td>
         <td>
-          <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();GradebookController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+          <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
             📊 View Gradebook
           </button>
         </td>
