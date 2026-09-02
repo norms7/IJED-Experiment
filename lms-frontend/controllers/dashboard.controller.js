@@ -31,7 +31,6 @@ const DashboardController = {
     student: [
       { id: "dashboard", icon: "🏠", label: "Dashboard" },
       { id: "my-subjects", icon: "📚", label: "My Subjects" },
-      { id: "modules", icon: "📄", label: "Modules" },
       { id: "activities", icon: "📋", label: "Activities" },
       { id: "my-grades", icon: "📊", label: "My Grades" },
       { id: "attendance", icon: "🗓️", label: "Attendance" },
@@ -127,7 +126,10 @@ const DashboardController = {
     }
     if (role === "student") {
       if (id === "my-subjects") return StudentView.mySubjects();
-      if (id === "modules") return StudentView.modules(null);
+      // "modules" removed as a standalone page — fully duplicated by the
+      // per-subject module listing (with progress bars) already inside
+      // My Subjects. Redirect any stale link/bookmark there instead.
+      if (id === "modules") return StudentView.mySubjects();
       if (id === "activities") return StudentView.activitiesLoading();
       if (id === "my-grades") return StudentView.myGrades();
       if (id === "attendance") return StudentView.attendanceLoading();
@@ -273,7 +275,7 @@ const DashboardController = {
     }
 
     // ── Student My Subjects ──────────────────────────────────────────────
-    if (sectionId === "my-subjects" && role === "student") {
+    if ((sectionId === "my-subjects" || sectionId === "modules") && role === "student") {
       Loader.start();
       area.innerHTML = Loader.skeleton("list");
       Loader.init();
@@ -336,39 +338,9 @@ const DashboardController = {
     }
 
     // ── Student Modules ──────────────────────────────────────────────────
-    if (sectionId === "modules" && role === "student") {
-      Loader.start();
-      area.innerHTML = Loader.skeleton("list");
-      Loader.init();
-      const filterSubjectId = window._filterSubjectId || null;
-      delete window._filterSubjectId;
-      try {
-        const [subjects, modules] = await Promise.all([
-          api.getStudentSubjects(),
-          api.getStudentModules(filterSubjectId),
-        ]);
-        const subjectMap = {};
-        subjects.forEach((s) => {
-          subjectMap[s.subject_id] = s.subject_name;
-        });
-        modules.forEach((m) => {
-          m._subject_name = subjectMap[m.subject_id] || "Unknown";
-        });
-        area.innerHTML = StudentView.modules(modules);
-        if (filterSubjectId) {
-          const subjectName = subjectMap[filterSubjectId];
-          if (subjectName)
-            Toast.show(`Showing modules for: ${subjectName}`, "info");
-        }
-        this._attachSearch();
-      } catch (err) {
-        console.error("Student modules error:", err.message);
-        Toast.show("Failed to load modules: " + err.message, "error");
-      } finally {
-        Loader.done();
-      }
-      return;
-    }
+    // Removed — fully duplicated the per-subject module listing (now with
+    // progress bars) already shown inside My Subjects. Routing above
+    // redirects any stale "modules" link there instead.
 
     // ── Student My Grades ────────────────────────────────────────────────
     if (sectionId === "my-grades" && role === "student") {
