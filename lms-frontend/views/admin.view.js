@@ -387,24 +387,35 @@ const AdminView = {
   },
 
   /* ── Sections pane ── */
-  _sectionsPane(sections) {
+  _sectionsPane(sections, students = []) {
     if (!sections || !sections.length) {
       return '<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">No sections yet</div><button class="btn btn-primary mt-3" onclick="AdminController.openAddSection()">➕ Add Section</button></div>';
     }
-    const rows = sections.map(sec => `
+    // Count students currently assigned to each section.
+    const countBySection = {};
+    students.forEach(s => {
+      (s.section_assignments || []).forEach(sa => {
+        countBySection[sa.section_id] = (countBySection[sa.section_id] || 0) + 1;
+      });
+    });
+    const rows = sections.map(sec => {
+      const adviserName = sec.adviser?.user
+        ? `${escHtml(sec.adviser.user.first_name)} ${escHtml(sec.adviser.user.last_name)}`
+        : '—';
+      const studentCount = countBySection[sec.id] || 0;
+      return `
       <tr>
-        <td><strong>${escHtml(sec.name)}</strong> (Class ID: ${sec.class_id})</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm text-muted">—</td>
+        <td><strong>${escHtml(sec.name)}</strong>${sec.grade_level ? ` <span class="text-sm text-muted">(Grade ${escHtml(sec.grade_level)})</span>` : ''}</td>
+        <td class="text-sm">${escHtml(sec.room || '—')}</td>
+        <td class="text-sm">${adviserName}</td>
+        <td class="text-sm">${studentCount}</td>
+        <td class="text-sm">${escHtml(sec.school_year || '—')}</td>
         <td class="actions-cell">
           <button class="btn btn-xs btn-outline" onclick="AdminController.openEditSection(${sec.id})">✏️ Edit</button>
           <button class="btn btn-xs btn-danger" onclick="AdminController.deleteSection(${sec.id})">🗑</button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
     return `
       <div class="um-toolbar"><button class="btn btn-primary" onclick="AdminController.openAddSection()">➕ Add Section</button></div>
       <div class="card table-card">

@@ -767,23 +767,52 @@ const AdminController = {
 
   /* ── Section CRUD ────────────────────────────────────────── */
 
+  _gradeLevelOpts(selected = '') {
+    return ['7', '8', '9', '10', '11', '12']
+      .map(g => `<option value="${g}" ${String(selected) === g ? 'selected' : ''}>Grade ${g}</option>`)
+      .join('');
+  },
+
+  async _teacherOpts(selectedId = '') {
+    const teachersRes = await api.getTeachers();
+    const teachers    = teachersRes.items || (Array.isArray(teachersRes) ? teachersRes : []);
+    const opts = teachers.map(t =>
+      `<option value="${t.id}" ${t.id === selectedId ? 'selected' : ''}>${escHtml(t.user.first_name)} ${escHtml(t.user.last_name)}</option>`
+    ).join('');
+    return '<option value="">— No adviser assigned —</option>' + opts;
+  },
+
   async openAddSection() {
-    let classOpts = '<option value="">Loading classes…</option>';
+    let teacherOpts = '<option value="">Loading teachers…</option>';
     try {
-      const classesRes = await api.getClasses();
-      const classes    = classesRes.items || (Array.isArray(classesRes) ? classesRes : []);
-      classOpts = classes.map(c => `<option value="${c.id}">${escHtml(c.name)} (${escHtml(c.grade_level || '')})</option>`).join('') || '<option value="">No classes available</option>';
+      teacherOpts = await this._teacherOpts();
     } catch (e) {
-      classOpts = '<option value="">Error loading classes</option>';
+      teacherOpts = '<option value="">Error loading teachers</option>';
     }
     Modal.show('Add Section', `
-      <div class="form-group">
-        <label class="form-label">Section Name *</label>
-        <input class="form-control" id="new-section-name" placeholder="e.g. Section A" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Section Name *</label>
+          <input class="form-control" id="new-section-name" placeholder="e.g. ICT1101" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Grade Level *</label>
+          <select class="form-control" id="new-section-grade"><option value="">— Select —</option>${this._gradeLevelOpts()}</select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Room</label>
+          <input class="form-control" id="new-section-room" placeholder="e.g. ICT Lab 1" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">School Year</label>
+          <input class="form-control" id="new-section-year" placeholder="e.g. 2026-2027" />
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Section *</label>
-        <select class="form-control" id="new-section-class">${classOpts}</select>
+        <label class="form-label">Adviser</label>
+        <select class="form-control" id="new-section-adviser">${teacherOpts}</select>
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
        <button class="btn btn-primary" onclick="AdminController.saveNewSection()">Add Section</button>`
@@ -791,14 +820,23 @@ const AdminController = {
   },
 
   async saveNewSection() {
-    const name    = document.getElementById('new-section-name').value.trim();
-    const classId = document.getElementById('new-section-class').value;
-    if (!name)    { Toast.show('Section name is required.', 'error'); return; }
-    if (!classId) { Toast.show('Please select a class.', 'error'); return; }
+    const name       = document.getElementById('new-section-name').value.trim();
+    const gradeLevel = document.getElementById('new-section-grade').value;
+    const room       = document.getElementById('new-section-room').value.trim();
+    const schoolYear = document.getElementById('new-section-year').value.trim();
+    const adviserId  = document.getElementById('new-section-adviser').value;
+    if (!name)       { Toast.show('Section name is required.', 'error'); return; }
+    if (!gradeLevel) { Toast.show('Please select a grade level.', 'error'); return; }
     const btn = document.querySelector('#modal-container .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
-      await api.createSection({ name, class_id: parseInt(classId) });
+      await api.createSection({
+        name,
+        grade_level: gradeLevel,
+        school_year: schoolYear || null,
+        room: room || null,
+        adviser_id: adviserId ? parseInt(adviserId) : null,
+      });
       Modal.close();
       Toast.show('Section created successfully!', 'success');
       DashboardController.loadSection('manage-users');
@@ -810,18 +848,32 @@ const AdminController = {
 
   async openEditSection(id) {
     try {
-      const section    = await api.getSection(id);
-      const classesRes = await api.getClasses();
-      const classes    = classesRes.items || (Array.isArray(classesRes) ? classesRes : []);
-      const classOpts  = classes.map(c => `<option value="${c.id}" ${c.id === section.class_id ? 'selected' : ''}>${escHtml(c.name)} (${escHtml(c.grade_level || '')})</option>`).join('');
+      const section     = await api.getSection(id);
+      const teacherOpts = await this._teacherOpts(section.adviser_id);
       Modal.show('Edit Section', `
-        <div class="form-group">
-          <label class="form-label">Section Name *</label>
-          <input class="form-control" id="edit-section-name" value="${escHtml(section.name)}" />
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Section Name *</label>
+            <input class="form-control" id="edit-section-name" value="${escHtml(section.name)}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Grade Level *</label>
+            <select class="form-control" id="edit-section-grade"><option value="">— Select —</option>${this._gradeLevelOpts(section.grade_level)}</select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Room</label>
+            <input class="form-control" id="edit-section-room" value="${escHtml(section.room || '')}" placeholder="e.g. ICT Lab 1" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">School Year</label>
+            <input class="form-control" id="edit-section-year" value="${escHtml(section.school_year || '')}" placeholder="e.g. 2026-2027" />
+          </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Section *</label>
-          <select class="form-control" id="edit-section-class">${classOpts}</select>
+          <label class="form-label">Adviser</label>
+          <select class="form-control" id="edit-section-adviser">${teacherOpts}</select>
         </div>`,
         `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
          <button class="btn btn-primary" onclick="AdminController.saveEditSection(${id})">Save Changes</button>`
@@ -832,14 +884,23 @@ const AdminController = {
   },
 
   async saveEditSection(id) {
-    const name    = document.getElementById('edit-section-name').value.trim();
-    const classId = document.getElementById('edit-section-class').value;
-    if (!name)    { Toast.show('Section name is required.', 'error'); return; }
-    if (!classId) { Toast.show('Please select a class.', 'error'); return; }
+    const name       = document.getElementById('edit-section-name').value.trim();
+    const gradeLevel = document.getElementById('edit-section-grade').value;
+    const room       = document.getElementById('edit-section-room').value.trim();
+    const schoolYear = document.getElementById('edit-section-year').value.trim();
+    const adviserId  = document.getElementById('edit-section-adviser').value;
+    if (!name)       { Toast.show('Section name is required.', 'error'); return; }
+    if (!gradeLevel) { Toast.show('Please select a grade level.', 'error'); return; }
     const btn = document.querySelector('#modal-container .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
-      await api.updateSection(id, { name, class_id: parseInt(classId) });
+      await api.updateSection(id, {
+        name,
+        grade_level: gradeLevel,
+        school_year: schoolYear || null,
+        room: room || null,
+        adviser_id: adviserId ? parseInt(adviserId) : null,
+      });
       Modal.close();
       Toast.show('Section updated!', 'success');
       DashboardController.loadSection('manage-users');

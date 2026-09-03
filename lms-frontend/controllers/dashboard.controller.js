@@ -508,7 +508,7 @@ const DashboardController = {
         document.getElementById("um-pane-students").innerHTML =
           AdminView._studentsPane(students, sections);
         document.getElementById("um-pane-sections").innerHTML =
-          AdminView._sectionsPane(sections);
+          AdminView._sectionsPane(sections, students);
         document.getElementById("um-pane-transfer").innerHTML =
           AdminView._transferPane(sections);
         document.getElementById("um-pane-audit").innerHTML =

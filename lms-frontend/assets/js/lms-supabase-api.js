@@ -391,30 +391,77 @@ class LMSAdminAPI {
   }
 
   // ── Sections (admin) ──────────────────────────────────────────────────────
+  // The admin only ever sees/sets: name, grade level, school year, room,
+  // and adviser. Under the hood each section still has a backing `classes`
+  // row (grade_level + school_year live there) because
+  // teacher_class_assignments / modules / activities all key off class_id
+  // (NOT NULL) — but createSection/updateSection manage that row for you,
+  // so nothing else in the app needs to change.
 
   async getSections() {
-    return this._cached("sections:all", 60_000, async () =>
-      this._throwIfError(await this.sb.from("sections").select("*"))
-    );
+    return this._cached("sections:all", 60_000, async () => {
+      const sections = this._throwIfError(
+        await this.sb.from("sections")
+          .select("*, classes(grade_level, school_year), adviser:teachers(id, user_id, users(first_name, last_name))")
+      );
+      return sections.map(sec => ({
+        ...sec,
+        grade_level: sec.classes?.grade_level ?? null,
+        school_year: sec.classes?.school_year ?? null,
+        adviser: sec.adviser ? { ...sec.adviser, user: sec.adviser.users } : null,
+      }));
+    });
   }
 
   async getSection(id) {
-    return this._throwIfError(await this.sb.from("sections").select("*").eq("id", id).single());
+    const sec = this._throwIfError(
+      await this.sb.from("sections")
+        .select("*, classes(grade_level, school_year), adviser:teachers(id, user_id, users(first_name, last_name))")
+        .eq("id", id).single()
+    );
+    return {
+      ...sec,
+      grade_level: sec.classes?.grade_level ?? null,
+      school_year: sec.classes?.school_year ?? null,
+      adviser: sec.adviser ? { ...sec.adviser, user: sec.adviser.users } : null,
+    };
   }
 
-  async createSection({ name, class_id }) {
+  async createSection({ name, grade_level, school_year, room, adviser_id }) {
+    // Auto-create the backing class row — invisible to the admin.
+    const classRow = this._throwIfError(
+      await this.sb.from("classes")
+        .insert({ name, grade_level, school_year: school_year || null, is_active: true })
+        .select().single()
+    );
     const result = this._throwIfError(
-      await this.sb.from("sections").insert({ name, class_id }).select().single()
+      await this.sb.from("sections")
+        .insert({ name, class_id: classRow.id, room: room || null, adviser_id: adviser_id || null })
+        .select().single()
     );
     this.clearCache("sections");
+    this.clearCache("classes");
     return result;
   }
 
-  async updateSection(id, data) {
+  async updateSection(id, { name, grade_level, school_year, room, adviser_id }) {
+    const existing = this._throwIfError(
+      await this.sb.from("sections").select("class_id").eq("id", id).single()
+    );
+    if (existing.class_id) {
+      this._throwIfError(
+        await this.sb.from("classes")
+          .update({ name, grade_level, school_year: school_year || null })
+          .eq("id", existing.class_id)
+      );
+    }
     const result = this._throwIfError(
-      await this.sb.from("sections").update(data).eq("id", id).select().single()
+      await this.sb.from("sections")
+        .update({ name, room: room || null, adviser_id: adviser_id || null })
+        .eq("id", id).select().single()
     );
     this.clearCache("sections");
+    this.clearCache("classes");
     return result;
   }
 
