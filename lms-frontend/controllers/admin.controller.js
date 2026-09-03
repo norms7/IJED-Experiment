@@ -768,7 +768,7 @@ const AdminController = {
   /* ── Section CRUD ────────────────────────────────────────── */
 
   _gradeLevelOpts(selected = '') {
-    return ['7', '8', '9', '10', '11', '12']
+    return ['11', '12']
       .map(g => `<option value="${g}" ${String(selected) === g ? 'selected' : ''}>Grade ${g}</option>`)
       .join('');
   },
