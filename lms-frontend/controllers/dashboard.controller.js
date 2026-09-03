@@ -13,34 +13,34 @@ const DashboardController = {
   /** Navigation menus per role */
   navMenus: {
     admin: [
-      { id: "dashboard", icon: "🏠", label: "Dashboard" },
-      { id: "manage-users", icon: "👥", label: "Manage Users" },
-      { id: "calendar", icon: "📅", label: "Calendar" },
-      { id: "settings", icon: "⚙️", label: "Settings" },
+      { id: "dashboard", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V18a2 2 0 0 1-2 2h-3v-7H9v7H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Dashboard" },
+      { id: "manage-users", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M20 19v-1a4 4 0 0 0-3-3.87" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 4.13a4 4 0 0 1 0 7.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Manage Users" },
+      { id: "calendar", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Calendar" },
+      { id: "settings", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.7v2.1M12 19.2v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.7 12h2.1M19.2 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', label: "Settings" },
     ],
     teacher: [
-      { id: "dashboard", icon: "🏠", label: "Dashboard" },
-      { id: "my-subjects", icon: "📚", label: "My Subjects" },
-      { id: "modules", icon: "📄", label: "Modules" },
-      { id: "activities", icon: "📝", label: "Activities" },
-      { id: "grades", icon: "📊", label: "Grades" },
-      { id: "attendance", icon: "🗓️", label: "Attendance" },
-      { id: "calendar", icon: "📅", label: "Calendar" },
-      { id: "settings", icon: "⚙️", label: "Settings" },
+      { id: "dashboard", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V18a2 2 0 0 1-2 2h-3v-7H9v7H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Dashboard" },
+      { id: "my-subjects", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H18a2 2 0 0 1 2 2v11.5a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 17.5z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "My Subjects" },
+      { id: "modules", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6H10l2 2h6.5A2.5 2.5 0 0 1 21 10.5v7A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Modules" },
+      { id: "activities", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Activities" },
+      { id: "grades", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18V9M12 18V5M19 18v-8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M3 18h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Grades" },
+      { id: "attendance", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8.5 14.5l2 2 5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Attendance" },
+      { id: "calendar", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Calendar" },
+      { id: "settings", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.7v2.1M12 19.2v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.7 12h2.1M19.2 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', label: "Settings" },
     ],
     student: [
-      { id: "dashboard", icon: "🏠", label: "Dashboard" },
-      { id: "my-subjects", icon: "📚", label: "My Subjects" },
-      { id: "activities", icon: "📋", label: "Activities" },
-      { id: "my-grades", icon: "📊", label: "My Grades" },
-      { id: "attendance", icon: "🗓️", label: "Attendance" },
-      { id: "calendar", icon: "📅", label: "Calendar" },
+      { id: "dashboard", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V18a2 2 0 0 1-2 2h-3v-7H9v7H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Dashboard" },
+      { id: "my-subjects", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H18a2 2 0 0 1 2 2v11.5a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 17.5z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "My Subjects" },
+      { id: "activities", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Activities" },
+      { id: "my-grades", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-8 4 5 7-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="6" r="1.5" fill="currentColor"/><path d="M3 18h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "My Grades" },
+      { id: "attendance", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8.5 14.5l2 2 5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Attendance" },
+      { id: "calendar", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Calendar" },
       {
         id: "performance-analytics",
-        icon: "📊",
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 3v9h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 15l3-3 2 2 4-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
         label: "Performance Analytics",
       },
-      { id: "settings", icon: "⚙️", label: "Settings" },
+      { id: "settings", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.7v2.1M12 19.2v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.7 12h2.1M19.2 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', label: "Settings" },
     ],
   },
 
@@ -508,11 +508,13 @@ const DashboardController = {
         document.getElementById("um-pane-students").innerHTML =
           AdminView._studentsPane(students, sections);
         document.getElementById("um-pane-sections").innerHTML =
-          AdminView._sectionsPane(sections);
+          AdminView._sectionsPane(sections, students);
+        document.getElementById("um-pane-transfer").innerHTML =
+          AdminView._transferPane(sections);
         document.getElementById("um-pane-audit").innerHTML =
           AdminView._auditPane();
 
-        const TAB_IDS = ["all", "teachers", "students", "sections", "audit"];
+        const TAB_IDS = ["all", "teachers", "students", "sections", "transfer", "audit"];
         TAB_IDS.forEach((t) => {
           const pane = document.getElementById(`um-pane-${t}`);
           if (pane) pane.style.display = t === "all" ? "" : "none";
