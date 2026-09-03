@@ -38,14 +38,14 @@ const TeacherView = {
       <div class="teacher-subject-card">
         <div class="teacher-subject-header">
           <span class="teacher-subject-name">${escHtml(sub.subject_name)}</span>
-          <span class="badge badge-maroon">${escHtml(sub.class_name)}</span>
+          <span class="badge badge-maroon">${escHtml(sub.section_name)}</span>
         </div>
         <div class="teacher-subject-details">
           <div>🏫 ${escHtml(sub.grade_level)}</div>
           <div>⏰ ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
         </div>
         <div class="teacher-subject-actions">
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.class_id}, '${escHtml(sub.subject_name)}')">👥 View Students</button>
+          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.section_id}, '${escHtml(sub.subject_name)}')">👥 View Students</button>
           <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.subject_id}, ${sub.class_id})">📤 Upload Material</button>
           <button class="btn btn-xs btn-primary" onclick="DashboardController.loadSection('modules')">📋 Manage Activities</button>
         </div>
@@ -74,7 +74,7 @@ const TeacherView = {
         <div style="font-size:30px">📘</div>
         <div class="subject-info">
           <div class="subject-name">${escHtml(sub.subject_name)}</div>
-          <div class="subject-teacher">${escHtml(sub.class_name)} · ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
+          <div class="subject-teacher">${escHtml(sub.section_name)} · ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
         </div>
         <div class="subject-actions">
           <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.class_id}, '${escHtml(sub.subject_name)}')">👥 Students</button>
@@ -272,16 +272,20 @@ const TeacherView = {
       </div>`;
     }
 
-    // Group by class (section)
+    // Group by real SECTION — a class with multiple sections (e.g. "ICT G11"
+    // containing both ICT1102 and ICT1103) must never merge their students
+    // into one gradebook row (same fix already applied to Attendance).
     const sectionMap = {};
     subjects.forEach(sub => {
-      const key = sub.class_id;
+      const key = sub.section_id;
       if (!sectionMap[key]) {
         sectionMap[key] = {
-          class_id:    sub.class_id,
-          class_name:  sub.class_name,
-          grade_level: sub.grade_level,
-          subjects:    [],
+          section_id:   sub.section_id,
+          section_name: sub.section_name,
+          class_id:     sub.class_id,
+          class_name:   sub.class_name,
+          grade_level:  sub.grade_level,
+          subjects:     [],
         };
       }
       sectionMap[key].subjects.push(sub);
@@ -289,9 +293,9 @@ const TeacherView = {
     const sections = Object.values(sectionMap);
 
     const rows = sections.map(sec => `
-      <tr data-searchable style="cursor:pointer" onclick="GradebookController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+      <tr data-searchable style="cursor:pointer" onclick="GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
         <td>
-          <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.class_name)}</div>
+          <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.section_name)}</div>
           <div style="font-size:12px;color:var(--gray-400)">${escHtml(sec.grade_level || '')}</div>
         </td>
         <td>
@@ -299,9 +303,9 @@ const TeacherView = {
             ${sec.subjects.map(s => `<span class="badge badge-maroon" style="font-size:11px">${escHtml(s.subject_name)}</span>`).join('')}
           </div>
         </td>
-        <td><span class="badge badge-gray" id="student-count-${sec.class_id}">Loading…</span></td>
+        <td><span class="badge badge-gray" id="student-count-${sec.section_id}">Loading…</span></td>
         <td>
-          <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();GradebookController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+          <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
             📊 View Gradebook
           </button>
         </td>
@@ -550,15 +554,14 @@ const TeacherView = {
 
     const rows = sections.map(sec => {
       const subjectNames = sec.subjects.map(s => s.subject_name).join(', ');
-      const sectionNames = sec.sections.map(s => s.name).join(', ') || '—';
       return `<tr data-searchable style="cursor:pointer"
-          onclick="AttendanceController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+          onclick="AttendanceController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
         <td>
-          <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.class_name)}</div>
-          <div style="font-size:12px;color:var(--gray-400)">${escHtml(sectionNames)}</div>
+          <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.section_name)}</div>
+          <div style="font-size:12px;color:var(--gray-400)">${escHtml(sec.class_name)}</div>
         </td>
         <td>${escHtml(sec.grade_level || '—')}</td>
-        <td style="font-size:12px;color:var(--gray-500)">${escHtml(sec.class_id.toString())}</td>
+        <td style="font-size:12px;color:var(--gray-500)">${escHtml(sec.section_id.toString())}</td>
         <td>
           <div style="display:flex;flex-wrap:wrap;gap:4px">
             ${sec.subjects.map(s =>
@@ -569,7 +572,7 @@ const TeacherView = {
         <td style="font-size:12px;color:var(--gray-400)">${escHtml(sec.school_year || '—')}</td>
         <td>
           <button class="btn btn-xs btn-primary"
-            onclick="event.stopPropagation();AttendanceController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+            onclick="event.stopPropagation();AttendanceController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
             📋 View Attendance
           </button>
         </td>
@@ -585,7 +588,7 @@ const TeacherView = {
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="white-space:nowrap">Section / Class</th>
+                  <th style="white-space:nowrap">Section</th>
                   <th style="white-space:nowrap">Grade Level</th>
                   <th style="white-space:nowrap">Section ID</th>
                   <th style="white-space:nowrap">Subject(s)</th>
@@ -603,19 +606,18 @@ const TeacherView = {
     return `
       <div style="display:flex;flex-direction:column;gap:10px">
         ${sections.map(sec => {
-          const sectionNames = sec.sections.map(s => s.name).join(', ') || '—';
           return `
           <div style="background:#fff;border:1px solid #f0e8e8;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer"
-               onclick="AttendanceController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
-            <div style="font-weight:700;font-size:15px;color:var(--maroon);margin-bottom:2px">${escHtml(sec.class_name)}</div>
-            <div style="font-size:12px;color:var(--gray-400);margin-bottom:10px">${escHtml(sectionNames)}</div>
+               onclick="AttendanceController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
+            <div style="font-weight:700;font-size:15px;color:var(--maroon);margin-bottom:2px">${escHtml(sec.section_name)}</div>
+            <div style="font-size:12px;color:var(--gray-400);margin-bottom:10px">${escHtml(sec.class_name)}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
               <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px">Grade Level</span>
               <span style="font-weight:600;color:#1f2937">${escHtml(sec.grade_level || '—')}</span>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
               <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px">Section ID</span>
-              <span style="font-weight:600;font-size:12px;color:var(--gray-500)">${escHtml(sec.class_id.toString())}</span>
+              <span style="font-weight:600;font-size:12px;color:var(--gray-500)">${escHtml(sec.section_id.toString())}</span>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
               <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding-top:2px">Subject(s)</span>
@@ -629,7 +631,7 @@ const TeacherView = {
             </div>
             <div style="margin-top:10px">
               <button class="btn btn-xs btn-primary" style="width:100%"
-                onclick="event.stopPropagation();AttendanceController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+                onclick="event.stopPropagation();AttendanceController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
                 📋 View Attendance
               </button>
             </div>

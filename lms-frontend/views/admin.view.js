@@ -213,12 +213,14 @@ const AdminView = {
           <button class="um-tab" data-tab="teachers">👩‍🏫 Teachers (<span id="tab-teachers-count">0</span>)</button>
           <button class="um-tab" data-tab="students">🎓 Students (<span id="tab-students-count">0</span>)</button>
           <button class="um-tab" data-tab="sections">🏫 Sections (<span id="tab-sections-count">0</span>)</button>
+          <button class="um-tab" data-tab="transfer">🔁 Transfer</button>
           <button class="um-tab" data-tab="audit">📋 Audit Log</button>
         </div>
         <div id="um-pane-all"></div>
         <div id="um-pane-teachers" style="display:none"></div>
         <div id="um-pane-students" style="display:none"></div>
         <div id="um-pane-sections" style="display:none"></div>
+        <div id="um-pane-transfer" style="display:none"></div>
         <div id="um-pane-audit" style="display:none"></div>
       </div>`;
   },
@@ -385,24 +387,35 @@ const AdminView = {
   },
 
   /* ── Sections pane ── */
-  _sectionsPane(sections) {
+  _sectionsPane(sections, students = []) {
     if (!sections || !sections.length) {
       return '<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">No sections yet</div><button class="btn btn-primary mt-3" onclick="AdminController.openAddSection()">➕ Add Section</button></div>';
     }
-    const rows = sections.map(sec => `
+    // Count students currently assigned to each section.
+    const countBySection = {};
+    students.forEach(s => {
+      (s.section_assignments || []).forEach(sa => {
+        countBySection[sa.section_id] = (countBySection[sa.section_id] || 0) + 1;
+      });
+    });
+    const rows = sections.map(sec => {
+      const adviserName = sec.adviser?.user
+        ? `${escHtml(sec.adviser.user.first_name)} ${escHtml(sec.adviser.user.last_name)}`
+        : '—';
+      const studentCount = countBySection[sec.id] || 0;
+      return `
       <tr>
-        <td><strong>${escHtml(sec.name)}</strong> (Class ID: ${sec.class_id})</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm text-muted">—</td>
+        <td><strong>${escHtml(sec.name)}</strong>${sec.grade_level ? ` <span class="text-sm text-muted">(Grade ${escHtml(sec.grade_level)})</span>` : ''}</td>
+        <td class="text-sm">${escHtml(sec.room || '—')}</td>
+        <td class="text-sm">${adviserName}</td>
+        <td class="text-sm">${studentCount}</td>
+        <td class="text-sm">${escHtml(sec.school_year || '—')}</td>
         <td class="actions-cell">
           <button class="btn btn-xs btn-outline" onclick="AdminController.openEditSection(${sec.id})">✏️ Edit</button>
           <button class="btn btn-xs btn-danger" onclick="AdminController.deleteSection(${sec.id})">🗑</button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
     return `
       <div class="um-toolbar"><button class="btn btn-primary" onclick="AdminController.openAddSection()">➕ Add Section</button></div>
       <div class="card table-card">
@@ -413,6 +426,74 @@ const AdminView = {
           </table>
         </div>
       </div>`;
+  },
+
+  /* ── Transfer / Promote Students pane ──
+     Moves finished students from one section to the next (e.g. ICT1101 ->
+     ICT1201). Grades/attendance history stays with the old section —
+     only current section + subject enrollment moves. Whole-section by
+     default (all checked), but every student can be individually
+     unchecked, since not everyone moves up at the same time. */
+  _transferPane(sections) {
+    if (!sections || !sections.length) {
+      return '<div class="empty-state"><div class="empty-state-icon">🔁</div><div class="empty-state-title">No sections yet</div><div class="empty-state-sub">Create sections first under the Sections tab.</div></div>';
+    }
+    const sectionOpts = sections.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+    return `
+      <div class="card" style="padding:20px;max-width:720px">
+        <h3 style="margin:0 0 6px;color:var(--maroon-dark)">🔁 Transfer / Promote Students</h3>
+        <p style="margin:0 0 18px;font-size:13px;color:var(--gray-400)">
+          Move students from one section to the next at the end of a school year.
+          Their grades and attendance stay exactly as they were — only their current
+          section and subjects move forward. Not everyone has to move: uncheck
+          anyone who's repeating or staying behind before transferring.
+        </p>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">From Section *</label>
+            <select id="transfer-from-section" class="form-control" onchange="AdminController.onTransferFromSectionChange(this.value)">
+              <option value="">— Select Section —</option>
+              ${sectionOpts}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">To Section *</label>
+            <select id="transfer-to-section" class="form-control">
+              <option value="">— Select Section —</option>
+              ${sectionOpts}
+            </select>
+          </div>
+        </div>
+        <div id="transfer-roster-wrap" style="margin-top:16px"></div>
+      </div>`;
+  },
+
+  /* ── Transfer pane: student roster checklist for the chosen From section ── */
+  _transferRoster(students) {
+    if (!students.length) {
+      return '<div class="empty-state" style="padding:24px"><div class="empty-state-title">No students in this section</div></div>';
+    }
+    const rows = students.map(s => `
+      <tr>
+        <td style="width:36px"><input type="checkbox" class="transfer-student-cb" value="${s.id}" checked onchange="AdminController._updateTransferCount()"></td>
+        <td>${escHtml((s.user?.first_name || '') + ' ' + (s.user?.last_name || ''))}</td>
+        <td class="text-sm text-muted">${escHtml(s.student_number || '—')}</td>
+      </tr>`).join('');
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="transfer-select-all" checked onchange="AdminController._toggleAllTransferStudents(this.checked)">
+          Select all (${students.length})
+        </label>
+        <span id="transfer-selected-count" style="font-size:12px;color:var(--gray-400)">${students.length} selected</span>
+      </div>
+      <div class="card table-card" style="max-height:340px;overflow-y:auto">
+        <table class="data-table">
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <button class="btn btn-primary" style="margin-top:14px" onclick="AdminController.confirmTransfer()">🔁 Transfer Selected Students</button>
+    `;
   },
 
   /* ── Audit Log pane ──
@@ -462,21 +543,17 @@ const AdminView = {
               <label class="form-label">Profile Image</label>
               <div style="display:flex;align-items:center;gap:12px;">
                 <div id="settings-image-preview" style="width:56px;height:56px;flex:0 0 56px;border-radius:50%;display:flex;align-items:center;justify-content:center;${imageStyle}color:#fff;font-weight:700;overflow:hidden;">${savedImage ? '' : escHtml(initials)}</div>
-                <div>
-                  <label class="btn btn-outline btn-sm" for="settings-image">Choose Image</label>
-                  <input id="settings-image" type="file" accept="image/png,image/jpeg,image/webp" onchange="App.previewProfileImage(this)" style="display:none;" />
-                </div>
+                <button class="btn btn-outline btn-sm" type="button">Change Profile Picture</button>
               </div>
             </div>
             <div class="form-group"><label class="form-label">Full Name</label>
-              <input class="form-control" id="settings-name" value="${escHtml(user.name)}" /></div>
+              <input class="form-control" id="settings-name" value="${escHtml(user.name)}" readonly /></div>
             <div class="form-group"><label class="form-label">LMS Email Address</label>
               <input class="form-control" type="email" id="settings-email" value="${escHtml(user.email)}" readonly /></div>
             ${isAdmin ? '' : `<div class="form-group"><label class="form-label">Personal Email</label>
-              <input class="form-control" type="email" id="settings-personal-email" value="${escHtml(contact.personalEmail || '')}" placeholder="you@example.com" /></div>
+              <input class="form-control" type="email" id="settings-personal-email" value="${escHtml(contact.personalEmail || '')}" placeholder="you@example.com" readonly /></div>
             <div class="form-group"><label class="form-label">Phone Number</label>
-              <input class="form-control" type="tel" id="settings-phone" value="${escHtml(contact.phoneNumber || '')}" placeholder="e.g. 09XXXXXXXXX" maxlength="30" /></div>`}
-            <button class="btn btn-primary" onclick="AdminController.saveSettings()">Save Changes</button>
+              <input class="form-control" type="tel" id="settings-phone" value="${escHtml(contact.phoneNumber || '')}" placeholder="e.g. 09XXXXXXXXX" maxlength="30" readonly /></div>`}
           </div>
         </div>
         <div class="card" style="order:${isAdmin ? 3 : 4};grid-column:${isAdmin ? 3 : 4};grid-row:1;">
@@ -493,16 +570,15 @@ const AdminView = {
           <div class="card-header"><span class="card-title">Location</span></div>
           <div class="card-body">
             <div class="form-group"><label class="form-label">Address Line 1</label>
-              <input class="form-control" id="settings-address-line1" value="${escHtml(contact.addressLine1 || '')}" /></div>
+              <input class="form-control" id="settings-address-line1" value="${escHtml(contact.addressLine1 || '')}" readonly /></div>
             <div class="form-group"><label class="form-label">Address Line 2</label>
-              <input class="form-control" id="settings-address-line2" value="${escHtml(contact.addressLine2 || '')}" /></div>
+              <input class="form-control" id="settings-address-line2" value="${escHtml(contact.addressLine2 || '')}" readonly /></div>
             <div class="form-group"><label class="form-label">City</label>
-              <input class="form-control" id="settings-city" value="${escHtml(contact.city || '')}" /></div>
+              <input class="form-control" id="settings-city" value="${escHtml(contact.city || '')}" readonly /></div>
             <div class="form-group"><label class="form-label">State/Province</label>
-              <input class="form-control" id="settings-state" value="${escHtml(contact.state || '')}" /></div>
+              <input class="form-control" id="settings-state" value="${escHtml(contact.state || '')}" readonly /></div>
             <div class="form-group"><label class="form-label">Zip/Postal Code</label>
-              <input class="form-control" id="settings-postal-code" value="${escHtml(contact.postalCode || '')}" /></div>
-            <button class="btn btn-primary" onclick="AdminController.saveSettings()">Save Changes</button>
+              <input class="form-control" id="settings-postal-code" value="${escHtml(contact.postalCode || '')}" readonly /></div>
           </div>
         </div>`}
         <div class="settings-side-stack" style="display:flex;flex-direction:column;gap:20px;min-width:0;grid-column:${isAdmin ? 2 : 3};grid-row:1;">

@@ -31,6 +31,12 @@
   color: var(--maroon);
   transform: scale(1.08);
 }
+.notif-bell-icon {
+  display: block;
+  width: 19px;
+  height: 19px;
+  color: var(--maroon);
+}
 
 /* ── Unread badge ────────────────────────────────────────── */
 .notif-badge {
@@ -172,6 +178,7 @@
 /* ── Dark mode ───────────────────────────────────────────── */
 body.dark-mode .notif-bell-btn        { background: #2a1a1f; color: #e0b0b8; }
 body.dark-mode .notif-bell-btn:hover  { background: #3d1e26; color: #f5d0d8; }
+body.dark-mode .notif-bell-icon       { color: #f08090; }
 body.dark-mode .notif-dropdown        { background: #1e1118; border-color: #3a2030; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
 body.dark-mode .notif-dropdown-header { border-color: #3a2030; }
 body.dark-mode .notif-dropdown-title  { color: #f5d0d8; }
