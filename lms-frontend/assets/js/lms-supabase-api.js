@@ -22,12 +22,37 @@ class LMSAdminAPI {
   }
 
   async _hydrateSessionUser(session) {
-    const { data: profile } = await this.sb
+    // FIX: was `.single()` + only destructuring `data`. `.single()` treats
+    // "0 rows" as an *error*, and that error (plus any real 500/RLS/apikey
+    // error) was being silently discarded — so every failure looked like
+    // "no profile row", even when the real cause was a bad API key or a
+    // permissions problem. `.maybeSingle()` returns error:null when there's
+    // legitimately no row, so we can now tell the two cases apart.
+    const { data: profile, error } = await this.sb
       .from("users")
-      .select("id, email, first_name, last_name, role_id, roles(name)")
+      .select("id, email, first_name, last_name, role_id, is_active, roles(name)")
       .eq("auth_uid", session.user.id)
-      .single();
-    if (!profile) return null;
+      .maybeSingle();
+
+    if (error) {
+      // A real API/RLS/network failure — NOT "account not provisioned".
+      console.error("[LMS] profile lookup failed:", error);
+      throw new Error(
+        `Could not verify your account (${error.message}). ` +
+        `This is a Supabase connection/permissions issue, not a missing account — ` +
+        `check the API key and RLS policies before assuming the user needs provisioning.`
+      );
+    }
+
+    if (!profile) return null; // genuinely: no `users` row is linked to this auth account yet
+
+    if (profile.is_active === false) {
+      throw new Error("Your account has been deactivated. Contact an administrator.");
+    }
+    if (!profile.roles?.name) {
+      throw new Error("Your account has no role assigned. Contact an administrator.");
+    }
+
     const userPayload = {
       id: profile.id,
       role: profile.roles.name,
@@ -163,7 +188,7 @@ class LMSAdminAPI {
       const teacherIds = teachers.map(t => t.id);
       const assignments = teacherIds.length ? this._throwIfError(
         await this.sb.from("teacher_class_assignments")
-          .select("*, subjects(id, name), classes(id, name, grade_level)")
+          .select("*, subjects(id, name), classes(id, name, grade_level), sections(id, name)")
           .in("teacher_id", teacherIds)
       ) : [];
       const byTeacher = {};
@@ -172,7 +197,8 @@ class LMSAdminAPI {
         byTeacher[a.teacher_id].push({
           ...a,
           subject: a.subjects,   // view uses a.subject.name
-          class_: a.classes,     // view uses a.class_.name
+          class_: a.classes,     // view uses a.class_.name (whole class, e.g. "ICT G11")
+          section: a.sections,   // view uses a.section.name (the specific section, e.g. "ICT1102")
         });
       });
       // FIX: rename users -> user, attach class_assignments
@@ -198,12 +224,26 @@ class LMSAdminAPI {
     return result;
   }
 
-  async assignTeacherToClass({ teacher_id, class_id, subject_id, schedule }) {
+  async assignTeacherToClass({ teacher_id, class_id, section_id, subject_id, schedule }) {
     const result = this._throwIfError(
-      await this.sb.from("teacher_class_assignments").insert({ teacher_id, class_id, subject_id, schedule }).select().single()
+      await this.sb.from("teacher_class_assignments").insert({ teacher_id, class_id, section_id, subject_id, schedule }).select().single()
     );
     this.clearCache("teachers");
     return result;
+  }
+
+  // Promotes/transfers selected students from one section to another —
+  // moves their current section + subject enrollment forward, preserves
+  // every historical grade/attendance record from the old section as-is.
+  async transferStudents({ studentIds, fromSectionId, toSectionId }) {
+    const { data, error } = await this.sb.rpc('transfer_students_to_section', {
+      p_student_ids: studentIds,
+      p_from_section_id: fromSectionId,
+      p_to_section_id: toSectionId,
+    });
+    if (error) throw new Error(error.message);
+    this.clearCache('sections');
+    return data;
   }
 
   // FIX: also fetch class_assignments so the edit teacher modal works
@@ -214,7 +254,7 @@ class LMSAdminAPI {
     if (!teacher) return null;
     const assignments = this._throwIfError(
       await this.sb.from("teacher_class_assignments")
-        .select("*, subjects(id, name), classes(id, name, grade_level)")
+        .select("*, subjects(id, name), classes(id, name, grade_level), sections(id, name)")
         .eq("teacher_id", teacher.id)
     );
     return {
@@ -223,6 +263,7 @@ class LMSAdminAPI {
         ...a,
         subject: a.subjects,
         class_: a.classes,
+        section: a.sections,
       })),
     };
   }
@@ -350,30 +391,77 @@ class LMSAdminAPI {
   }
 
   // ── Sections (admin) ──────────────────────────────────────────────────────
+  // The admin only ever sees/sets: name, grade level, school year, room,
+  // and adviser. Under the hood each section still has a backing `classes`
+  // row (grade_level + school_year live there) because
+  // teacher_class_assignments / modules / activities all key off class_id
+  // (NOT NULL) — but createSection/updateSection manage that row for you,
+  // so nothing else in the app needs to change.
 
   async getSections() {
-    return this._cached("sections:all", 60_000, async () =>
-      this._throwIfError(await this.sb.from("sections").select("*"))
-    );
+    return this._cached("sections:all", 60_000, async () => {
+      const sections = this._throwIfError(
+        await this.sb.from("sections")
+          .select("*, classes(grade_level, school_year), adviser:teachers(id, user_id, users(first_name, last_name))")
+      );
+      return sections.map(sec => ({
+        ...sec,
+        grade_level: sec.classes?.grade_level ?? null,
+        school_year: sec.classes?.school_year ?? null,
+        adviser: sec.adviser ? { ...sec.adviser, user: sec.adviser.users } : null,
+      }));
+    });
   }
 
   async getSection(id) {
-    return this._throwIfError(await this.sb.from("sections").select("*").eq("id", id).single());
+    const sec = this._throwIfError(
+      await this.sb.from("sections")
+        .select("*, classes(grade_level, school_year), adviser:teachers(id, user_id, users(first_name, last_name))")
+        .eq("id", id).single()
+    );
+    return {
+      ...sec,
+      grade_level: sec.classes?.grade_level ?? null,
+      school_year: sec.classes?.school_year ?? null,
+      adviser: sec.adviser ? { ...sec.adviser, user: sec.adviser.users } : null,
+    };
   }
 
-  async createSection({ name, class_id }) {
+  async createSection({ name, grade_level, school_year, room, adviser_id }) {
+    // Auto-create the backing class row — invisible to the admin.
+    const classRow = this._throwIfError(
+      await this.sb.from("classes")
+        .insert({ name, grade_level, school_year: school_year || null, is_active: true })
+        .select().single()
+    );
     const result = this._throwIfError(
-      await this.sb.from("sections").insert({ name, class_id }).select().single()
+      await this.sb.from("sections")
+        .insert({ name, class_id: classRow.id, room: room || null, adviser_id: adviser_id || null })
+        .select().single()
     );
     this.clearCache("sections");
+    this.clearCache("classes");
     return result;
   }
 
-  async updateSection(id, data) {
+  async updateSection(id, { name, grade_level, school_year, room, adviser_id }) {
+    const existing = this._throwIfError(
+      await this.sb.from("sections").select("class_id").eq("id", id).single()
+    );
+    if (existing.class_id) {
+      this._throwIfError(
+        await this.sb.from("classes")
+          .update({ name, grade_level, school_year: school_year || null })
+          .eq("id", existing.class_id)
+      );
+    }
     const result = this._throwIfError(
-      await this.sb.from("sections").update(data).eq("id", id).select().single()
+      await this.sb.from("sections")
+        .update({ name, room: room || null, adviser_id: adviser_id || null })
+        .eq("id", id).select().single()
     );
     this.clearCache("sections");
+    this.clearCache("classes");
     return result;
   }
 
@@ -477,7 +565,7 @@ class LMSAdminAPI {
     return this._cached("teacher:mysubjects", 60_000, async () => {
       const data = this._throwIfError(
         await this.sb.from("teacher_class_assignments")
-          .select("*, subjects(*), classes(*)")
+          .select("*, subjects(*), classes(*), sections(*)")
           .eq("teacher_id", (await this._myTeacherId()))
       );
       return data.map(row => ({
@@ -488,6 +576,8 @@ class LMSAdminAPI {
         class_id: row.class_id,
         class_name: row.classes?.name || "",
         grade_level: row.classes?.grade_level || "",
+        section_id: row.section_id,
+        section_name: row.sections?.name || row.classes?.name || "",
       }));
     });
   }
@@ -504,12 +594,16 @@ class LMSAdminAPI {
     return data?.id;
   }
 
-  async getClassStudents(classId) {
-    return this._cached(`teacher:classstudents:${classId}`, 60_000, async () => {
+  // Renamed from getClassStudents(classId) — was pulling every student from
+  // every section under the class, so viewing "ICT G11" mixed ICT1102 and
+  // ICT1103 students together. student_section_assignments already has
+  // section_id directly, so no join needed at all — simpler and correct.
+  async getSectionStudents(sectionId) {
+    return this._cached(`teacher:sectionstudents:${sectionId}`, 60_000, async () => {
       const data = this._throwIfError(
         await this.sb.from("student_section_assignments")
-          .select("students(*, users(first_name, last_name)), sections!inner(class_id)")
-          .eq("sections.class_id", classId)
+          .select("students(*, users(first_name, last_name))")
+          .eq("section_id", sectionId)
       );
       // Flatten: pull students out + rename users -> user so views use stu.user.first_name
       return (data || [])
@@ -725,12 +819,52 @@ class LMSAdminAPI {
     });
   }
 
+  // Weekly class schedule for the logged-in student — scoped through their
+  // ACTUAL section (student_section_assignments), not just "enrolled in the
+  // subject", so a student never sees another section's schedule under the
+  // same subject/class (same mixing bug fixed earlier for attendance).
+  async getStudentWeeklySchedule() {
+    return this._cached('student:weeklyschedule', 60_000, async () => {
+      const studentId = await this._myStudentId();
+      const { data: secRows } = await this.sb
+        .from('student_section_assignments').select('section_id').eq('student_id', studentId);
+      const sectionIds = (secRows || []).map(r => r.section_id);
+      if (!sectionIds.length) return [];
+
+      const { data: enrollRows } = await this.sb
+        .from('student_subject_enrollments').select('subject_id').eq('student_id', studentId);
+      const subjectIds = (enrollRows || []).map(r => r.subject_id);
+      if (!subjectIds.length) return [];
+
+      const data = this._throwIfError(
+        await this.sb.from('teacher_class_assignments')
+          .select('*, subjects(id,name), classes(id,name,grade_level), sections(id,name), teachers(id, users(first_name,last_name))')
+          .in('section_id', sectionIds)
+          .in('subject_id', subjectIds)
+      );
+      return data.map(row => ({
+        subject_id:   row.subject_id,
+        subject_name: row.subjects?.name || '',
+        section_id:   row.section_id,
+        section_name: row.sections?.name || row.classes?.name || '',
+        grade_level:  row.classes?.grade_level || '',
+        schedule:     row.schedule,
+        teacher_name: row.teachers?.users ? `${row.teachers.users.first_name} ${row.teachers.users.last_name}` : '',
+      }));
+    });
+  }
+
   // Returns the "current" semester: the highest semester the student is enrolled in.
   // Used to set the default tab in the My Subjects view.
   async getStudentCurrentSemester() {
     const all = await this.getStudentSubjects();
-    const semesters = [...new Set(all.map(r => r.semester).filter(Boolean))].sort();
-    return semesters.length ? semesters[semesters.length - 1] : 1;
+    const semesters = [...new Set(all.map(r => r.semester).filter(Boolean))];
+    // FIX: previously picked whichever semester sorted highest — so a
+    // student enrolled in both 1st and 2nd semester subjects (the normal
+    // case for a full school-year enrollment) landed on 2nd Semester by
+    // default. Always prefer 1st when the student has any enrollment there.
+    if (semesters.includes('1st')) return '1st';
+    return semesters.sort()[0] || '1st';
   }
 
   async getStudentModules(subject_id = null) {
@@ -740,9 +874,17 @@ class LMSAdminAPI {
         .from("student_subject_enrollments").select("subject_id").eq("student_id", studentId);
       const subjectIds = subject_id ? [subject_id] : (enrollments || []).map(e => e.subject_id);
       if (!subjectIds.length) return [];
-      return this._throwIfError(
+      const modules = this._throwIfError(
         await this.sb.from("modules").select("*").in("subject_id", subjectIds).eq("is_published", true)
       );
+      if (!modules.length) return modules;
+      // Mark which of these the student has actually opened — needed to
+      // show real completion progress, not just a module count.
+      const { data: reads } = await this.sb.from("student_module_reads")
+        .select("module_id").eq("student_id", studentId)
+        .in("module_id", modules.map(m => m.id));
+      const readIds = new Set((reads || []).map(r => r.module_id));
+      return modules.map(m => ({ ...m, is_read: readIds.has(m.id) }));
     });
   }
 
@@ -926,26 +1068,33 @@ class LMSAdminAPI {
     const teacherId = await this._myTeacherId();
     const data = this._throwIfError(
       await this.sb.from("teacher_class_assignments")
-        .select("*, subjects(id, name), classes(id, name, grade_level, school_year, sections(id, name))")
+        .select("*, subjects(id, name), classes(id, name, grade_level, school_year), sections(id, name)")
         .eq("teacher_id", teacherId)
     );
 
-    // Group by class so one class with multiple subjects appears as one row
-    const byClass = new Map();
+    // Group by SECTION (not class) — each real section is its own row, so
+    // two sections under one class (e.g. ICT1102 and ICT1103, both under
+    // "ICT G11") never share an attendance roster. A teacher_class_assignments
+    // row with no section_id yet (pre-migration legacy data) is skipped —
+    // re-save that teacher's assignment in Admin > Edit Teacher to pick a
+    // specific section instead of a whole class.
+    const bySection = new Map();
     for (const row of (data || [])) {
+      const sec = row.sections;
       const cls = row.classes;
-      if (!cls) continue;
-      if (!byClass.has(cls.id)) {
-        byClass.set(cls.id, {
-          class_id:    cls.id,
-          class_name:  cls.name,
-          grade_level: cls.grade_level,
-          school_year: cls.school_year,
-          sections:    cls.sections || [],
-          subjects:    [],
+      if (!sec || !cls) continue;
+      if (!bySection.has(sec.id)) {
+        bySection.set(sec.id, {
+          section_id:   sec.id,
+          section_name: sec.name,
+          class_id:     cls.id,
+          class_name:   cls.name,
+          grade_level:  cls.grade_level,
+          school_year:  cls.school_year,
+          subjects:     [],
         });
       }
-      const entry = byClass.get(cls.id);
+      const entry = bySection.get(sec.id);
       if (row.subjects) {
         entry.subjects.push({
           subject_id:   row.subjects.id,
@@ -955,12 +1104,12 @@ class LMSAdminAPI {
         });
       }
     }
-    return [...byClass.values()];
+    return [...bySection.values()];
   }
 
-  async getAttendanceSectionStudents(classId, { subjectId = null, term = null } = {}) {
+  async getAttendanceSectionStudents(sectionId, { subjectId = null, term = null } = {}) {
   const { data, error } = await this.sb.rpc('get_teacher_attendance_summary', {
-    p_class_id: classId,
+    p_section_id: sectionId,
     p_subject_id: subjectId,
     p_term: term
   });
@@ -968,9 +1117,9 @@ class LMSAdminAPI {
   return data; // { total_meetings, students }
 }
 
-  async getAttendanceSessions(classId, { subjectId = null, term = null } = {}) {
+  async getAttendanceSessions(sectionId, { subjectId = null, term = null } = {}) {
   const { data, error } = await this.sb.rpc('get_teacher_attendance_sessions', {
-    p_class_id: classId,
+    p_section_id: sectionId,
     p_subject_id: subjectId,
     p_term: term
   });
@@ -989,7 +1138,7 @@ class LMSAdminAPI {
   async createAttendanceSession(payload) {
     return this._throwIfError(
       await this.sb.rpc("create_attendance_session", {
-        p_class_id: payload.class_id, p_subject_id: payload.subject_id, p_term: payload.term,
+        p_section_id: payload.section_id, p_subject_id: payload.subject_id, p_term: payload.term,
         p_session_date: payload.session_date, p_has_class: payload.has_class,
         p_notes: payload.notes || null, p_records: payload.records || [],
       })
@@ -1054,4 +1203,4 @@ class LMSAdminAPI {
 }
 
 // Global singleton — all controllers reference this as `api`
-const api = new LMSAdminAPI();3
+const api = new LMSAdminAPI();

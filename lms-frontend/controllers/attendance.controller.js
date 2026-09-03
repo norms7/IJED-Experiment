@@ -16,7 +16,7 @@ const AttendanceController = {
 
   // ── State ─────────────────────────────────────────────────────────────────
   _sections:        [],   // all sections from API
-  _currentClassId:  null,
+  _currentSectionId: null,
   _currentName:     '',
   _currentSubjects: [],
   _currentStudents: [],  // raw student objects (id, first_name, last_name, student_number)
@@ -50,8 +50,8 @@ const AttendanceController = {
   },
 
   // ── 2. Open section detail ─────────────────────────────────────────────────
-  async openSection(classId, sectionName) {
-    this._currentClassId = classId;
+  async openSection(sectionId, sectionName) {
+    this._currentSectionId = sectionId;
     this._currentName    = sectionName;
 
     // Re-fetch sections if state is empty (direct navigation)
@@ -60,7 +60,7 @@ const AttendanceController = {
       this._sections = sections;
     }
 
-    const sec = this._sections.find(s => s.class_id === classId);
+    const sec = this._sections.find(s => s.section_id === sectionId);
     // subjects is now [{subject_id, subject_name, schedule}]
     this._currentSubjects  = sec?.subjects || [];
     this._currentSubjectId = this._currentSubjects[0]?.subject_id || null;
@@ -87,11 +87,11 @@ const AttendanceController = {
 
     try {
       const [summaryData, sessions] = await Promise.all([
-        api.getAttendanceSectionStudents(this._currentClassId, {
+        api.getAttendanceSectionStudents(this._currentSectionId, {
           subjectId: this._currentSubjectId,
           term:      this._currentTerm || null,
         }).catch(e => { console.warn('[Attendance] students:', e); return { students: [], total_meetings: 0 }; }),
-        api.getAttendanceSessions(this._currentClassId, {
+        api.getAttendanceSessions(this._currentSectionId, {
           subjectId: this._currentSubjectId,
           term:      this._currentTerm || null,
         }).catch(() => []),
@@ -209,7 +209,7 @@ const AttendanceController = {
     const modalSubjectId = subjEl?.value ? parseInt(subjEl.value) : (this._currentSubjectId || null);
 
     const payload = {
-      class_id:     this._currentClassId,
+      section_id:   this._currentSectionId,
       subject_id:   modalSubjectId,
       term:         termEl?.value || '1st',
       session_date: dateEl.value,

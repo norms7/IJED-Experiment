@@ -10,13 +10,32 @@ const CalendarController = {
   _viewMonth:    null,
   _selectedDate: null,
   _eventMap:     {},   // { "YYYY-MM-DD": [event, ...] }
+  _scheduleMap:  {},   // { 0-6 (day-of-week): [scheduleEntry, ...] }
 
   init() {
     const now = new Date();
     if (this._viewYear  === null) this._viewYear  = now.getFullYear();
     if (this._viewMonth === null) this._viewMonth = now.getMonth();
-    // Return the promise so callers (dashboard controller) can .finally() on it
-    return this._buildActivityEvents(DashboardController.currentUser).then(() => {
+    // FIX: previously this only called _render() inside .then() — if
+    // _buildActivityEvents() (or _buildWeeklySchedule()) ever rejected for
+    // any reason (bad localStorage data, an API hiccup not already caught
+    // internally, etc.), _render() never ran at all, leaving the grid shell
+    // completely blank until prev()/next() triggered a direct _render()
+    // call. Now the grid always renders regardless of whether the extra
+    // data finished loading — .catch() guarantees it, and Promise.allSettled
+    // means one failing fetch can't block the other.
+    return Promise.allSettled([
+      this._buildActivityEvents(DashboardController.currentUser),
+      this._buildWeeklySchedule(DashboardController.currentUser),
+    ]).then((results) => {
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`[CalendarController] init() step ${i} failed:`, r.reason);
+        }
+      });
+      this._render();
+    }).catch((err) => {
+      console.error('[CalendarController] init() failed unexpectedly:', err);
       this._render();
     });
   },
@@ -39,11 +58,18 @@ const CalendarController = {
     this._eventMap = {};
 
     // 1. Load persisted events from localStorage (announcements, holidays, exams, etc.)
-    const storedEvents = calendarModel.getForUser(user.id, user.role);
-    for (const ev of storedEvents) {
-      if (!ev.date) continue;
-      if (!this._eventMap[ev.date]) this._eventMap[ev.date] = [];
-      this._eventMap[ev.date].push(ev);
+    // FIX: wrapped in try/catch — a corrupted localStorage entry used to
+    // throw here, OUTSIDE any try/catch, which silently killed the whole
+    // init() promise chain and left the calendar grid blank on first load.
+    try {
+      const storedEvents = calendarModel.getForUser(user.id, user.role);
+      for (const ev of storedEvents) {
+        if (!ev.date) continue;
+        if (!this._eventMap[ev.date]) this._eventMap[ev.date] = [];
+        this._eventMap[ev.date].push(ev);
+      }
+    } catch (err) {
+      console.warn('[CalendarController] Could not load stored events:', err);
     }
 
     // 2. Pull activity due-dates from the backend (role-aware)
@@ -77,6 +103,33 @@ const CalendarController = {
     }
   },
 
+  // ── Fetch the logged-in user's own recurring weekly class schedule ──
+  // Teacher: from their teacher_class_assignments (via getMySubjects()).
+  // Student: from getStudentWeeklySchedule(), scoped through their actual
+  // section — never another section's schedule.
+  // Admin: no personal teaching schedule — left empty.
+  async _buildWeeklySchedule(user) {
+    this._scheduleMap = {};
+    if (!user) return;
+    try {
+      let entries = [];
+      if (user.role === 'teacher') {
+        entries = await api.getMySubjects();
+      } else if (user.role === 'student') {
+        entries = await api.getStudentWeeklySchedule();
+      }
+      for (const entry of entries) {
+        const days = _parseScheduleDays(entry.schedule);
+        for (const dow of days) {
+          if (!this._scheduleMap[dow]) this._scheduleMap[dow] = [];
+          this._scheduleMap[dow].push(entry);
+        }
+      }
+    } catch (err) {
+      console.warn('[CalendarController] Could not build weekly schedule:', err);
+    }
+  },
+
   // ── Render the calendar grid for the current month ──
   _render() {
     const user  = DashboardController.currentUser;
@@ -107,8 +160,12 @@ const CalendarController = {
       const events  = this._eventMap[dateStr] || [];
       const isToday = dateStr === today;
       const isSel   = dateStr === this._selectedDate;
+      const dow     = new Date(year, month, d).getDay();
+      const classesToday = this._scheduleMap[dow] || [];
+      const hasClass = classesToday.length > 0;
 
-      // Dot indicators (up to 3 distinct types)
+      // Dot indicators (up to 3 distinct types) — a recurring class counts
+      // as a "class" dot alongside any one-off events that day.
       const dotColors = {
         'holiday':      '#d4a017',
         'meeting':      '#1a4a8a',
@@ -119,15 +176,18 @@ const CalendarController = {
         'todo':         '#888',
         'class':        '#555',
       };
-      const seenTypes = [...new Set(events.map(e => e.type))].slice(0, 3);
+      const types = events.map(e => e.type);
+      if (hasClass) types.unshift('class');
+      const seenTypes = [...new Set(types)].slice(0, 3);
       const dots = seenTypes.map(t =>
         `<span style="width:6px;height:6px;border-radius:50%;background:${dotColors[t] || '#888'};display:inline-block;margin:0 1px"></span>`
       ).join('');
 
       cells += `
-        <div class="cal-cell${isToday ? ' cal-today' : ''}${isSel ? ' cal-selected' : ''}"
+        <div class="cal-cell${isToday ? ' cal-today' : ''}${isSel ? ' cal-selected' : ''}${hasClass ? ' cal-has-class' : ''}"
              onclick="CalendarController.selectDay('${dateStr}')"
-             data-date="${dateStr}">
+             data-date="${dateStr}"
+             ${hasClass ? `title="${classesToday.length} class(es) scheduled"` : ''}>
           <span class="cal-day-num">${d}</span>
           ${dots ? `<div style="display:flex;justify-content:center;gap:2px;margin-top:2px">${dots}</div>` : ''}
         </div>`;
@@ -194,14 +254,26 @@ const CalendarController = {
   selectDay(dateStr) {
     this._selectedDate = dateStr;
     this._highlightSelected(dateStr);
-    const user     = DashboardController.currentUser;
-    const events   = this._eventMap[dateStr] || [];
-    const todos    = todoModel.getForUserDate(user.id, dateStr);
-    this._renderDayPanel(dateStr, user, events, todos);
+    try {
+      const user     = DashboardController.currentUser;
+      const events   = this._eventMap[dateStr] || [];
+      const todos    = todoModel.getForUserDate(user.id, dateStr);
+      const dow      = new Date(dateStr + 'T00:00:00').getDay();
+      const classesToday = this._scheduleMap[dow] || [];
+      this._renderDayPanel(dateStr, user, events, todos, classesToday);
+    } catch (err) {
+      // Surface the error directly in the panel instead of failing silently
+      // — makes phone-only debugging possible without DevTools.
+      console.error('[CalendarController] selectDay failed:', err);
+      const panel = document.getElementById('cal-day-panel');
+      if (panel) {
+        panel.innerHTML = `<div style="padding:12px;background:#fdecec;border:1px solid #f5b5b5;border-radius:8px;color:#8b0020;font-size:12px;white-space:pre-wrap">⚠️ Calendar error — please screenshot this and send it back:\n\n${escHtml(err.message || String(err))}\n\n${escHtml(err.stack || '')}</div>`;
+      }
+    }
   },
 
   // ── Render the right-hand day detail panel ──
-  _renderDayPanel(dateStr, user, events, todos) {
+  _renderDayPanel(dateStr, user, events, todos, classesToday = []) {
     const panel = document.getElementById('cal-day-panel');
     if (!panel) return;
 
@@ -212,6 +284,18 @@ const CalendarController = {
     };
 
     const canAddEvent = user.role === 'admin' || user.role === 'teacher';
+
+    const classCards = classesToday.map(c => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:var(--gray-50);border-radius:8px;border-left:3px solid ${dotColors['class']}">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--gray-700)">📘 ${escHtml(c.subject_name)}</div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">
+            ${escHtml(c.section_name || '')}${c.grade_level ? ' · ' + escHtml(c.grade_level) : ''}
+          </div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:4px">⏰ ${escHtml(c.schedule || 'No time set')}</div>
+          ${user.role === 'student' && c.teacher_name ? `<div style="font-size:11px;color:var(--gray-400);margin-top:2px">👩‍🏫 ${escHtml(c.teacher_name)}</div>` : ''}
+        </div>
+      </div>`).join('');
 
     const eventCards = events.map(ev => {
       const color = dotColors[ev.type] || '#888';
@@ -241,6 +325,15 @@ const CalendarController = {
     panel.innerHTML = `
       <div>
         <div style="font-size:15px;font-weight:700;color:var(--primary);margin-bottom:14px">${prettyDate}</div>
+
+        ${user.role !== 'admin' ? `
+          <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📚 Classes Today</div>
+          ${classesToday.length ? `
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${classCards}</div>
+          ` : `
+            <div style="font-size:12px;color:var(--gray-400);margin-bottom:16px">No classes scheduled on this day.</div>
+          `}
+        ` : ''}
 
         ${events.length ? `
           <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Events</div>
@@ -367,4 +460,41 @@ function _calTypeLabel(type) {
     todo:           '✅ To-Do',
   };
   return map[type] || type;
+}
+
+// Parses the freeform "schedule" text stored on a teacher_class_assignments
+// row (e.g. "MWF 4:00-5:00 PM (Room 101)", "TTh 12:00-1:00 PM (Library)",
+// "Sat 2:00-3:00 PM (Room 202)") into an array of JS day-of-week numbers
+// (0=Sun .. 6=Sat). Handles every token the Add/Edit Teacher form's Days
+// dropdown produces (MWF, TTh, MTuWThF, MTuTh, WThF, Sat) and degrades
+// gracefully on freeform text typed into the Edit form's schedule field.
+function _parseScheduleDays(scheduleStr) {
+  if (!scheduleStr) return [];
+  const m = String(scheduleStr).match(/^[A-Za-z]+/);
+  if (!m) return [];
+  const s = m[0];
+
+  // Longest tokens first so e.g. "Tue" isn't mis-split into "T" + "ue".
+  const tokenMap = [
+    ['Sun', 0], ['Sat', 6], ['Tue', 2], ['Thu', 4], ['Mon', 1], ['Wed', 3], ['Fri', 5],
+    ['Su', 0], ['Sa', 6], ['Th', 4], ['Tu', 2],
+    ['M', 1], ['W', 3], ['F', 5],
+    ['T', 2], // bare "T" fallback = Tuesday, matching this app's "TTh" convention
+  ];
+
+  const days = [];
+  let i = 0;
+  while (i < s.length) {
+    let matched = false;
+    for (const [tok, dow] of tokenMap) {
+      if (s.slice(i, i + tok.length).toLowerCase() === tok.toLowerCase()) {
+        if (!days.includes(dow)) days.push(dow);
+        i += tok.length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) i++; // skip anything unrecognized rather than getting stuck
+  }
+  return days;
 }

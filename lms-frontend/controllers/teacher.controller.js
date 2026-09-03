@@ -98,12 +98,12 @@ const TeacherController = {
     this.openAddModule();
   },
 
-  async viewStudentsForSubject(subjectId, classId, subjectName) {
+  async viewStudentsForSubject(subjectId, sectionId, subjectName) {
     Modal.show(`Students – ${escHtml(subjectName)}`, '<div class="text-center">Loading students…</div>', '');
     try {
-      const students = await api.getClassStudents(classId);
+      const students = await api.getSectionStudents(sectionId);
       if (!students.length) {
-        Modal.show(`Students – ${escHtml(subjectName)}`, '<div class="text-muted">No students enrolled in this class.</div>', '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>');
+        Modal.show(`Students – ${escHtml(subjectName)}`, '<div class="text-muted">No students enrolled in this section.</div>', '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>');
         return;
       }
       const list = students.map(s => `

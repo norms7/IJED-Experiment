@@ -12,7 +12,7 @@ const AdminController = {
   /* ── Tab helpers ─────────────────────────────────────────── */
 
   _switchTab(tab) {
-    ['all', 'teachers', 'students', 'sections', 'audit'].forEach(t => {
+    ['all', 'teachers', 'students', 'sections', 'transfer', 'audit'].forEach(t => {
       const pane = document.getElementById(`um-pane-${t}`);
       const btn  = document.querySelector(`.um-tab[data-tab="${t}"]`);
       if (pane) pane.style.display = t === tab ? '' : 'none';
@@ -137,7 +137,7 @@ const AdminController = {
                   <label class="form-label">Section *</label>
                   <select class="form-control assignment-class" data-index="0">
                     <option value="">— Select Section —</option>
-                    ${classOpts}
+                    ${sectionOpts.replace('<option value="">— Select Section —</option>', '')}
                   </select>
                 </div>
               </div>
@@ -287,12 +287,12 @@ const AdminController = {
         refreshRemoveButtons();
       };
 
-      // Filter subjects by strand+grade when class changes
+      // Filter subjects by strand+grade when section changes
       const _filterSubjects = async (classSelect, subjectSelect) => {
         const opt = classSelect.options[classSelect.selectedIndex];
-        const className = opt ? opt.text : '';
-        const strand = className.replace(/\d.*/, '').toUpperCase();
-        const gradeMatch = className.match(/(\d{2})/);
+        const sectionName = opt ? opt.text : '';
+        const strand = sectionName.replace(/\d.*/, '').toUpperCase();
+        const gradeMatch = sectionName.match(/(\d{2})/);
         const grade = gradeMatch ? gradeMatch[1] : null;
         const allSubjects = await api.getSubjects();
         const filtered = allSubjects.filter(s => {
@@ -420,22 +420,23 @@ const AdminController = {
         const assignments = [];
         document.querySelectorAll('#teacher-assignments-container .assignment-row').forEach(row => {
           const subjectId = row.querySelector('.assignment-subject').value;
-          const classId   = row.querySelector('.assignment-class').value;
+          const sectionId = row.querySelector('.assignment-class').value;
           const days      = row.querySelector('.assignment-days')?.value || '';
           const time      = row.querySelector('.assignment-time')?.value || '';
           const room      = row.querySelector('.assignment-room')?.value || '';
           const schedule  = [days, time, room ? `(${room})` : ''].filter(Boolean).join(' ') || null;
-          if (subjectId && classId) assignments.push({ subjectId: parseInt(subjectId), classId: parseInt(classId), schedule });
+          if (subjectId && sectionId) assignments.push({ subjectId: parseInt(subjectId), sectionId: parseInt(sectionId), schedule });
         });
         if (assignments.length === 0) {
-          Toast.show('Please add at least one subject & class assignment.', 'error');
+          Toast.show('Please add at least one subject & section assignment.', 'error');
           if (btn) btn.disabled = false;
           return;
         }
         for (const a of assignments) {
-          await api.assignTeacherToClass({ teacher_id: teacherProfile.id, class_id: a.classId, subject_id: a.subjectId, schedule: a.schedule });
+          const { data: secRow } = await api.sb.from('sections').select('class_id').eq('id', a.sectionId).single();
+          await api.assignTeacherToClass({ teacher_id: teacherProfile.id, class_id: secRow.class_id, section_id: a.sectionId, subject_id: a.subjectId, schedule: a.schedule });
         }
-        Toast.show(`${assignments.length} subject(s)/class(es) assigned.`, 'info');
+        Toast.show(`${assignments.length} subject(s)/section(s) assigned.`, 'info');
       }
 
       if (role === 'student') {
@@ -511,27 +512,28 @@ const AdminController = {
       const user   = await api.getUser(id);
       const role   = user.role.name;
       let teacherProfile = null;
-      let subjects = [], classes = [], existingAssignments = [];
+      let subjects = [], classes = [], sections = [], existingAssignments = [];
 
       if (role === 'teacher') {
         teacherProfile = await api.getTeacherByUserId(id);
-        const [subjectsRes, classesRes] = await Promise.all([api.getSubjects(), api.getClasses()]);
+        const [subjectsRes, classesRes, sectionsRes] = await Promise.all([api.getSubjects(), api.getClasses(), api.getSections()]);
         subjects = subjectsRes.items || (Array.isArray(subjectsRes) ? subjectsRes : []);
         classes  = classesRes.items  || (Array.isArray(classesRes)  ? classesRes  : []);
+        sections = sectionsRes.items || (Array.isArray(sectionsRes) ? sectionsRes : []);
         existingAssignments = teacherProfile?.class_assignments || [];
       }
 
       let extraFields = '';
       if (role === 'teacher') {
         const subjectOpts = subjects.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
-        const classOpts   = classes.map(c  => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+        const sectionOpts = sections.map(sec => `<option value="${sec.id}">${escHtml(sec.name)}</option>`).join('');
         let assignmentsHtml = '';
         existingAssignments.forEach((ass, idx) => {
           assignmentsHtml += `
             <div class="assignment-row" data-assignment-id="${ass.id}">
               <div class="form-row">
                 <div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject" data-idx="${idx}"><option value="">— Select Subject —</option>${subjects.map(s => `<option value="${s.id}" ${s.id === ass.subject_id ? 'selected' : ''}>${escHtml(s.name)}</option>`).join('')}</select></div>
-                <div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class" data-idx="${idx}"><option value="">— Select Section —</option>${classes.map(c => `<option value="${c.id}" ${c.id === ass.class_id ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}</select></div>
+                <div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class" data-idx="${idx}"><option value="">— Select Section —</option>${sections.map(sec => `<option value="${sec.id}" ${sec.id === ass.section_id ? 'selected' : ''}>${escHtml(sec.name)}</option>`).join('')}</select></div>
               </div>
               <div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" value="${escHtml(ass.schedule || '')}" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div>
               <button type="button" class="btn btn-xs btn-danger remove-existing-assignment" data-id="${ass.id}">✕ Remove</button>
@@ -539,7 +541,7 @@ const AdminController = {
             </div>`;
         });
         if (!existingAssignments.length) {
-          assignmentsHtml = `<div class="assignment-row" data-original="false"><div class="form-row"><div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject"><option value="">— Select Subject —</option>${subjectOpts}</select></div><div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class"><option value="">— Select Section —</option>${classOpts}</select></div></div><div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div><button type="button" class="btn btn-xs btn-danger remove-assignment-btn" style="display:none;">✕ Remove</button><hr></div>`;
+          assignmentsHtml = `<div class="assignment-row" data-original="false"><div class="form-row"><div class="form-group"><label>Subject *</label><select class="form-control edit-assignment-subject"><option value="">— Select Subject —</option>${subjectOpts}</select></div><div class="form-group"><label>Section *</label><select class="form-control edit-assignment-class"><option value="">— Select Section —</option>${sectionOpts}</select></div></div><div class="form-group"><label>Schedule (optional)</label><input type="text" class="form-control edit-assignment-schedule" placeholder="e.g. MWF 8:00-9:00 (Room 201)"></div><button type="button" class="btn btn-xs btn-danger remove-assignment-btn" style="display:none;">✕ Remove</button><hr></div>`;
         }
         extraFields = `
           <hr><h4>Teacher Details</h4>
@@ -652,19 +654,20 @@ const AdminController = {
             const scheduleInput = row.querySelector('.edit-assignment-schedule');
             if (!subjectSelect || !classSelect) continue;
             const subjectId    = subjectSelect.value;
-            const classId      = classSelect.value;
+            const sectionId    = classSelect.value;
             const schedule     = scheduleInput?.value.trim() || '';
-            if (!subjectId || !classId) {
-              Toast.show('Each assignment must have a subject and a class.', 'error');
+            if (!subjectId || !sectionId) {
+              Toast.show('Each assignment must have a subject and a section.', 'error');
               if (btn) btn.disabled = false;
               return;
             }
+            const { data: secRow } = await api.sb.from('sections').select('class_id').eq('id', parseInt(sectionId)).single();
             const assignmentId = row.getAttribute('data-assignment-id');
             if (assignmentId) {
               currentAssignmentIds.push(parseInt(assignmentId));
-              await api.updateTeacherAssignment(assignmentId, { class_id: parseInt(classId), subject_id: parseInt(subjectId), schedule: schedule || null });
+              await api.updateTeacherAssignment(assignmentId, { class_id: secRow.class_id, section_id: parseInt(sectionId), subject_id: parseInt(subjectId), schedule: schedule || null });
             } else {
-              await api.assignTeacherToClass({ teacher_id: teacherId, class_id: parseInt(classId), subject_id: parseInt(subjectId), schedule: schedule || null });
+              await api.assignTeacherToClass({ teacher_id: teacherId, class_id: secRow.class_id, section_id: parseInt(sectionId), subject_id: parseInt(subjectId), schedule: schedule || null });
             }
           }
           const toDelete = originalIds.filter(id => !currentAssignmentIds.includes(id));
@@ -697,25 +700,119 @@ const AdminController = {
     }
   },
 
+  /* ── Transfer / Promote Students ─────────────────────────── */
+
+  async onTransferFromSectionChange(sectionId) {
+    const wrap = document.getElementById('transfer-roster-wrap');
+    if (!wrap) return;
+    if (!sectionId) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = '<div class="text-center" style="padding:20px;color:var(--gray-400)">Loading students…</div>';
+    try {
+      const students = await api.getSectionStudents(parseInt(sectionId));
+      this._transferFromStudents = students; // keep for confirmation summary
+      wrap.innerHTML = AdminView._transferRoster(students);
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state"><div class="empty-state-title">Failed to load students</div><div class="empty-state-sub">${escHtml(err.message)}</div></div>`;
+    }
+  },
+
+  _toggleAllTransferStudents(checked) {
+    document.querySelectorAll('.transfer-student-cb').forEach(cb => { cb.checked = checked; });
+    this._updateTransferCount();
+  },
+
+  _updateTransferCount() {
+    const total   = document.querySelectorAll('.transfer-student-cb').length;
+    const checked = document.querySelectorAll('.transfer-student-cb:checked').length;
+    const countEl = document.getElementById('transfer-selected-count');
+    if (countEl) countEl.textContent = `${checked} selected`;
+    const allBox = document.getElementById('transfer-select-all');
+    if (allBox) allBox.checked = checked === total && total > 0;
+  },
+
+  async confirmTransfer() {
+    const fromSel = document.getElementById('transfer-from-section');
+    const toSel   = document.getElementById('transfer-to-section');
+    const fromId  = parseInt(fromSel?.value);
+    const toId    = parseInt(toSel?.value);
+    const studentIds = [...document.querySelectorAll('.transfer-student-cb:checked')].map(cb => parseInt(cb.value));
+
+    if (!fromId)  { Toast.show('Pick a "From Section" first.', 'error'); return; }
+    if (!toId)    { Toast.show('Pick a "To Section" to transfer into.', 'error'); return; }
+    if (fromId === toId) { Toast.show('"From" and "To" section must be different.', 'error'); return; }
+    if (!studentIds.length) { Toast.show('Select at least one student to transfer.', 'error'); return; }
+
+    const fromName = fromSel.options[fromSel.selectedIndex].text;
+    const toName   = toSel.options[toSel.selectedIndex].text;
+
+    if (!confirm(
+      `Transfer ${studentIds.length} student(s) from "${fromName}" to "${toName}"?\n\n` +
+      `Their section and subjects will move to "${toName}". ` +
+      `All existing grades and attendance from "${fromName}" stay exactly as they are — this only changes what they're currently enrolled in.`
+    )) return;
+
+    try {
+      const result = await api.transferStudents({ studentIds, fromSectionId: fromId, toSectionId: toId });
+      Toast.show(
+        `✅ Transferred ${result.students_selected} student(s) to "${toName}" ` +
+        `(${result.subjects_added} subject enrollment(s) added).`,
+        'info'
+      );
+      // Refresh the roster so transferred students drop off the From-section list
+      this.onTransferFromSectionChange(fromId);
+    } catch (err) {
+      Toast.show(`❌ Transfer failed: ${err.message}`, 'error');
+    }
+  },
+
   /* ── Section CRUD ────────────────────────────────────────── */
 
+  _gradeLevelOpts(selected = '') {
+    return ['11', '12']
+      .map(g => `<option value="${g}" ${String(selected) === g ? 'selected' : ''}>Grade ${g}</option>`)
+      .join('');
+  },
+
+  async _teacherOpts(selectedId = '') {
+    const teachersRes = await api.getTeachers();
+    const teachers    = teachersRes.items || (Array.isArray(teachersRes) ? teachersRes : []);
+    const opts = teachers.map(t =>
+      `<option value="${t.id}" ${t.id === selectedId ? 'selected' : ''}>${escHtml(t.user.first_name)} ${escHtml(t.user.last_name)}</option>`
+    ).join('');
+    return '<option value="">— No adviser assigned —</option>' + opts;
+  },
+
   async openAddSection() {
-    let classOpts = '<option value="">Loading classes…</option>';
+    let teacherOpts = '<option value="">Loading teachers…</option>';
     try {
-      const classesRes = await api.getClasses();
-      const classes    = classesRes.items || (Array.isArray(classesRes) ? classesRes : []);
-      classOpts = classes.map(c => `<option value="${c.id}">${escHtml(c.name)} (${escHtml(c.grade_level || '')})</option>`).join('') || '<option value="">No classes available</option>';
+      teacherOpts = await this._teacherOpts();
     } catch (e) {
-      classOpts = '<option value="">Error loading classes</option>';
+      teacherOpts = '<option value="">Error loading teachers</option>';
     }
     Modal.show('Add Section', `
-      <div class="form-group">
-        <label class="form-label">Section Name *</label>
-        <input class="form-control" id="new-section-name" placeholder="e.g. Section A" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Section Name *</label>
+          <input class="form-control" id="new-section-name" placeholder="e.g. ICT1101" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Grade Level *</label>
+          <select class="form-control" id="new-section-grade"><option value="">— Select —</option>${this._gradeLevelOpts()}</select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Room</label>
+          <input class="form-control" id="new-section-room" placeholder="e.g. ICT Lab 1" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">School Year</label>
+          <input class="form-control" id="new-section-year" placeholder="e.g. 2026-2027" />
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Section *</label>
-        <select class="form-control" id="new-section-class">${classOpts}</select>
+        <label class="form-label">Adviser</label>
+        <select class="form-control" id="new-section-adviser">${teacherOpts}</select>
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
        <button class="btn btn-primary" onclick="AdminController.saveNewSection()">Add Section</button>`
@@ -723,14 +820,23 @@ const AdminController = {
   },
 
   async saveNewSection() {
-    const name    = document.getElementById('new-section-name').value.trim();
-    const classId = document.getElementById('new-section-class').value;
-    if (!name)    { Toast.show('Section name is required.', 'error'); return; }
-    if (!classId) { Toast.show('Please select a class.', 'error'); return; }
+    const name       = document.getElementById('new-section-name').value.trim();
+    const gradeLevel = document.getElementById('new-section-grade').value;
+    const room       = document.getElementById('new-section-room').value.trim();
+    const schoolYear = document.getElementById('new-section-year').value.trim();
+    const adviserId  = document.getElementById('new-section-adviser').value;
+    if (!name)       { Toast.show('Section name is required.', 'error'); return; }
+    if (!gradeLevel) { Toast.show('Please select a grade level.', 'error'); return; }
     const btn = document.querySelector('#modal-container .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
-      await api.createSection({ name, class_id: parseInt(classId) });
+      await api.createSection({
+        name,
+        grade_level: gradeLevel,
+        school_year: schoolYear || null,
+        room: room || null,
+        adviser_id: adviserId ? parseInt(adviserId) : null,
+      });
       Modal.close();
       Toast.show('Section created successfully!', 'success');
       DashboardController.loadSection('manage-users');
@@ -742,18 +848,32 @@ const AdminController = {
 
   async openEditSection(id) {
     try {
-      const section    = await api.getSection(id);
-      const classesRes = await api.getClasses();
-      const classes    = classesRes.items || (Array.isArray(classesRes) ? classesRes : []);
-      const classOpts  = classes.map(c => `<option value="${c.id}" ${c.id === section.class_id ? 'selected' : ''}>${escHtml(c.name)} (${escHtml(c.grade_level || '')})</option>`).join('');
+      const section     = await api.getSection(id);
+      const teacherOpts = await this._teacherOpts(section.adviser_id);
       Modal.show('Edit Section', `
-        <div class="form-group">
-          <label class="form-label">Section Name *</label>
-          <input class="form-control" id="edit-section-name" value="${escHtml(section.name)}" />
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Section Name *</label>
+            <input class="form-control" id="edit-section-name" value="${escHtml(section.name)}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Grade Level *</label>
+            <select class="form-control" id="edit-section-grade"><option value="">— Select —</option>${this._gradeLevelOpts(section.grade_level)}</select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Room</label>
+            <input class="form-control" id="edit-section-room" value="${escHtml(section.room || '')}" placeholder="e.g. ICT Lab 1" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">School Year</label>
+            <input class="form-control" id="edit-section-year" value="${escHtml(section.school_year || '')}" placeholder="e.g. 2026-2027" />
+          </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Section *</label>
-          <select class="form-control" id="edit-section-class">${classOpts}</select>
+          <label class="form-label">Adviser</label>
+          <select class="form-control" id="edit-section-adviser">${teacherOpts}</select>
         </div>`,
         `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
          <button class="btn btn-primary" onclick="AdminController.saveEditSection(${id})">Save Changes</button>`
@@ -764,14 +884,23 @@ const AdminController = {
   },
 
   async saveEditSection(id) {
-    const name    = document.getElementById('edit-section-name').value.trim();
-    const classId = document.getElementById('edit-section-class').value;
-    if (!name)    { Toast.show('Section name is required.', 'error'); return; }
-    if (!classId) { Toast.show('Please select a class.', 'error'); return; }
+    const name       = document.getElementById('edit-section-name').value.trim();
+    const gradeLevel = document.getElementById('edit-section-grade').value;
+    const room       = document.getElementById('edit-section-room').value.trim();
+    const schoolYear = document.getElementById('edit-section-year').value.trim();
+    const adviserId  = document.getElementById('edit-section-adviser').value;
+    if (!name)       { Toast.show('Section name is required.', 'error'); return; }
+    if (!gradeLevel) { Toast.show('Please select a grade level.', 'error'); return; }
     const btn = document.querySelector('#modal-container .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
-      await api.updateSection(id, { name, class_id: parseInt(classId) });
+      await api.updateSection(id, {
+        name,
+        grade_level: gradeLevel,
+        school_year: schoolYear || null,
+        room: room || null,
+        adviser_id: adviserId ? parseInt(adviserId) : null,
+      });
       Modal.close();
       Toast.show('Section updated!', 'success');
       DashboardController.loadSection('manage-users');
