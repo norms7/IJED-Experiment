@@ -509,10 +509,12 @@ const DashboardController = {
           AdminView._studentsPane(students, sections);
         document.getElementById("um-pane-sections").innerHTML =
           AdminView._sectionsPane(sections);
+        document.getElementById("um-pane-transfer").innerHTML =
+          AdminView._transferPane(sections);
         document.getElementById("um-pane-audit").innerHTML =
           AdminView._auditPane();
 
-        const TAB_IDS = ["all", "teachers", "students", "sections", "audit"];
+        const TAB_IDS = ["all", "teachers", "students", "sections", "transfer", "audit"];
         TAB_IDS.forEach((t) => {
           const pane = document.getElementById(`um-pane-${t}`);
           if (pane) pane.style.display = t === "all" ? "" : "none";

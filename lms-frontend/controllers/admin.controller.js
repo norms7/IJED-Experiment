@@ -12,7 +12,7 @@ const AdminController = {
   /* ── Tab helpers ─────────────────────────────────────────── */
 
   _switchTab(tab) {
-    ['all', 'teachers', 'students', 'sections', 'audit'].forEach(t => {
+    ['all', 'teachers', 'students', 'sections', 'transfer', 'audit'].forEach(t => {
       const pane = document.getElementById(`um-pane-${t}`);
       const btn  = document.querySelector(`.um-tab[data-tab="${t}"]`);
       if (pane) pane.style.display = t === tab ? '' : 'none';
@@ -697,6 +697,71 @@ const AdminController = {
       DashboardController.loadSection(DashboardController.currentSection);
     } catch (err) {
       Toast.show(`❌ Error: ${err.message}`, 'error');
+    }
+  },
+
+  /* ── Transfer / Promote Students ─────────────────────────── */
+
+  async onTransferFromSectionChange(sectionId) {
+    const wrap = document.getElementById('transfer-roster-wrap');
+    if (!wrap) return;
+    if (!sectionId) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = '<div class="text-center" style="padding:20px;color:var(--gray-400)">Loading students…</div>';
+    try {
+      const students = await api.getSectionStudents(parseInt(sectionId));
+      this._transferFromStudents = students; // keep for confirmation summary
+      wrap.innerHTML = AdminView._transferRoster(students);
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state"><div class="empty-state-title">Failed to load students</div><div class="empty-state-sub">${escHtml(err.message)}</div></div>`;
+    }
+  },
+
+  _toggleAllTransferStudents(checked) {
+    document.querySelectorAll('.transfer-student-cb').forEach(cb => { cb.checked = checked; });
+    this._updateTransferCount();
+  },
+
+  _updateTransferCount() {
+    const total   = document.querySelectorAll('.transfer-student-cb').length;
+    const checked = document.querySelectorAll('.transfer-student-cb:checked').length;
+    const countEl = document.getElementById('transfer-selected-count');
+    if (countEl) countEl.textContent = `${checked} selected`;
+    const allBox = document.getElementById('transfer-select-all');
+    if (allBox) allBox.checked = checked === total && total > 0;
+  },
+
+  async confirmTransfer() {
+    const fromSel = document.getElementById('transfer-from-section');
+    const toSel   = document.getElementById('transfer-to-section');
+    const fromId  = parseInt(fromSel?.value);
+    const toId    = parseInt(toSel?.value);
+    const studentIds = [...document.querySelectorAll('.transfer-student-cb:checked')].map(cb => parseInt(cb.value));
+
+    if (!fromId)  { Toast.show('Pick a "From Section" first.', 'error'); return; }
+    if (!toId)    { Toast.show('Pick a "To Section" to transfer into.', 'error'); return; }
+    if (fromId === toId) { Toast.show('"From" and "To" section must be different.', 'error'); return; }
+    if (!studentIds.length) { Toast.show('Select at least one student to transfer.', 'error'); return; }
+
+    const fromName = fromSel.options[fromSel.selectedIndex].text;
+    const toName   = toSel.options[toSel.selectedIndex].text;
+
+    if (!confirm(
+      `Transfer ${studentIds.length} student(s) from "${fromName}" to "${toName}"?\n\n` +
+      `Their section and subjects will move to "${toName}". ` +
+      `All existing grades and attendance from "${fromName}" stay exactly as they are — this only changes what they're currently enrolled in.`
+    )) return;
+
+    try {
+      const result = await api.transferStudents({ studentIds, fromSectionId: fromId, toSectionId: toId });
+      Toast.show(
+        `✅ Transferred ${result.students_selected} student(s) to "${toName}" ` +
+        `(${result.subjects_added} subject enrollment(s) added).`,
+        'info'
+      );
+      // Refresh the roster so transferred students drop off the From-section list
+      this.onTransferFromSectionChange(fromId);
+    } catch (err) {
+      Toast.show(`❌ Transfer failed: ${err.message}`, 'error');
     }
   },
 

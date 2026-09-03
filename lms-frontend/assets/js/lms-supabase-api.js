@@ -232,6 +232,20 @@ class LMSAdminAPI {
     return result;
   }
 
+  // Promotes/transfers selected students from one section to another —
+  // moves their current section + subject enrollment forward, preserves
+  // every historical grade/attendance record from the old section as-is.
+  async transferStudents({ studentIds, fromSectionId, toSectionId }) {
+    const { data, error } = await this.sb.rpc('transfer_students_to_section', {
+      p_student_ids: studentIds,
+      p_from_section_id: fromSectionId,
+      p_to_section_id: toSectionId,
+    });
+    if (error) throw new Error(error.message);
+    this.clearCache('sections');
+    return data;
+  }
+
   // FIX: also fetch class_assignments so the edit teacher modal works
   async getTeacherByUserId(userId) {
     const teacher = this._throwIfError(

@@ -213,12 +213,14 @@ const AdminView = {
           <button class="um-tab" data-tab="teachers">👩‍🏫 Teachers (<span id="tab-teachers-count">0</span>)</button>
           <button class="um-tab" data-tab="students">🎓 Students (<span id="tab-students-count">0</span>)</button>
           <button class="um-tab" data-tab="sections">🏫 Sections (<span id="tab-sections-count">0</span>)</button>
+          <button class="um-tab" data-tab="transfer">🔁 Transfer</button>
           <button class="um-tab" data-tab="audit">📋 Audit Log</button>
         </div>
         <div id="um-pane-all"></div>
         <div id="um-pane-teachers" style="display:none"></div>
         <div id="um-pane-students" style="display:none"></div>
         <div id="um-pane-sections" style="display:none"></div>
+        <div id="um-pane-transfer" style="display:none"></div>
         <div id="um-pane-audit" style="display:none"></div>
       </div>`;
   },
@@ -286,30 +288,20 @@ const AdminView = {
     let assignmentsHtml = '';
     let schRows = '';
     if (t.class_assignments && t.class_assignments.length) {
-      assignmentsHtml = t.class_assignments.map(a => {
-        const sectionLabel = a.section ? a.section.name : (a.class_?.name || '—');
-        const gradeLabel   = a.class_?.grade_level ? ` (${escHtml(a.class_.grade_level)})` : '';
-        const classSub     = (a.section && a.class_ && a.section.name !== a.class_.name)
-          ? `<div class="assignment-parent-class" style="font-size:11px;color:var(--gray-400)">${escHtml(a.class_.name)}</div>` : '';
-        return `
+      assignmentsHtml = t.class_assignments.map(a => `
         <div class="assignment-item">
           <div class="assignment-subject">📘 ${escHtml(a.subject.name)}</div>
-          <div class="assignment-class">🏫 ${escHtml(sectionLabel)}${gradeLabel}</div>
-          ${classSub}
+          <div class="assignment-class">🏫 ${escHtml(a.class_.name)} (${escHtml(a.class_.grade_level || '')})</div>
           <div class="assignment-schedule">⏰ ${a.schedule || 'No schedule'}</div>
         </div>
-      `;
-      }).join('');
-      schRows = t.class_assignments.map(a => {
-        const sectionLabel = a.section ? a.section.name : (a.class_?.name || '—');
-        return `
+      `).join('');
+      schRows = t.class_assignments.map(a => `
         <div class="sch-row">
           <span class="sch-info" style="font-size:12px">
-            <strong>${escHtml(a.subject.name)}</strong> · ${escHtml(sectionLabel)} · ${escHtml(a.schedule || 'No schedule')}
+            <strong>${escHtml(a.subject.name)}</strong> · ${escHtml(a.class_.name)} · ${escHtml(a.schedule || 'No schedule')}
           </span>
         </div>
-      `;
-      }).join('');
+      `).join('');
     } else {
       assignmentsHtml = '<div class="text-muted">No subjects assigned</div>';
       schRows = '<div class="text-muted">No schedule</div>';
@@ -423,6 +415,74 @@ const AdminView = {
           </table>
         </div>
       </div>`;
+  },
+
+  /* ── Transfer / Promote Students pane ──
+     Moves finished students from one section to the next (e.g. ICT1101 ->
+     ICT1201). Grades/attendance history stays with the old section —
+     only current section + subject enrollment moves. Whole-section by
+     default (all checked), but every student can be individually
+     unchecked, since not everyone moves up at the same time. */
+  _transferPane(sections) {
+    if (!sections || !sections.length) {
+      return '<div class="empty-state"><div class="empty-state-icon">🔁</div><div class="empty-state-title">No sections yet</div><div class="empty-state-sub">Create sections first under the Sections tab.</div></div>';
+    }
+    const sectionOpts = sections.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+    return `
+      <div class="card" style="padding:20px;max-width:720px">
+        <h3 style="margin:0 0 6px;color:var(--maroon-dark)">🔁 Transfer / Promote Students</h3>
+        <p style="margin:0 0 18px;font-size:13px;color:var(--gray-400)">
+          Move students from one section to the next at the end of a school year.
+          Their grades and attendance stay exactly as they were — only their current
+          section and subjects move forward. Not everyone has to move: uncheck
+          anyone who's repeating or staying behind before transferring.
+        </p>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">From Section *</label>
+            <select id="transfer-from-section" class="form-control" onchange="AdminController.onTransferFromSectionChange(this.value)">
+              <option value="">— Select Section —</option>
+              ${sectionOpts}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">To Section *</label>
+            <select id="transfer-to-section" class="form-control">
+              <option value="">— Select Section —</option>
+              ${sectionOpts}
+            </select>
+          </div>
+        </div>
+        <div id="transfer-roster-wrap" style="margin-top:16px"></div>
+      </div>`;
+  },
+
+  /* ── Transfer pane: student roster checklist for the chosen From section ── */
+  _transferRoster(students) {
+    if (!students.length) {
+      return '<div class="empty-state" style="padding:24px"><div class="empty-state-title">No students in this section</div></div>';
+    }
+    const rows = students.map(s => `
+      <tr>
+        <td style="width:36px"><input type="checkbox" class="transfer-student-cb" value="${s.id}" checked onchange="AdminController._updateTransferCount()"></td>
+        <td>${escHtml((s.user?.first_name || '') + ' ' + (s.user?.last_name || ''))}</td>
+        <td class="text-sm text-muted">${escHtml(s.student_number || '—')}</td>
+      </tr>`).join('');
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="transfer-select-all" checked onchange="AdminController._toggleAllTransferStudents(this.checked)">
+          Select all (${students.length})
+        </label>
+        <span id="transfer-selected-count" style="font-size:12px;color:var(--gray-400)">${students.length} selected</span>
+      </div>
+      <div class="card table-card" style="max-height:340px;overflow-y:auto">
+        <table class="data-table">
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <button class="btn btn-primary" style="margin-top:14px" onclick="AdminController.confirmTransfer()">🔁 Transfer Selected Students</button>
+    `;
   },
 
   /* ── Audit Log pane ──
