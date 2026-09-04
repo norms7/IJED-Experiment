@@ -8,6 +8,23 @@
 const App = {
   sidebarCollapsed: false,
 
+    initLandingNav() {
+      const nav = document.querySelector('.landing-nav');
+      if (!nav) return;
+
+      const syncSurface = () => {
+        const rect = nav.getBoundingClientRect();
+        const element = document.elementFromPoint(window.innerWidth / 2, rect.bottom + 8);
+        const section = element && element.closest('section, footer');
+        const isLight = section && (section.classList.contains('features') || section.classList.contains('about-section'));
+        nav.dataset.surface = isLight ? 'light' : 'dark';
+      };
+
+      syncSurface();
+      window.addEventListener('scroll', syncSurface, { passive: true });
+      window.addEventListener('resize', syncSurface);
+    },
+
   /** Switch between landing, login, and app pages */
   showPage(page) {
     document.getElementById('page-landing').classList.toggle('hidden', page !== 'landing');

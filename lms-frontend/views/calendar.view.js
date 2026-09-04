@@ -6,6 +6,13 @@
 
 "use strict";
 
+const CALENDAR_ICONS = {
+  calendar: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c.7-3.5 3-5.2 7-5.2s6.3 1.7 7 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  tag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5v6l9 9 7-7-9-9H4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="9" r="1" fill="currentColor"/></svg>',
+};
+
 const CalendarView = {
   render(user) {
     const roleLabel  = { admin: 'Administrator', teacher: 'Teacher', student: 'Student' }[user.role] || user.role;
@@ -35,7 +42,7 @@ const CalendarView = {
       <div class="cal-page">
           <div class="cal-left" style="min-width:0">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:${rc.bg};border-radius:10px;padding:10px 14px">
-            <span style="font-size:22px">${user.role === 'admin' ? '🧑‍💼' : user.role === 'teacher' ? '👩‍🏫' : '🎓'}</span>
+            <span class="calendar-role-icon">${CALENDAR_ICONS.user}</span>
             <div>
               <div style="font-weight:700;font-size:14px;color:${rc.color}">${escHtml(user.name)}</div>
               <div style="font-size:12px;color:${rc.color};opacity:.8;text-transform:capitalize">${roleLabel} Calendar</div>
@@ -61,12 +68,12 @@ const CalendarView = {
           </div>
 
           <div class="card" style="margin-bottom:14px">
-            <div class="card-header"><div class="card-title">⏰ Upcoming</div></div>
+            <div class="card-header"><div class="card-title calendar-card-title"><span>${CALENDAR_ICONS.clock}</span> Upcoming</div></div>
             <div id="cal-upcoming-list" style="padding:10px 14px;display:flex;flex-direction:column;gap:8px"></div>
           </div>
 
           <div class="card">
-            <div class="card-header"><div class="card-title">🏷 Event Types</div></div>
+            <div class="card-header"><div class="card-title calendar-card-title"><span>${CALENDAR_ICONS.tag}</span> Event Types</div></div>
             <div style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px">${eventTypeLegend}</div>
           </div>
         </div>
@@ -75,7 +82,7 @@ const CalendarView = {
           <div class="card" style="min-height:280px">
             <div id="cal-day-panel" style="padding:20px;overflow-y:auto;max-height:75vh">
               <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--gray-400);text-align:center;gap:10px">
-                <div style="font-size:36px;opacity:.4">&#128197;</div>
+                <div class="calendar-empty-icon">${CALENDAR_ICONS.calendar}</div>
                 <div style="font-size:14px;font-weight:600;color:var(--gray-600)">Select a day</div>
                 <div style="font-size:12px">Tap any date on the calendar to see events</div>
               </div>

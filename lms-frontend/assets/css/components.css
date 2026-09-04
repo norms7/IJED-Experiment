@@ -54,6 +54,12 @@
 .btn-ghost:hover { background: var(--gray-100); }
 .btn-sm  { padding: 5px 12px; font-size: 13px; }
 .btn-xs  { padding: 3px 8px; font-size: 12px; border-radius: 4px; }
+.activity-view-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
 .btn-icon {
   padding: 7px;
   border-radius: var(--radius-sm);
@@ -279,12 +285,21 @@ tbody tr:last-child td { border-bottom: none; }
 .stat-icon {
   width: 44px;
   height: 44px;
-  border-radius: var(--radius);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
   flex-shrink: 0;
+  color: var(--maroon);
+  box-shadow: inset 0 0 0 1px rgba(139, 26, 46, 0.08);
+}
+.stat-icon svg {
+  width: 19px;
+  height: 19px;
+  display: block;
+  color: currentColor;
+  stroke: currentColor;
 }
 .stat-value { font-size: clamp(18px, 5vw, 26px); font-weight: 700; color: var(--maroon); line-height: 1.1; }
 .stat-label { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
@@ -406,7 +421,80 @@ tbody tr:last-child td { border-bottom: none; }
   min-width: 0;
   background: transparent;
 }
-.search-box span { color: var(--gray-400); font-size: 16px; }
+.search-box span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  color: var(--gray-400);
+  font-size: 16px;
+}
+.search-box span svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+}
+.grades-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.grades-heading-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  color: var(--maroon);
+}
+.grades-heading-icon svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+.attendance-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.attendance-heading-icon,
+.attendance-class span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.attendance-heading-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  color: var(--maroon);
+}
+.attendance-heading-icon svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+.attendance-class {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--gray-500, #888);
+}
+.attendance-class span {
+  width: 14px;
+  height: 14px;
+  color: var(--maroon);
+}
+.attendance-class span svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
 
 /* ── Subject List ──────────────────────────────────────────── */
 .subject-list     { display: flex; flex-direction: column; gap: 12px; }
@@ -430,6 +518,12 @@ tbody tr:last-child td { border-bottom: none; }
 /* ── Empty State ───────────────────────────────────────────── */
 .empty-state       { text-align: center; padding: 60px 20px; }
 .empty-state-icon  { font-size: 52px; margin-bottom: 14px; opacity: .5; }
+.empty-state-icon svg {
+  display: block;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+}
 .empty-state-title { font-size: 16px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
 .empty-state-desc  { font-size: 14px; color: var(--gray-400); margin-bottom: 20px; }
 
@@ -513,7 +607,22 @@ tbody tr:last-child td { border-bottom: none; }
   min-width: 0;
 }
 .welcome-sub   { font-size: clamp(12px, 2.5vw, 14px); color: rgba(255,255,255,.72); word-break: break-word; overflow-wrap: break-word; }
-.welcome-emoji { font-size: clamp(32px, 8vw, 52px); position: relative; z-index: 1; flex-shrink: 0; }
+.welcome-emoji {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.welcome-emoji svg {
+  width: clamp(34px, 7vw, 54px);
+  height: clamp(34px, 7vw, 54px);
+  display: block;
+  color: currentColor;
+  stroke: currentColor;
+}
 
 /* ── Section Header ────────────────────────────────────────── */
 .section-header {
@@ -548,6 +657,30 @@ tbody tr:last-child td { border-bottom: none; }
   .cal-day-num { font-size: 11px; }
 }
 .cal-right { min-height: 520px; }
+.calendar-role-icon,
+.calendar-card-title span,
+.calendar-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.calendar-role-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  color: var(--maroon);
+}
+.calendar-role-icon svg { width: 22px; height: 22px; }
+.calendar-card-title { display: flex; align-items: center; gap: 6px; }
+.calendar-card-title span { width: 16px; height: 16px; color: var(--maroon); }
+.calendar-card-title svg { width: 16px; height: 16px; }
+.calendar-empty-icon {
+  width: 36px;
+  height: 36px;
+  color: var(--maroon);
+  opacity: .55;
+}
+.calendar-empty-icon svg { display: block; width: 36px; height: 36px; }
 
 /* Nav bar */
 .cal-nav {
@@ -1032,6 +1165,54 @@ body.dark-mode .activity-table tbody tr { border-bottom-color: #3a1a20; }
 body.dark-mode .activity-table tbody tr:hover { background: #2a1015; }
 
 /* ── Student Subject Accordion Cards ───────────────────────────────── */
+.semester-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.semester-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 7px 16px;
+  border: 1px solid var(--maroon-mid);
+  border-radius: 20px;
+  background: var(--white);
+  color: var(--maroon);
+  font-size: 13px;
+  font-weight: 700;
+  transition: background var(--transition), color var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+.semester-tab:hover,
+.semester-tab.active {
+  background: var(--maroon);
+  border-color: var(--maroon);
+  color: var(--white);
+  box-shadow: 0 3px 10px rgba(109, 0, 25, .16);
+}
+.semester-tab.active { background: var(--maroon); border-color: var(--maroon); color: var(--white); }
+.semester-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+.semester-tab-icon svg,
+.subject-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.semester-tabs-label {
+  margin-left: 2px;
+  color: var(--gray-400);
+  font-size: 12px;
+}
 .student-subject-card {
   background: var(--white);
   border-radius: var(--radius);
@@ -1055,6 +1236,20 @@ body.dark-mode .activity-table tbody tr:hover { background: #2a1015; }
   padding: 14px 18px;
   user-select: none;
 }
+.subject-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--subject-color) 35%, white);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--subject-color) 12%, white);
+  color: var(--subject-color);
+}
+.subject-icon svg { stroke: currentColor; }
 .subject-accordion-body {
   transition: max-height 0.3s ease;
 }
@@ -1093,6 +1288,11 @@ body.dark-mode .activity-table tbody tr:hover { background: #2a1015; }
   letter-spacing: .6px;
   margin: 8px 0 4px;
 }
+.acc-section-label svg {
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
+}
 .accordion-content-item {
   display: flex;
   align-items: center;
@@ -1105,6 +1305,11 @@ body.dark-mode .activity-table tbody tr:hover { background: #2a1015; }
 }
 .accordion-content-item:hover { background: var(--rose-tint, #fff0f3); }
 .acc-item-icon { font-size: 15px; flex-shrink: 0; }
+.acc-item-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
 .acc-item-label {
   flex: 1;
   font-size: 13px;
@@ -1128,11 +1333,20 @@ body.dark-mode .activity-table tbody tr:hover { background: #2a1015; }
   color: var(--gray-400);
   font-size: 13px;
 }
+.subject-accordion-empty svg {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
 
 /* Dark mode */
 body.dark-mode .student-subject-card { background: #1e1013; border-color: #3a1a20; }
 body.dark-mode .student-subject-card:hover { border-color: #c0384e; }
 body.dark-mode .student-subject-card.accordion-open { border-color: var(--rose-mid); }
+body.dark-mode .semester-tab { background: #2a1a1f; border-color: #a65b6b; color: #f5c6ce; }
+body.dark-mode .semester-tab:hover { background: #4a0011; border-color: #c0384e; color: #fff; }
+body.dark-mode .semester-tab.active { background: var(--maroon-light); border-color: var(--maroon-light); color: #fff; }
+body.dark-mode .subject-icon { background: color-mix(in srgb, var(--subject-color) 22%, #241519); border-color: color-mix(in srgb, var(--subject-color) 55%, #4a2d33); }
 body.dark-mode .subject-accordion-inner { border-top-color: #3a1a20; }
 body.dark-mode .accordion-content-item { background: #2a1015; }
 body.dark-mode .accordion-content-item:hover { background: #3a1a20; }
@@ -1416,6 +1630,42 @@ body.dark-mode [style*="background: var(--gray-50)"] strong {
 body.dark-mode .stat-card[style] { background: #1e1013 !important; border-color: #3a1a20 !important; }
 
 /* ── Activity answer sheet / result page ── */
+.activity-result-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 8px;
+  color: var(--maroon);
+}
+.activity-result-icon svg {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+.activity-result-remarks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #666;
+}
+.activity-result-remarks span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+.activity-result-remarks svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
 body.dark-mode .activity-result-card { background: #1e1013 !important; border-color: #3a1a20 !important; }
 body.dark-mode .question-block { background: #1e1013 !important; border-color: #3a1a20 !important; }
 
@@ -1622,6 +1872,7 @@ img, video, iframe { max-width: 100%; height: auto; }
 
   /* Empty state */
   .empty-state-icon  { font-size: 36px; }
+  .empty-state-icon svg { width: 36px; height: 36px; }
   .empty-state-title { font-size: 14px; }
 }
 
@@ -1683,6 +1934,7 @@ img, video, iframe { max-width: 100%; height: auto; }
   /* Empty state tighter */
   .empty-state { padding: 24px 12px; }
   .empty-state-icon { font-size: 28px; }
+  .empty-state-icon svg { width: 28px; height: 28px; }
 }
 
 /* ── Tablet 768–1024px ───────────────────────────────────────── */

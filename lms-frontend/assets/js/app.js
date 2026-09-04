@@ -7,4 +7,5 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   App.init();
+    App.initLandingNav();
 });

@@ -6,6 +6,33 @@
 
 "use strict";
 
+const DASHBOARD_ICONS = {
+  graduation: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9.5 12 5l8.5 4.5L12 14 3.5 9.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 11.6v3.1c0 1.6 2.1 3.1 4.5 3.1s4.5-1.5 4.5-3.1v-3.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 10v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.8A2.8 2.8 0 0 1 7.8 4H19v13.2A2.8 2.8 0 0 0 16.2 14H7.8A2.8 2.8 0 0 0 5 16.8V6.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 6.8V18a2 2 0 0 0 2 2h11.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 8h6M9 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  bookOpen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H20v13.5A2.5 2.5 0 0 0 17.5 16H6.5A2.5 2.5 0 0 0 4 18.5v-11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7.5V18.5A2.5 2.5 0 0 1 1.5 16V6.5A2.5 2.5 0 0 1 4 4h2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8.5h7M8 12h7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  fileText: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l5 5v11A2.5 2.5 0 0 1 16.5 22h-9A2.5 2.5 0 0 1 5 19.5v-13A2.5 2.5 0 0 1 7.5 4H7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 3.5V9h5M8.5 13h6M8.5 16.5h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  clipboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 3.5v3M15 3.5v3M8 10.5h8M8 14h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 15V9M12 15V5M17 15v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v2a5 5 0 0 1-10 0V4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 4H5a2 2 0 0 0-2 2v1a4 4 0 0 0 4 4M17 4h2a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 11v3M9 20h6M10 17h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  subject: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H18a2 2 0 0 1 2 2v11.5A2.5 2.5 0 0 1 17.5 19H7.5A2.5 2.5 0 0 1 5 16.5v-11Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 7.5h8M8 11.5h8M8 15.5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  note: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h8l4 4V18a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 4.5V9h4M8 13h8M8 16.5h8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  openBook: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H20v11A2.5 2.5 0 0 0 17.5 14H6.5A2.5 2.5 0 0 0 4 16.5v-8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 8.5V18A2.5 2.5 0 0 1 1.5 15.5v-7A2.5 2.5 0 0 1 4 6h2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  calculator: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h2M12 12h2M16 12h0M8 16h2M12 16h2M16 16h0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  beaker: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.5h6M10 3.5v5l-4 7.5A3 3 0 0 0 9.2 20h5.6a3 3 0 0 0 3.2-3.5L15 8.5v-5M7 11.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  palette: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5c0-3.4-2.5-5.5-5.8-5.5H12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="9" r="1.1" fill="currentColor"/><circle cx="12.5" cy="7.5" r="1.1" fill="currentColor"/><circle cx="15.5" cy="10.8" r="1.1" fill="currentColor"/><path d="M9 15.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  map: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4.5 3.5 6.5v13L9 15.5l6 4 5.5-2v-13L15 8.5l-6-4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 4.5v11M15 8.5v11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  wrench: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.8 5.3a5 5 0 0 0-7.1 7.1l.5.5-4.2 4.2 1.4 1.4 4.2-4.2.5.5a5 5 0 0 0 7.1-7.1l-2.3 2.3a2.5 2.5 0 0 1-3.5 0 2.5 2.5 0 0 1 0-3.5l2.3-2.3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  sparkles: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Zm6.5 10 1 3.1 3.1 1-3.1 1-1 3.1-1-3.1-3.1-1 3.1-1 1-3.1ZM5.5 14l.8 2.7 2.7.8-2.7.8-.8 2.7-.8-2.7-2.7-.8 2.7-.8.8-2.7Z" fill="currentColor"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 12h17M12 3.5c2.5 2.4 3.8 5.4 3.8 8.5S14.5 18.1 12 20.5c-2.5-2.4-3.8-5.4-3.8-8.5S9.5 5.9 12 3.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  eye: '<svg class="activity-view-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12s3.2-5 8.5-5 8.5 5 8.5 5-3.2 5-8.5 5-8.5-5-8.5-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5v4.5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  attachment: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 12.5 15 7a3.5 3.5 0 1 1 5 5l-7.8 7.8a5 5 0 1 1-7.1-7.1l8.5-8.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  xmark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+};
+
 const StudentView = {
 
   /**
@@ -34,25 +61,27 @@ const StudentView = {
 
     /* ── Subject list ──────────────────────────────────────────────────── */
     const NAMED = {
-      'Mathematics':        { color: '#8b1a2e', icon: '➕' },
-      'Science':            { color: '#2e6b3e', icon: '🔬' },
-      'English':            { color: '#1a4a8a', icon: '📖' },
-      'Filipino':           { color: '#c04a00', icon: '🇵🇭' },
-      'MAPEH':              { color: '#6a0dad', icon: '🎨' },
-      'Araling Panlipunan': { color: '#0d6e8a', icon: '🌐' },
-      'TLE':                { color: '#7a5500', icon: '🔧' },
+      'Mathematics':        { color: '#8b1a2e', icon: DASHBOARD_ICONS.calculator },
+      'Science':            { color: '#2e6b3e', icon: DASHBOARD_ICONS.beaker },
+      'English':            { color: '#1a4a8a', icon: DASHBOARD_ICONS.bookOpen },
+      'Filipino':           { color: '#c04a00', icon: DASHBOARD_ICONS.globe },
+      'MAPEH':              { color: '#6a0dad', icon: DASHBOARD_ICONS.palette },
+      'Araling Panlipunan': { color: '#0d6e8a', icon: DASHBOARD_ICONS.map },
+      'TLE':                { color: '#7a5500', icon: DASHBOARD_ICONS.wrench },
     };
     const subjectHTML = subjects.length
       ? subjects.map((s, i) => {
-          const info = NAMED[s.subject_name] || { color: '#555', icon: '📚' };
+          const info = NAMED[s.subject_name] || { color: '#555', icon: DASHBOARD_ICONS.book };
           return `
-            <div class="db-subject-item" style="display:flex;align-items:center;gap:12px;padding:9px 10px;margin:4px 0;border-radius:10px;border-left:3px solid ${info.color};background:linear-gradient(90deg,${info.color}12 0%,transparent 80%);transition:background .18s;">
-              <div style="width:36px;height:36px;border-radius:9px;background:${info.color};display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;box-shadow:0 2px 6px ${info.color}44">${info.icon}</div>
+            <div class="db-subject-item" style="display:flex;align-items:center;gap:12px;padding:9px 10px;margin:4px 0;border-radius:10px;border-left:3px solid #22c55e;background:linear-gradient(90deg,rgba(34,197,94,0.10) 0%,transparent 80%);transition:background .18s;">
+              <div style="width:36px;height:36px;border-radius:9px;background:#e6f4ea;border:1px solid #22c55e;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.35);color:${info.color};">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;">${info.icon}</span>
+              </div>
               <div style="flex:1;min-width:0">
                 <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a1a2e">${escHtml(s.subject_name)}</div>
                 <div style="font-size:11px;color:var(--gray-400);margin-top:1px">${escHtml(s.class_name || '—')}</div>
               </div>
-              <span style="font-size:16px;color:${info.color};opacity:.45;flex-shrink:0">›</span>
+              <span style="font-size:16px;color:#9aa5b1;opacity:.7;flex-shrink:0">›</span>
             </div>`;
         }).join('')
       : `<p class="text-muted text-sm" style="padding:12px 0">No subjects enrolled yet</p>`;
@@ -92,17 +121,17 @@ const StudentView = {
     return `
       <div class="welcome-banner">
         <div class="welcome-text">
-          <div class="welcome-title">Hi, ${firstName}! 🎓</div>
+          <div class="welcome-title">Hi, ${firstName}!</div>
           <div class="welcome-sub">Keep learning — every step forward counts!</div>
         </div>
-        <div class="welcome-emoji">📖</div>
+        <div class="welcome-emoji">${DASHBOARD_ICONS.graduation}</div>
       </div>
 
       <div class="stat-grid mb-4">
 
         <!-- Enrolled Subjects -->
         <div class="stat-card">
-          <div class="stat-icon" style="background:#fde8ec">📚</div>
+          <div class="stat-icon" style="background:rgba(139,26,46,0.08);">${DASHBOARD_ICONS.bookOpen}</div>
           <div>
             <div class="stat-value">${enrolledVal}</div>
             <div class="stat-label">Enrolled Subjects</div>
@@ -112,7 +141,7 @@ const StudentView = {
         <!-- Modules progress -->
         <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:8px">
           <div style="display:flex;align-items:center;gap:12px;width:100%">
-            <div class="stat-icon" style="background:#e6f4ea;flex-shrink:0">📄</div>
+            <div class="stat-icon" style="background:rgba(34,197,94,0.10);flex-shrink:0; color:#1f8f4e;">${DASHBOARD_ICONS.fileText}</div>
             <div style="flex:1">
               <div class="stat-value">${modulesVal}</div>
               <div class="stat-label">Modules Read</div>
@@ -126,7 +155,7 @@ const StudentView = {
         <!-- Activities progress -->
         <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:8px">
           <div style="display:flex;align-items:center;gap:12px;width:100%">
-            <div class="stat-icon" style="background:#fff0e6;flex-shrink:0">📋</div>
+            <div class="stat-icon" style="background:rgba(245,158,11,0.12);flex-shrink:0; color:#b86b00;">${DASHBOARD_ICONS.clipboard}</div>
             <div style="flex:1">
               <div class="stat-value">${activitiesVal}</div>
               <div class="stat-label">Activities Done</div>
@@ -139,7 +168,7 @@ const StudentView = {
 
         <!-- Average score -->
         <div class="stat-card">
-          <div class="stat-icon" style="background:#e8f0fa">📊</div>
+          <div class="stat-icon" style="background:rgba(59,130,246,0.10); color:#1d4ed8;">${DASHBOARD_ICONS.chart}</div>
           <div>
             <div class="stat-value" style="color:${avgColor}">${avgVal}</div>
             <div class="stat-label">Average Score</div>
@@ -152,7 +181,7 @@ const StudentView = {
         <div class="card">
           <div class="card-header" style="border-bottom:1px solid var(--gray-100);padding-bottom:10px">
             <span class="card-title" style="display:flex;align-items:center;gap:7px">
-              <span style="font-size:16px">📚</span> My Subjects
+              <span style="font-size:16px;display:inline-flex;align-items:center;justify-content:center;color:inherit">${DASHBOARD_ICONS.subject}</span> My Subjects
               ${subjects.length ? `<span style="font-size:11px;font-weight:500;color:var(--gray-400);margin-left:2px">${subjects.length} enrolled</span>` : ''}
             </span>
           </div>
@@ -161,7 +190,7 @@ const StudentView = {
         <div class="card">
           <div class="card-header" style="border-bottom:1px solid var(--gray-100);padding-bottom:10px">
             <span class="card-title" style="display:flex;align-items:center;gap:7px">
-              <span style="font-size:16px">🏆</span> Recent Grades
+              <span style="font-size:16px;display:inline-flex;align-items:center;justify-content:center;color:inherit">${DASHBOARD_ICONS.trophy}</span> Recent Grades
               ${recentGrades.length ? `<span style="font-size:11px;font-weight:500;color:var(--gray-400);margin-left:2px">${Math.min(recentGrades.length,6)} latest</span>` : ''}
             </span>
           </div>
@@ -175,50 +204,44 @@ const StudentView = {
       return `
         <div class="section-header">
           <div class="section-header-left"><h2>My Subjects</h2><p>All enrolled subjects this term</p></div>
-          <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
+          <div class="search-box"><span>${DASHBOARD_ICONS.search}</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
         </div>
         <div class="subject-list" id="student-subjects-list">
-          <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading subjects…</div></div>
+          <div class="empty-state"><div class="empty-state-icon">${DASHBOARD_ICONS.clock}</div><div class="empty-state-title">Loading subjects…</div></div>
         </div>`;
     }
 
     const sem = currentSem || 1;
 
     const semesterTabs = `
-      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+      <div class="semester-tabs">
         <button onclick="DashboardController.loadSection('my-subjects',{semester:1})"
-          style="padding:7px 20px;border-radius:20px;border:2px solid var(--maroon,#7b1c1c);
-                 background:${sem===1?'var(--maroon,#7b1c1c)':'transparent'};
-                 color:${sem===1?'#fff':'var(--maroon,#7b1c1c)'};
-                 font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;">
-          📘 1st Semester
+          class="semester-tab${sem === 1 ? ' active' : ''}">
+          <span class="semester-tab-icon">${DASHBOARD_ICONS.bookOpen}</span><span>1st Semester</span>
         </button>
         <button onclick="DashboardController.loadSection('my-subjects',{semester:2})"
-          style="padding:7px 20px;border-radius:20px;border:2px solid var(--maroon,#7b1c1c);
-                 background:${sem===2?'var(--maroon,#7b1c1c)':'transparent'};
-                 color:${sem===2?'#fff':'var(--maroon,#7b1c1c)'};
-                 font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;">
-          📗 2nd Semester
+          class="semester-tab${sem === 2 ? ' active' : ''}">
+          <span class="semester-tab-icon">${DASHBOARD_ICONS.subject}</span><span>2nd Semester</span>
         </button>
-        <span style="align-self:center;font-size:12px;color:#9ca3af;margin-left:4px;">
+        <span class="semester-tabs-label">
           ${sem===1?'1st':'2nd'} Semester subjects
         </span>
       </div>`;
 
     const PALETTE = [
-      { color: '#8b1a2e', icon: '➕' }, { color: '#2e6b3e', icon: '🔬' },
-      { color: '#1a4a8a', icon: '📖' }, { color: '#c04a00', icon: '🇵🇭' },
-      { color: '#6a0dad', icon: '🎨' }, { color: '#0d6e8a', icon: '🌐' },
-      { color: '#7a5500', icon: '📐' }, { color: '#3d3d3d', icon: '📚' },
+      { color: '#7b1830', icon: DASHBOARD_ICONS.calculator }, { color: '#9a6a12', icon: DASHBOARD_ICONS.beaker },
+      { color: '#8d4355', icon: DASHBOARD_ICONS.bookOpen }, { color: '#b16a32', icon: DASHBOARD_ICONS.globe },
+      { color: '#76506a', icon: DASHBOARD_ICONS.palette }, { color: '#39717a', icon: DASHBOARD_ICONS.map },
+      { color: '#8a621c', icon: DASHBOARD_ICONS.sparkles }, { color: '#6b5558', icon: DASHBOARD_ICONS.book } ,
     ];
     const NAMED = {
-      'Mathematics':        { color: '#8b1a2e', icon: '➕' },
-      'Science':            { color: '#2e6b3e', icon: '🔬' },
-      'English':            { color: '#1a4a8a', icon: '📖' },
-      'Filipino':           { color: '#c04a00', icon: '🇵🇭' },
-      'MAPEH':              { color: '#6a0dad', icon: '🎨' },
-      'Araling Panlipunan': { color: '#0d6e8a', icon: '🌐' },
-      'TLE':                { color: '#7a5500', icon: '🔧' },
+      'Mathematics':        { color: '#7b1830', icon: DASHBOARD_ICONS.calculator },
+      'Science':            { color: '#9a6a12', icon: DASHBOARD_ICONS.beaker },
+      'English':            { color: '#8d4355', icon: DASHBOARD_ICONS.bookOpen },
+      'Filipino':           { color: '#b16a32', icon: DASHBOARD_ICONS.globe },
+      'MAPEH':              { color: '#76506a', icon: DASHBOARD_ICONS.palette },
+      'Araling Panlipunan': { color: '#39717a', icon: DASHBOARD_ICONS.map },
+      'TLE':                { color: '#8a621c', icon: DASHBOARD_ICONS.wrench },
     };
     const TERM_ORDER  = ['1st Term', '2nd Term', '3rd Term', '4th Term'];
     const TERM_LABELS = { '1st': '1st Term', '2nd': '2nd Term', '3rd': '3rd Term', '4th': '4th Term' };
@@ -231,7 +254,7 @@ const StudentView = {
         </div>
         ${semesterTabs}
         <div class="empty-state" style="margin-top:40px">
-          <div class="empty-state-icon">📭</div>
+          <div class="empty-state-icon">${DASHBOARD_ICONS.book}</div>
           <div class="empty-state-title">No Subjects for ${sem === 1 ? '1st' : '2nd'} Semester</div>
           <div class="empty-state-desc">You have no enrolled subjects for this semester. Try switching semesters above, or contact your admin.</div>
         </div>`;
@@ -266,7 +289,7 @@ const StudentView = {
 
       if (!allTerms.length) {
         return `<div class="subject-accordion-empty">
-          <span style="font-size:28px;opacity:.4">📭</span>
+          <span style="font-size:28px;opacity:.4;display:inline-flex;align-items:center;justify-content:center">${DASHBOARD_ICONS.book}</span>
           <p>No modules or activities posted yet for this subject.</p>
         </div>`;
       }
@@ -281,10 +304,10 @@ const StudentView = {
           const hasFile = !!m.file_url;
           const resolvedUrl = m.file_url && m.file_url.startsWith('http') ? m.file_url : `${API_BASE}${m.file_url}`;
           return `<div class="accordion-content-item">
-            <span class="acc-item-icon">📄</span>
+            <span class="acc-item-icon">${DASHBOARD_ICONS.fileText}</span>
             <span class="acc-item-label">${escHtml(m.title)}${m.description ? '<span class="acc-item-desc">' + escHtml(m.description) + '</span>' : ''}</span>
             ${hasFile
-              ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">Open 📖</a>`
+              ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">Open</a>`
               : `<span class="btn btn-xs btn-outline" style="opacity:.45;cursor:default;pointer-events:none">No file</span>`}
           </div>`;
         }).join('');
@@ -297,7 +320,7 @@ const StudentView = {
             ? new Date(a.due_date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})
             : '';
           return `<div class="accordion-content-item">
-            <span class="acc-item-icon">📝</span>
+            <span class="acc-item-icon">${DASHBOARD_ICONS.note}</span>
             <span class="acc-item-label">${escHtml(a.title || a.activity_type)}
               <span class="acc-item-desc">${escHtml(typeLabel)}${dueStr ? ' · Due: ' + dueStr : ''}</span>
             </span>
@@ -310,8 +333,8 @@ const StudentView = {
             <span class="acc-term-badge">${escHtml(term)}</span>
             <span class="acc-term-counts">${modules.length} module${modules.length !== 1 ? 's' : ''} · ${activites.length} activit${activites.length !== 1 ? 'ies' : 'y'}</span>
           </div>
-          ${modules.length  ? '<div class="acc-section-label">📚 Modules</div>'    + moduleRows : ''}
-          ${activites.length ? '<div class="acc-section-label">📝 Activities</div>' + actRows    : ''}
+          ${modules.length  ? '<div class="acc-section-label">' + DASHBOARD_ICONS.fileText + ' Modules</div>'    + moduleRows : ''}
+          ${activites.length ? '<div class="acc-section-label">' + DASHBOARD_ICONS.note + ' Activities</div>' + actRows    : ''}
         </div>`;
       }).join('');
     }
@@ -337,7 +360,7 @@ const StudentView = {
       return `
         <div class="student-subject-card" data-searchable data-subject-id="${sid}">
           <div class="student-subject-card-header">
-            <div style="width:44px;height:44px;border-radius:10px;background:${style.color};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${style.icon}</div>
+            <div class="subject-icon" style="--subject-color:${style.color}">${style.icon}</div>
             <div class="subject-info" style="flex:1">
               <div class="subject-name">${escHtml(s.subject_name)}</div>
               <div class="subject-teacher">
@@ -370,7 +393,7 @@ const StudentView = {
           <h2>My Subjects</h2>
           <p>${apiSubjects.length} subject${apiSubjects.length !== 1 ? 's' : ''} · ${sem === 1 ? '1st' : '2nd'} Semester · click to expand</p>
         </div>
-        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
+        <div class="search-box"><span>${DASHBOARD_ICONS.search}</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
       </div>
       ${semesterTabs}
       <div class="subject-list" id="student-subjects-list">${cards}</div>`;
@@ -378,22 +401,22 @@ const StudentView = {
 
   modules(apiModules = null) {
     if (apiModules === null) {
-      return `<div class="section-header"><div class="section-header-left"><h2>Learning Modules</h2><p id="module-count">Loading…</p></div><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div></div><div class="module-grid" id="student-module-grid"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading modules…</div></div></div>`;
+      return `<div class="section-header"><div class="section-header-left"><h2>Learning Modules</h2><p id="module-count">Loading…</p></div><div class="search-box"><span>${DASHBOARD_ICONS.search}</span><input type="text" id="global-search" placeholder="Search modules…" /></div></div><div class="module-grid" id="student-module-grid"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading modules…</div></div></div>`;
     }
 
     const SUBJECT_STYLES = {
-      'Mathematics': { color: '#8b0020', icon: '➕' },
-      'Science':     { color: '#2e6b3e', icon: '🔬' },
-      'English':     { color: '#1a4a8a', icon: '📖' },
-      'Filipino':    { color: '#c04a00', icon: '🇵🇭' },
-      'MAPEH':       { color: '#6a0dad', icon: '🎨' },
+      'Mathematics': { color: '#8b0020', icon: DASHBOARD_ICONS.calculator },
+      'Science':     { color: '#2e6b3e', icon: DASHBOARD_ICONS.beaker },
+      'English':     { color: '#1a4a8a', icon: DASHBOARD_ICONS.openBook },
+      'Filipino':    { color: '#c04a00', icon: DASHBOARD_ICONS.globe },
+      'MAPEH':       { color: '#6a0dad', icon: DASHBOARD_ICONS.palette },
     };
     const API_BASE = 'https://ijed-hcj-1.onrender.com';
 
     const cards = apiModules.map(m => {
-      const style     = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: '📚' };
+      const style     = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: DASHBOARD_ICONS.book };
       const termLabel = m.term ? `${m.term} Term` : '';
-      const meta      = [termLabel, m.file_name ? `📎 ${escHtml(m.file_name)}` : ''].filter(Boolean).join(' · ');
+      const meta      = [termLabel, m.file_name ? `${DASHBOARD_ICONS.attachment} ${escHtml(m.file_name)}` : ''].filter(Boolean).join(' · ');
       const hasFile   = !!m.file_url;
       const resolvedUrl = m.file_url && m.file_url.startsWith('http') ? m.file_url : `${API_BASE}${m.file_url}`;
       return `<div class="module-card" data-searchable>
@@ -405,17 +428,17 @@ const StudentView = {
         <div class="module-card-footer">
           <span class="module-card-meta">${meta || 'No attachment'}</span>
           ${hasFile
-            ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">Open 📖</a>`
+            ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">Open</a>`
             : `<span class="btn btn-xs btn-outline" style="opacity:.5;cursor:default">No file</span>`}
         </div>
       </div>`;
     }).join('');
 
-    const grid = cards || `<div class="empty-state"><div class="empty-state-icon">📚</div><div class="empty-state-title">No modules available</div><div class="empty-state-desc">Your teacher has not uploaded any modules yet.</div></div>`;
+    const grid = cards || `<div class="empty-state"><div class="empty-state-icon">${DASHBOARD_ICONS.book}</div><div class="empty-state-title">No modules available</div><div class="empty-state-desc">Your teacher has not uploaded any modules yet.</div></div>`;
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Learning Modules</h2><p id="module-count">${apiModules.length} module(s) available</p></div>
-        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div>
+        <div class="search-box"><span>${DASHBOARD_ICONS.search}</span><input type="text" id="global-search" placeholder="Search modules…" /></div>
       </div>
       <div class="module-grid" id="student-module-grid">${grid}</div>`;
   },
@@ -425,7 +448,7 @@ const StudentView = {
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">Loading…</p></div>
-        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
+        <div class="search-box"><span>${DASHBOARD_ICONS.search}</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
       </div>
       <div id="student-activity-list">
         <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading activities…</div></div>
@@ -496,17 +519,17 @@ const StudentView = {
       // even for already-submitted activities.
       const canAnswer = a.can_answer === true;
 
-      const typeIcon   = `<div style="width:32px;height:32px;background:var(--rose-tint);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📝</div>`;
+      const typeIcon   = `<div style="width:32px;height:32px;background:var(--rose-tint);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--maroon)">${DASHBOARD_ICONS.note}</div>`;
       const gradingTag = a.grading_mode === 'auto'
-        ? `<span class="badge badge-gold" style="font-size:10px">⚡ Auto</span>`
-        : `<span class="badge badge-gray" style="font-size:10px">✏️ Manual</span>`;
+        ? `<span class="badge badge-gold" style="font-size:10px;display:inline-flex;align-items:center;gap:5px">${DASHBOARD_ICONS.sparkles} Auto</span>`
+        : `<span class="badge badge-gray" style="font-size:10px;display:inline-flex;align-items:center;gap:5px">${DASHBOARD_ICONS.note} Manual</span>`;
 
       const _statusMap = {
-        graded:    ['badge-green',  '✅ Graded'],
-        submitted: ['badge-blue',   '📤 Submitted'],
-        past_due:  ['badge-danger', '⛔ Past Due'],
-        not_open:  ['badge-gray',   '🔒 Not Yet Open'],
-        open:      ['badge-maroon', '🟢 Open'],
+        graded:    ['badge-green',  `${DASHBOARD_ICONS.check} Graded`],
+        submitted: ['badge-blue',   `${DASHBOARD_ICONS.attachment} Submitted`],
+        past_due:  ['badge-danger', `${DASHBOARD_ICONS.xmark} Past Due`],
+        not_open:  ['badge-gray',   `${DASHBOARD_ICONS.clock} Not Yet Open`],
+        open:      ['badge-maroon', `${DASHBOARD_ICONS.check} Open`],
       };
       const [_sCls, _sLbl] = _statusMap[a.status] || ['badge-maroon', '🟢 Open'];
       const statusBadge = `<span class="badge ${_sCls}" style="font-size:10px">${_sLbl}</span>`;
@@ -591,11 +614,11 @@ const StudentView = {
       const hasRealSubmission = sub && (sub.submitted_at != null || sub.score != null || rawSub != null);
       if (hasRealSubmission) {
         // Already submitted — show View
-        actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-outline btn-xs" onclick="StudentController.viewResult(${a.id})">👁 View</button></td>`;
+        actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-outline btn-xs" onclick="StudentController.viewResult(${a.id})" style="display:inline-flex;align-items:center;gap:6px">${DASHBOARD_ICONS.eye} View</button></td>`;
       } else if (canAnswer) {
-        actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-primary btn-xs" onclick="StudentController.openActivity(${a.id})">✏️ Start</button></td>`;
+        actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-primary btn-xs" onclick="StudentController.openActivity(${a.id})" style="display:inline-flex;align-items:center;gap:6px">${DASHBOARD_ICONS.note} Start</button></td>`;
       } else if (isPastDue) {
-        actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-outline btn-xs" style="border-color:#c0392b;color:#c0392b" onclick="StudentController.openActivity(${a.id})">👁 View</button></td>`;
+        actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-outline btn-xs" style="border-color:#c0392b;color:#c0392b;display:inline-flex;align-items:center;gap:6px" onclick="StudentController.openActivity(${a.id})">${DASHBOARD_ICONS.eye} View</button></td>`;
       } else {
         actionCell = `<td style="padding:14px 12px;text-align:center"><span style="color:var(--gray-400);font-size:12px">—</span></td>`;
       }
@@ -610,7 +633,7 @@ const StudentView = {
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">${apiActivities.length} activity(s)</p></div>
-        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
+        <div class="search-box"><span>${DASHBOARD_ICONS.search}</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
       </div>
       <div class="table-wrap" style="margin-top:8px;border:1px solid var(--gray-200);border-radius:12px;overflow-x:auto;overflow-y:visible;background:white;box-shadow:0 1px 4px rgba(0,0,0,.05);-webkit-overflow-scrolling:touch">
         <table class="activity-table">
@@ -677,18 +700,19 @@ const StudentView = {
           <button class="btn btn-ghost btn-sm" onclick="DashboardController.loadSection('activities')">← Back</button>
           <div>
             <h2 style="margin:0;font-size:18px">${escHtml(activity.title)}</h2>
-            <div style="font-size:12px;color:var(--gray-500)">⏰ Due: ${_fmtDate(activity.due_date)} · 🎯 ${totalPts} pts total</div>
+            <div style="font-size:12px;color:var(--gray-500);display:flex;align-items:center;gap:6px">${DASHBOARD_ICONS.clock} Due: ${_fmtDate(activity.due_date)} · ${DASHBOARD_ICONS.chart} ${totalPts} pts total</div>
           </div>
         </div>
         ${activity.instructions ? `
-          <div style="padding:14px 16px;background:#fff9e6;border:1px solid #f0c040;border-radius:8px;margin-bottom:20px;font-size:13px;color:#7a5c00">
-            <strong>📌 Instructions:</strong> ${escHtml(activity.instructions)}
+          <div style="padding:14px 16px;background:#fff9e6;border:1px solid #f0c040;border-radius:8px;margin-bottom:20px;font-size:13px;color:#7a5c00;display:flex;align-items:flex-start;gap:8px">
+            <span style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--maroon)">${DASHBOARD_ICONS.note}</span>
+            <div><strong>Instructions:</strong> ${escHtml(activity.instructions)}</div>
           </div>` : ''}
         <div id="answer-sheet-questions">${questions || '<div class="empty-state"><div class="empty-state-title">No questions found.</div></div>'}</div>
         ${activity.questions && activity.questions.length ? `
           <div style="position:sticky;bottom:0;background:white;border-top:1px solid var(--gray-200);padding:14px 0;display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
             <button class="btn btn-outline" onclick="DashboardController.loadSection('activities')">Cancel</button>
-            <button class="btn btn-primary" id="submit-activity-btn" onclick="StudentController.confirmSubmit(${activity.id})">📤 Submit Activity</button>
+            <button class="btn btn-primary" id="submit-activity-btn" onclick="StudentController.confirmSubmit(${activity.id})" style="display:inline-flex;align-items:center;gap:6px">${DASHBOARD_ICONS.attachment} Submit Activity</button>
           </div>` : ''}
       </div>`;
   },
@@ -738,12 +762,12 @@ const StudentView = {
           <button class="btn btn-ghost btn-sm" onclick="DashboardController.loadSection('activities')">← Back to Activities</button>
         </div>
         <div style="padding:24px;background:white;border:1px solid var(--gray-200);border-radius:12px;margin-bottom:20px;text-align:center">
-          <div style="font-size:36px;margin-bottom:8px">${result.is_graded || result.score != null ? '🏆' : '⏳'}</div>
+          <div class="activity-result-icon">${result.is_graded || result.score != null ? DASHBOARD_ICONS.trophy : DASHBOARD_ICONS.clock}</div>
           <div style="font-size:clamp(15px,4vw,20px);font-weight:700;color:#1a1a2e;margin-bottom:4px;word-break:break-word">${escHtml(activity.title)}</div>
           ${result.is_graded || result.score != null ? `
             <div style="font-size:32px;font-weight:800;color:var(--maroon);margin:10px 0">${result.score} <span style="font-size:18px;color:#888">/ ${result.max_score} pts</span></div>
             <div style="font-size:15px;color:#555">${pct}% · Grade: <strong>${result.grade || '—'}</strong></div>
-            ${result.remarks ? `<div style="margin-top:6px;font-size:13px;color:#666">📝 ${escHtml(result.remarks)}</div>` : ''}
+            ${result.remarks ? `<div class="activity-result-remarks"><span>${DASHBOARD_ICONS.note}</span> ${escHtml(result.remarks)}</div>` : ''}
           ` : `
             <div style="font-size:14px;color:#1a4a8a;margin-top:8px">Submitted on ${_fmtDate(result.submitted_at)}</div>
             <div style="font-size:13px;color:#888;margin-top:4px">Your work is with your teacher for review. Grade will be posted once evaluated.</div>
@@ -761,11 +785,11 @@ const StudentView = {
     return `
       <div class="section-header">
         <div class="section-header-left">
-          <h2>📊 My Grades</h2>
+          <h2 class="grades-heading"><span class="grades-heading-icon">${DASHBOARD_ICONS.chart}</span> My Grades</h2>
           <p id="my-grades-count">Loading…</p>
         </div>
         <div class="search-box">
-          <span>🔍</span>
+          <span>${DASHBOARD_ICONS.search}</span>
           <input type="text" id="global-search" placeholder="Search activities…" />
         </div>
       </div>
@@ -1005,12 +1029,12 @@ const StudentView = {
     return `
       <div class="section-header">
         <div class="section-header-left">
-          <h2>📋 My Attendance</h2>
+          <h2 class="attendance-heading"><span class="attendance-heading-icon">${DASHBOARD_ICONS.clipboard}</span> My Attendance</h2>
           <p>Loading…</p>
         </div>
       </div>
       <div class="empty-state" style="margin-top:40px">
-        <div class="empty-state-icon">⏳</div>
+        <div class="empty-state-icon">${DASHBOARD_ICONS.clock}</div>
         <div class="empty-state-title">Loading attendance records…</div>
       </div>`;
   },
@@ -1026,10 +1050,10 @@ const StudentView = {
     if (!data || !data.length) {
       return `
         <div class="section-header">
-          <div class="section-header-left"><h2>📋 My Attendance</h2><p>No records found</p></div>
+          <div class="section-header-left"><h2 class="attendance-heading"><span class="attendance-heading-icon">${DASHBOARD_ICONS.clipboard}</span> My Attendance</h2><p>No records found</p></div>
         </div>
         <div class="empty-state" style="margin-top:40px">
-          <div class="empty-state-icon">📭</div>
+          <div class="empty-state-icon">${DASHBOARD_ICONS.clipboard}</div>
           <div class="empty-state-title">No Attendance Records Yet</div>
           <div class="empty-state-sub">Your teacher hasn't recorded any attendance sessions for your subjects yet.</div>
         </div>`;
@@ -1117,7 +1141,7 @@ const StudentView = {
                       display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div>
               <div style="font-size:15px;font-weight:700;color:var(--maroon,#6b0f1a)">${escHtml(subject_name)}</div>
-              <div style="font-size:12px;color:var(--gray-500,#888);margin-top:2px">📚 ${escHtml(class_name)}</div>
+              <div class="attendance-class"><span>${DASHBOARD_ICONS.bookOpen}</span> ${escHtml(class_name)}</div>
             </div>
             ${hasData ? `
               <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1159,7 +1183,7 @@ const StudentView = {
     return `
       <div class="section-header">
         <div class="section-header-left">
-          <h2>📋 My Attendance</h2>
+          <h2 class="attendance-heading"><span class="attendance-heading-icon">${DASHBOARD_ICONS.clipboard}</span> My Attendance</h2>
           <p>${data.length} subject${data.length !== 1 ? 's' : ''}</p>
         </div>
       </div>

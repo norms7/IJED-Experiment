@@ -543,21 +543,17 @@ const AdminView = {
               <label class="form-label">Profile Image</label>
               <div style="display:flex;align-items:center;gap:12px;">
                 <div id="settings-image-preview" style="width:56px;height:56px;flex:0 0 56px;border-radius:50%;display:flex;align-items:center;justify-content:center;${imageStyle}color:#fff;font-weight:700;overflow:hidden;">${savedImage ? '' : escHtml(initials)}</div>
-                <div>
-                  <label class="btn btn-outline btn-sm" for="settings-image">Choose Image</label>
-                  <input id="settings-image" type="file" accept="image/png,image/jpeg,image/webp" onchange="App.previewProfileImage(this)" style="display:none;" />
-                </div>
+                <button class="btn btn-outline btn-sm" type="button">Change Profile Picture</button>
               </div>
             </div>
             <div class="form-group"><label class="form-label">Full Name</label>
-              <input class="form-control" id="settings-name" value="${escHtml(user.name)}" /></div>
+              <input class="form-control" id="settings-name" value="${escHtml(user.name)}" readonly /></div>
             <div class="form-group"><label class="form-label">LMS Email Address</label>
               <input class="form-control" type="email" id="settings-email" value="${escHtml(user.email)}" readonly /></div>
             ${isAdmin ? '' : `<div class="form-group"><label class="form-label">Personal Email</label>
-              <input class="form-control" type="email" id="settings-personal-email" value="${escHtml(contact.personalEmail || '')}" placeholder="you@example.com" /></div>
+              <input class="form-control" type="email" id="settings-personal-email" value="${escHtml(contact.personalEmail || '')}" placeholder="you@example.com" readonly /></div>
             <div class="form-group"><label class="form-label">Phone Number</label>
-              <input class="form-control" type="tel" id="settings-phone" value="${escHtml(contact.phoneNumber || '')}" placeholder="e.g. 09XXXXXXXXX" maxlength="30" /></div>`}
-            <button class="btn btn-primary" onclick="AdminController.saveSettings()">Save Changes</button>
+              <input class="form-control" type="tel" id="settings-phone" value="${escHtml(contact.phoneNumber || '')}" placeholder="e.g. 09XXXXXXXXX" maxlength="30" readonly /></div>`}
           </div>
         </div>
         <div class="card" style="order:${isAdmin ? 3 : 4};grid-column:${isAdmin ? 3 : 4};grid-row:1;">
@@ -574,16 +570,15 @@ const AdminView = {
           <div class="card-header"><span class="card-title">Location</span></div>
           <div class="card-body">
             <div class="form-group"><label class="form-label">Address Line 1</label>
-              <input class="form-control" id="settings-address-line1" value="${escHtml(contact.addressLine1 || '')}" /></div>
+              <input class="form-control" id="settings-address-line1" value="${escHtml(contact.addressLine1 || '')}" readonly /></div>
             <div class="form-group"><label class="form-label">Address Line 2</label>
-              <input class="form-control" id="settings-address-line2" value="${escHtml(contact.addressLine2 || '')}" /></div>
+              <input class="form-control" id="settings-address-line2" value="${escHtml(contact.addressLine2 || '')}" readonly /></div>
             <div class="form-group"><label class="form-label">City</label>
-              <input class="form-control" id="settings-city" value="${escHtml(contact.city || '')}" /></div>
+              <input class="form-control" id="settings-city" value="${escHtml(contact.city || '')}" readonly /></div>
             <div class="form-group"><label class="form-label">State/Province</label>
-              <input class="form-control" id="settings-state" value="${escHtml(contact.state || '')}" /></div>
+              <input class="form-control" id="settings-state" value="${escHtml(contact.state || '')}" readonly /></div>
             <div class="form-group"><label class="form-label">Zip/Postal Code</label>
-              <input class="form-control" id="settings-postal-code" value="${escHtml(contact.postalCode || '')}" /></div>
-            <button class="btn btn-primary" onclick="AdminController.saveSettings()">Save Changes</button>
+              <input class="form-control" id="settings-postal-code" value="${escHtml(contact.postalCode || '')}" readonly /></div>
           </div>
         </div>`}
         <div class="settings-side-stack" style="display:flex;flex-direction:column;gap:20px;min-width:0;grid-column:${isAdmin ? 2 : 3};grid-row:1;">
