@@ -70,6 +70,13 @@ const AnalyticsEngine = (() => {
     return Math.round((below / population.length) * 100);
   }
 
+  /** Mean and standard deviation of a Beta(alpha, beta) distribution. */
+  function betaStats(alpha, beta) {
+    const mean = alpha / (alpha + beta);
+    const variance = (alpha * beta) / (Math.pow(alpha + beta, 2) * (alpha + beta + 1));
+    return { mean, sd: Math.sqrt(variance) };
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   // 1. DESCRIPTIVE — Grade Progress
   // ══════════════════════════════════════════════════════════════════════
@@ -285,12 +292,29 @@ const AnalyticsEngine = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // 7. GRADE IMPROVEMENT PROBABILITY
-  //    School standard (Objective §7): gap-based lookup table against the
-  //    Predicted Final Grade above — NOT a Bayesian Beta posterior.
-  //      Gap = Target Grade − Predicted Grade
-  //      Gap ≤ 2 → 95%, ≤5 → 80%, ≤10 → 60%, ≤15 → 40%, >15 → 20%
+  // 7. GRADE IMPROVEMENT PROBABILITY — real Beta-Binomial posterior.
+  //
+  //    "Success" on a graded activity = scored >= target%. We treat the
+  //    student's own graded activities as Bernoulli evidence about their
+  //    true long-run rate (theta) of hitting this target, and update a
+  //    prior built from the class's own rate at that same target
+  //    (empirical Bayes / "weakly informative prior").
+  //
+  //      Prior:      Beta(alpha0, beta0), centered on the class-wide rate,
+  //                  weighted as PRIOR_STRENGTH pseudo-observations — small
+  //                  enough that 3-4 of the student's own graded activities
+  //                  start to dominate the estimate.
+  //      Likelihood: the student's own successes/failures against target%.
+  //      Posterior:  Beta(alpha0 + successes, beta0 + failures).
+  //      Reported probability = posterior mean (the standard Beta-Binomial
+  //      posterior-predictive probability of success on the next activity).
+  //
+  //    This replaces the old static gap-lookup table (Gap ≤2 → 95%, etc.),
+  //    which had no way to express "not enough evidence yet" beyond one
+  //    flat cutoff, and ignored the class context entirely.
   // ══════════════════════════════════════════════════════════════════════
+  const PRIOR_STRENGTH = 4; // effective sample size of the class-wide prior
+
   async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null) {
     const cacheKey = `improvement_prob.subject_${subjectId || "all"}.target_${Math.trunc(targetGrade)}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
@@ -300,28 +324,66 @@ const AnalyticsEngine = (() => {
         return { probability: null, target_grade: targetGrade, predicted_grade: null, n_observations: 0, recommendation: null };
       }
 
-      const gap = targetGrade - predicted;
-      let probability;
-      if (gap <= 2) probability = 95;
-      else if (gap <= 5) probability = 80;
-      else if (gap <= 10) probability = 60;
-      else if (gap <= 15) probability = 40;
-      else probability = 20;
+      const { data: evidence, error } = await sb.rpc("get_beta_binomial_evidence", {
+        p_student_id: studentId,
+        p_subject_ids: subjectId ? [subjectId] : null,
+        p_target_pct: targetGrade,
+      });
+      if (error) throw new Error(error.message);
 
+      const { my_successes: mySucc, my_failures: myFail, peer_successes: peerSucc, peer_failures: peerFail } = evidence;
+
+      // Prior: class-wide rate at this target, or an uninformative 50/50
+      // split if nobody else in the subject has a graded activity yet.
+      const peerTotal = peerSucc + peerFail;
+      const priorRate = peerTotal > 0 ? peerSucc / peerTotal : 0.5;
+      const alpha0 = priorRate * PRIOR_STRENGTH;
+      const beta0 = (1 - priorRate) * PRIOR_STRENGTH;
+
+      const posterior = betaStats(alpha0 + mySucc, beta0 + myFail);
+      const probability = Math.round(posterior.mean * 100);
+
+      // 90% credible interval via the normal approximation to the Beta
+      // posterior (accurate once alpha+beta isn't tiny, which the prior's
+      // pseudo-count already guarantees even with zero of the student's
+      // own graded activities).
+      const Z90 = 1.645;
+      const credibleLow = Math.max(0, Math.round((posterior.mean - Z90 * posterior.sd) * 100));
+      const credibleHigh = Math.min(100, Math.round((posterior.mean + Z90 * posterior.sd) * 100));
+
+      // A secondary, genuinely different question from the headline number:
+      // "how likely is it that this student's true rate beats the class
+      // average rate at this target?" — a one-sample z-test of the
+      // posterior mean against the prior rate, via the normal CDF.
+      const zVsClass = posterior.sd > 0 ? (posterior.mean - priorRate) / posterior.sd : 0;
+      const aboveClassAvgProbability = Math.round(normalCdf(zVsClass) * 100);
+
+      const evidenceCount = mySucc + myFail;
       const label = probability >= 80 ? "Very likely" : probability >= 60 ? "Likely" : probability >= 40 ? "Possible" : "Challenging";
 
-      const recommendation = gap <= 0
-        ? "You're already on track to meet or exceed this target grade."
-        : gap <= 5
-          ? "A small, consistent improvement on upcoming graded activities should close this gap."
-          : gap <= 10
-            ? "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 75% of the prediction."
-            : "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
+      const gap = targetGrade - predicted;
+      let recommendation;
+      if (evidenceCount === 0) {
+        recommendation = `This estimate is currently based on your class's history at the ${targetGrade}% mark, since you don't have a graded activity of your own yet — it will sharpen as your results come in.`;
+      } else if (gap <= 0) {
+        recommendation = "You're already on track to meet or exceed this target grade.";
+      } else if (gap <= 5) {
+        recommendation = "A small, consistent improvement on upcoming graded activities should close this gap.";
+      } else if (gap <= 10) {
+        recommendation = "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 75% of the prediction.";
+      } else {
+        recommendation = "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
+      }
 
       return {
         probability, target_grade: targetGrade, predicted_grade: predicted, label,
         n_observations: prediction.n_observations,
         recommendation,
+        // New: real Bayesian detail the old lookup table couldn't provide.
+        credible_low: credibleLow, credible_high: credibleHigh,
+        evidence_count: evidenceCount,
+        class_rate_at_target: Math.round(priorRate * 100),
+        above_class_average_probability: aboveClassAvgProbability,
       };
     });
   }
