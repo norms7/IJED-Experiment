@@ -1183,7 +1183,7 @@ class LMSAdminAPI {
     const [predicted_grade, improvement_probability, students_like_you, risk_assessment] = await Promise.all([
       AnalyticsEngine.getPredictedFinalGrade(this.sb, studentId, subjectId),
       AnalyticsEngine.getImprovementProbability(this.sb, studentId, targetGrade, subjectId),
-      AnalyticsEngine.getStudentsLikeYou(this.sb, studentId),
+      AnalyticsEngine.getStudentsLikeYou(this.sb, studentId, subjectId),
       AnalyticsEngine.getRiskAssessment(this.sb, studentId, subjectId),
     ]);
     return { predicted_grade, improvement_probability, students_like_you, risk_assessment };
