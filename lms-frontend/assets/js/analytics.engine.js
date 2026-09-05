@@ -404,10 +404,13 @@ const AnalyticsEngine = (() => {
   //    client, preserving the spec's "Never expose student identities"
   //    requirement.
   // ══════════════════════════════════════════════════════════════════════
-  async function getStudentsLikeYou(sb, studentId) {
-    const cacheKey = "bayesian.students_like_you";
+  async function getStudentsLikeYou(sb, studentId, subjectId = null) {
+    const cacheKey = `bayesian.students_like_you.subject_${subjectId || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const { data, error } = await sb.rpc("get_engagement_percentile", { p_student_id: studentId });
+      const { data, error } = await sb.rpc("get_engagement_percentile", {
+        p_student_id: studentId,
+        p_subject_ids: subjectId ? [subjectId] : null,
+      });
       if (error) throw new Error(error.message);
 
       if (data?.percentile === null || data?.percentile === undefined) {
