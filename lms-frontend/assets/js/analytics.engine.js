@@ -80,15 +80,15 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 1. DESCRIPTIVE — Grade Progress
   // ══════════════════════════════════════════════════════════════════════
-  async function getGradeProgress(sb, studentId, subjectId = null) {
-    const cacheKey = `descriptive.grade_progress.subject_${subjectId || "all"}`;
+  async function getGradeProgress(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `descriptive.grade_progress.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
       if (!subjectIds.length) return { data: [], enrolled_subject_ids: [] };
 
       const { data: subs, error } = await sb
         .from("activity_submissions")
-        .select("score, max_score, submitted_at, activities(id, title, activity_type, subject_id)")
+        .select("score, max_score, submitted_at, activities(id, title, activity_type, subject_id, modules(term))")
         .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
       if (error) throw new Error(error.message);
 
@@ -98,6 +98,7 @@ const AnalyticsEngine = (() => {
         const act = sub.activities;
         if (!act || !enrolledSet.has(act.subject_id)) continue;
         if (subjectId && act.subject_id !== subjectId) continue;
+        if (term && act.modules?.term !== term) continue;
         const pct = sub.max_score > 0 ? Math.round((sub.score / sub.max_score) * 1000) / 10 : null;
         data.push({
           date: sub.submitted_at.slice(0, 10),
@@ -113,14 +114,15 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 2. DESCRIPTIVE — Attendance Calendar
   // ══════════════════════════════════════════════════════════════════════
-  async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null) {
-    const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}`;
+  async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null, term = null) {
+    const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const { data, error } = await sb.rpc('get_student_attendance_calendar', {
         p_student_id: studentId,
         p_subject_id: subjectId,
         p_year: year,
-        p_month: month
+        p_month: month,
+        p_term: term
       });
       if (error) throw new Error(error.message);
       return data;
@@ -138,12 +140,13 @@ const AnalyticsEngine = (() => {
   //    (class_size was always 1). Same bug class, same fix pattern, as
   //    "Students Like You" (§8).
   // ══════════════════════════════════════════════════════════════════════
-  async function getScoreVsClassAverage(sb, studentId, subjectId = null) {
-    const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}`;
+  async function getScoreVsClassAverage(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const { data, error } = await sb.rpc("get_score_vs_class_average", {
         p_student_id: studentId,
         p_subject_ids: subjectId ? [subjectId] : null,
+        p_term: term,
       });
       if (error) throw new Error(error.message);
       return { data: data?.data || [] };
@@ -153,16 +156,18 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 4. DESCRIPTIVE — Module Reading Progress
   // ══════════════════════════════════════════════════════════════════════
-  async function getModuleReadingProgress(sb, studentId, subjectId = null) {
-    const cacheKey = `descriptive.module_progress.subject_${subjectId || "all"}`;
+  async function getModuleReadingProgress(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `descriptive.module_progress.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
       if (!subjectIds.length) return { subjects: [], totals: { read: 0, total: 0, pct: 0 } };
       const filterIds = subjectId ? [subjectId] : subjectIds;
 
-      const { data: modules, error: mErr } = await sb
+      let modQuery = sb
         .from("modules").select("*").in("subject_id", filterIds).eq("is_published", true)
         .order("subject_id").order("order");
+      if (term) modQuery = modQuery.eq("term", term);
+      const { data: modules, error: mErr } = await modQuery;
       if (mErr) throw new Error(mErr.message);
 
       const { data: reads, error: rErr } = await sb
@@ -201,15 +206,15 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 5. DESCRIPTIVE — Subject Radar
   // ══════════════════════════════════════════════════════════════════════
-  async function getSubjectRadar(sb, studentId) {
-    const cacheKey = "descriptive.subject_radar";
+  async function getSubjectRadar(sb, studentId, term = null) {
+    const cacheKey = `descriptive.subject_radar.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
       if (!subjectIds.length) return { axes: [] };
 
       const { data: subs, error } = await sb
         .from("activity_submissions")
-        .select("score, max_score, activities(subject_id)")
+        .select("score, max_score, activities(subject_id, modules(term))")
         .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
       if (error) throw new Error(error.message);
 
@@ -217,6 +222,7 @@ const AnalyticsEngine = (() => {
       const perSubject = new Map();
       for (const sub of (subs || [])) {
         const sid = sub.activities?.subject_id;
+        if (term && sub.activities?.modules?.term !== term) continue;
         if (sid && subjectSet.has(sid) && sub.max_score > 0) {
           if (!perSubject.has(sid)) perSubject.set(sid, []);
           perSubject.get(sid).push((sub.score / sub.max_score) * 100);
@@ -250,10 +256,10 @@ const AnalyticsEngine = (() => {
     return { predicted_grade: null, range_low: null, range_high: null, confidence: "n/a", n_observations: 0, current_avg: null, supporting_factors: [] };
   }
 
-  async function getPredictedFinalGrade(sb, studentId, subjectId = null) {
-    const cacheKey = `predicted_grade.subject_${subjectId || "all"}`;
+  async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `predicted_grade.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const perf = await computePerformanceComponents(sb, studentId, subjectId);
+      const perf = await computePerformanceComponents(sb, studentId, subjectId, term);
       if (!perf) return emptyPrediction();
 
       const { academicPct, attendancePct, modulePct, countedActivities, factors } = perf;
@@ -315,10 +321,10 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   const PRIOR_STRENGTH = 4; // effective sample size of the class-wide prior
 
-  async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null) {
-    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.target_${Math.trunc(targetGrade)}`;
+  async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null, term = null) {
+    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.term_${term || "all"}.target_${Math.trunc(targetGrade)}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const prediction = await getPredictedFinalGrade(sb, studentId, subjectId);
+      const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term);
       const predicted = prediction.predicted_grade;
       if (predicted === null) {
         return { probability: null, target_grade: targetGrade, predicted_grade: null, n_observations: 0, recommendation: null };
@@ -328,6 +334,7 @@ const AnalyticsEngine = (() => {
         p_student_id: studentId,
         p_subject_ids: subjectId ? [subjectId] : null,
         p_target_pct: targetGrade,
+        p_term: term,
       });
       if (error) throw new Error(error.message);
 
@@ -404,12 +411,13 @@ const AnalyticsEngine = (() => {
   //    client, preserving the spec's "Never expose student identities"
   //    requirement.
   // ══════════════════════════════════════════════════════════════════════
-  async function getStudentsLikeYou(sb, studentId, subjectId = null) {
-    const cacheKey = `bayesian.students_like_you.subject_${subjectId || "all"}`;
+  async function getStudentsLikeYou(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `bayesian.students_like_you.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const { data, error } = await sb.rpc("get_engagement_percentile", {
         p_student_id: studentId,
         p_subject_ids: subjectId ? [subjectId] : null,
+        p_term: term,
       });
       if (error) throw new Error(error.message);
 
@@ -452,7 +460,7 @@ const AnalyticsEngine = (() => {
   // weights differ, exactly as the spec defines two separate formulas that
   // share the same three inputs.
   // ══════════════════════════════════════════════════════════════════════
-  async function computePerformanceComponents(sb, studentId, subjectId = null) {
+  async function computePerformanceComponents(sb, studentId, subjectId = null, term = null) {
     const allSubjectIds = await resolveSubjectIds(sb, studentId);
     if (!allSubjectIds.length) return null;
     const subjectIds = subjectId ? allSubjectIds.filter(id => id === subjectId) : allSubjectIds;
@@ -461,27 +469,32 @@ const AnalyticsEngine = (() => {
     const nowIso = new Date().toISOString();
 
     // ── §2 Attendance Score: Present = 100%, Late = 50%, Absent = 0% ──────
-    // Computed server-side via get_attendance_score(). Direct client-side
-    // queries against attendance_sessions/attendance_records were unreliable
-    // for some students (returned 0 sessions even when the student's own
-    // "My Attendance" page — powered by a separate, already-correct RPC —
-    // showed real data). Routing through a SECURITY DEFINER RPC removes
-    // that ambiguity and guarantees this number always matches what the
-    // student sees on their Attendance page.
     const { data: attScore, error: attErr } = await sb.rpc("get_attendance_score", {
       p_student_id: studentId,
       p_subject_ids: subjectIds,
+      p_term: term,
     });
     if (attErr) throw new Error(attErr.message);
     const totalSessions = attScore?.total_sessions || 0;
     const attendancePct = attScore?.attendance_pct ?? null;
 
+    // ── Modules in scope (subject + term), shared by §3 and §1 below ──────
+    let modQuery = sb.from("modules").select("id").in("subject_id", subjectIds).eq("is_published", true);
+    if (term) modQuery = modQuery.eq("term", term);
+    const { data: modsInScope, error: modErr } = await modQuery;
+    if (modErr) throw new Error(modErr.message);
+    const modIds = (modsInScope || []).map(m => m.id);
+    const totalMods = modIds.length;
+
     // ── §3 Module Score: Modules Read / Total Modules ─────────────────────
-    const { count: totalMods } = await sb
-      .from("modules").select("id", { count: "exact", head: true })
-      .in("subject_id", subjectIds).eq("is_published", true);
-    const { count: reads } = await sb
-      .from("student_module_reads").select("id", { count: "exact", head: true }).eq("student_id", studentId);
+    // FIX: this used to count ALL of the student's module reads across
+    // their entire account, uncorrelated to subject or term, and just
+    // clamped it against totalMods — only "worked" by coincidence. Now
+    // properly scoped to the modules actually in scope.
+    const { count: reads } = totalMods
+      ? await sb.from("student_module_reads").select("id", { count: "exact", head: true })
+          .eq("student_id", studentId).in("module_id", modIds)
+      : { count: 0 };
     const modulePct = totalMods ? (Math.min(reads || 0, totalMods) / totalMods) * 100 : null;
 
     // ── §1 Academic Score: Total Earned / Total Possible ──────────────────
@@ -489,10 +502,18 @@ const AnalyticsEngine = (() => {
     // or undated. A past-due activity the student never submitted counts as
     // 0 earned against its own max_score (not a flat 100), so a missed
     // 10-point quiz doesn't get weighted the same as a missed 100-point exam.
-    const { data: applicableActs } = await sb
-      .from("activities").select("id, max_score, due_date")
+    // Term scoping: activities have no term column of their own -- an
+    // activity's term comes from its module (module_id -> modules.term) --
+    // so we fetch with the term nested and filter here rather than joining
+    // on subject_id alone, which would ignore term entirely.
+    const { data: applicableActsRaw, error: actErr } = await sb
+      .from("activities").select("id, max_score, due_date, modules(term)")
       .in("subject_id", subjectIds).eq("is_published", true)
       .or(`due_date.is.null,due_date.lte.${nowIso}`);
+    if (actErr) throw new Error(actErr.message);
+    const applicableActs = term
+      ? (applicableActsRaw || []).filter(a => a.modules?.term === term)
+      : (applicableActsRaw || []);
 
     const { data: subs } = await sb
       .from("activity_submissions")
@@ -558,10 +579,10 @@ const AnalyticsEngine = (() => {
     return { rating: "At Risk", color: "at_risk", emoji: "🔴" };
   }
 
-  async function getRiskAssessment(sb, studentId, subjectId = null) {
-    const cacheKey = `performance.rating.subject_${subjectId || "all"}`;
+  async function getRiskAssessment(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `performance.rating.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const perf = await computePerformanceComponents(sb, studentId, subjectId);
+      const perf = await computePerformanceComponents(sb, studentId, subjectId, term);
       if (!perf) {
         return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
       }
