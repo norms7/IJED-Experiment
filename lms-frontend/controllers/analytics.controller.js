@@ -24,6 +24,7 @@ const AnalyticsController = {
 
   _currentTab:     'descriptive',   // 'descriptive' | 'bayesian'
   _currentSubject: null,            // null = All subjects
+  _currentTerm:    null,            // null = All terms; else '1st'/'2nd'/'3rd'/'4th'
   _targetGrade:    90,              // For improvement probability
   _descData:       null,
   _bayesData:      null,
@@ -91,7 +92,7 @@ const AnalyticsController = {
   async _prefetchBayesian() {
     if (this._bayesData) return; // already have it somehow
     try {
-      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject);
+      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm);
     } catch (_) {
       this._bayesData = null; // let the normal click-triggered load retry
     }
@@ -122,6 +123,18 @@ const AnalyticsController = {
   async onSubjectChange(val) {
     this._currentSubject = val ? parseInt(val, 10) : null;
     // Invalidate cached data for both tabs so they refetch
+    this._descData  = null;
+    this._bayesData = null;
+    this._destroyAllCharts();
+
+    if (this._currentTab === 'descriptive') await this._loadDescriptive();
+    else                                     await this._loadBayesian();
+  },
+
+  // ── Public: term filter ───────────────────────────────────────────────────
+
+  async onTermChange(val) {
+    this._currentTerm = val || null;
     this._descData  = null;
     this._bayesData = null;
     this._destroyAllCharts();
@@ -162,7 +175,7 @@ const AnalyticsController = {
     panel.innerHTML = AnalyticsView.descriptiveSkeleton();
 
     try {
-      this._descData = await api.getDescriptiveAnalytics(this._currentSubject);
+      this._descData = await api.getDescriptiveAnalytics(this._currentSubject, this._currentTerm);
       if (!panel.isConnected) return;  // user navigated away
       panel.innerHTML = AnalyticsView.descriptivePanel(this._descData);
       await this._renderDescriptiveCharts(this._descData);
@@ -186,7 +199,7 @@ const AnalyticsController = {
     panel.innerHTML = AnalyticsView.bayesianSkeleton();
 
     try {
-      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject);
+      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm);
       if (!panel.isConnected) return;
       panel.innerHTML = AnalyticsView.bayesianPanel(this._bayesData);
     } catch (err) {
