@@ -708,11 +708,12 @@ class LMSAdminAPI {
     return activity;
   }
 
-  async getTeacherActivities({ module_id, subject_id } = {}) {
-    return this._cached(`teacher:activities:${module_id || ""}:${subject_id || ""}`, 60_000, async () => {
+  async getTeacherActivities({ module_id, subject_id, term } = {}) {
+    return this._cached(`teacher:activities:${module_id || ""}:${subject_id || ""}:${term || ""}`, 60_000, async () => {
       let q = this.sb.from("activities").select("*").eq("teacher_id", await this._myTeacherId());
       if (module_id) q = q.eq("module_id", module_id);
       if (subject_id) q = q.eq("subject_id", subject_id);
+      if (term) q = q.eq("term", term);
       return this._throwIfError(await q);
     });
   }
