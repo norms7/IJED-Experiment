@@ -708,11 +708,12 @@ class LMSAdminAPI {
     return activity;
   }
 
-  async getTeacherActivities({ module_id, subject_id } = {}) {
-    return this._cached(`teacher:activities:${module_id || ""}:${subject_id || ""}`, 60_000, async () => {
+  async getTeacherActivities({ module_id, subject_id, term } = {}) {
+    return this._cached(`teacher:activities:${module_id || ""}:${subject_id || ""}:${term || ""}`, 60_000, async () => {
       let q = this.sb.from("activities").select("*").eq("teacher_id", await this._myTeacherId());
       if (module_id) q = q.eq("module_id", module_id);
       if (subject_id) q = q.eq("subject_id", subject_id);
+      if (term) q = q.eq("term", term);
       return this._throwIfError(await q);
     });
   }
@@ -1166,39 +1167,39 @@ class LMSAdminAPI {
 
   // ── Analytics ─────────────────────────────────────────────────────────────
 
-  async getDescriptiveAnalytics(subjectId = null) {
+  async getDescriptiveAnalytics(subjectId = null, term = null) {
     const studentId = await this._myStudentId();
     const [grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar] = await Promise.all([
-      AnalyticsEngine.getGradeProgress(this.sb, studentId, subjectId),
-      AnalyticsEngine.getAttendanceCalendar(this.sb, studentId, subjectId),
-      AnalyticsEngine.getScoreVsClassAverage(this.sb, studentId, subjectId),
-      AnalyticsEngine.getModuleReadingProgress(this.sb, studentId, subjectId),
-      AnalyticsEngine.getSubjectRadar(this.sb, studentId),
+      AnalyticsEngine.getGradeProgress(this.sb, studentId, subjectId, term),
+      AnalyticsEngine.getAttendanceCalendar(this.sb, studentId, subjectId, null, null, term),
+      AnalyticsEngine.getScoreVsClassAverage(this.sb, studentId, subjectId, term),
+      AnalyticsEngine.getModuleReadingProgress(this.sb, studentId, subjectId, term),
+      AnalyticsEngine.getSubjectRadar(this.sb, studentId, term),
     ]);
     return { grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar };
   }
 
-  async getBayesianAnalytics(targetGrade = 90, subjectId = null) {
+  async getBayesianAnalytics(targetGrade = 90, subjectId = null, term = null) {
     const studentId = await this._myStudentId();
     const [predicted_grade, improvement_probability, students_like_you, risk_assessment] = await Promise.all([
-      AnalyticsEngine.getPredictedFinalGrade(this.sb, studentId, subjectId),
-      AnalyticsEngine.getImprovementProbability(this.sb, studentId, targetGrade, subjectId),
-      AnalyticsEngine.getStudentsLikeYou(this.sb, studentId),
-      AnalyticsEngine.getRiskAssessment(this.sb, studentId, subjectId),
+      AnalyticsEngine.getPredictedFinalGrade(this.sb, studentId, subjectId, term),
+      AnalyticsEngine.getImprovementProbability(this.sb, studentId, targetGrade, subjectId, term),
+      AnalyticsEngine.getStudentsLikeYou(this.sb, studentId, subjectId, term),
+      AnalyticsEngine.getRiskAssessment(this.sb, studentId, subjectId, term),
     ]);
     return { predicted_grade, improvement_probability, students_like_you, risk_assessment };
   }
 
-  async getPredictedGrade(subjectId = null) {
-    return AnalyticsEngine.getPredictedFinalGrade(this.sb, await this._myStudentId(), subjectId);
+  async getPredictedGrade(subjectId = null, term = null) {
+    return AnalyticsEngine.getPredictedFinalGrade(this.sb, await this._myStudentId(), subjectId, term);
   }
 
-  async getImprovementProbability(targetGrade = 90, subjectId = null) {
-    return AnalyticsEngine.getImprovementProbability(this.sb, await this._myStudentId(), targetGrade, subjectId);
+  async getImprovementProbability(targetGrade = 90, subjectId = null, term = null) {
+    return AnalyticsEngine.getImprovementProbability(this.sb, await this._myStudentId(), targetGrade, subjectId, term);
   }
 
-  async getRiskAssessment(subjectId = null) {
-    return AnalyticsEngine.getRiskAssessment(this.sb, await this._myStudentId(), subjectId);
+  async getRiskAssessment(subjectId = null, term = null) {
+    return AnalyticsEngine.getRiskAssessment(this.sb, await this._myStudentId(), subjectId, term);
   }
 }
 

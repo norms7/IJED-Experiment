@@ -190,9 +190,21 @@ const TeacherController = {
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Module *</label>
-          <select class="form-control" id="act-module"><option value="">— Select subject first —</option></select>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Term *</label>
+            <select class="form-control" id="act-term" onchange="TeacherController._onTermChange(this.value)">
+              <option value="">— Select term —</option>
+              <option value="1st">1st Term</option>
+              <option value="2nd">2nd Term</option>
+              <option value="3rd">3rd Term</option>
+              <option value="4th">4th Term</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Module *</label>
+            <select class="form-control" id="act-module"><option value="">— Select subject and term first —</option></select>
+          </div>
         </div>
 
         <div class="form-row">
@@ -251,13 +263,37 @@ const TeacherController = {
   },
 
   _onSubjectChange(subjectId) {
-    const moduleMap = window._activityModuleMap || {};
-    const modules   = moduleMap[parseInt(subjectId)] || [];
+    this._refreshModuleOptions();
+  },
+
+  _onTermChange(term) {
+    this._refreshModuleOptions();
+  },
+
+  _refreshModuleOptions() {
+    const subjectId = document.getElementById('act-subject')?.value;
+    const term      = document.getElementById('act-term')?.value;
     const moduleSel = document.getElementById('act-module');
     if (!moduleSel) return;
+
+    if (!subjectId) {
+      moduleSel.innerHTML = '<option value="">— Select subject and term first —</option>';
+      return;
+    }
+    if (!term) {
+      moduleSel.innerHTML = '<option value="">— Select a term first —</option>';
+      return;
+    }
+
+    const moduleMap = window._activityModuleMap || {};
+    const modules   = (moduleMap[parseInt(subjectId)] || []).filter(m => m.term === term);
     moduleSel.innerHTML = modules.length
       ? modules.map(m => `<option value="${m.id}">${escHtml(m.title)}</option>`).join('')
-      : '<option value="">No modules for this subject</option>';
+      : `<option value="">No ${this._termLabel(term)} modules for this subject — create one first</option>`;
+  },
+
+  _termLabel(term) {
+    return { '1st': '1st Term', '2nd': '2nd Term', '3rd': '3rd Term', '4th': '4th Term' }[term] || term;
   },
 
   _onTypeChange(val) {
@@ -425,6 +461,7 @@ const TeacherController = {
   async saveActivity() {
     const title        = document.getElementById('act-title')?.value.trim();
     const subjectId    = parseInt(document.getElementById('act-subject')?.value);
+    const term         = document.getElementById('act-term')?.value;
     const moduleId     = parseInt(document.getElementById('act-module')?.value);
     const actType      = document.getElementById('act-type')?.value;
     const actCustom    = document.getElementById('act-type-custom')?.value.trim();
@@ -435,6 +472,7 @@ const TeacherController = {
 
     if (!title)     { Toast.show('Activity title is required.', 'error'); return; }
     if (!subjectId) { Toast.show('Please select a subject.', 'error'); return; }
+    if (!term)      { Toast.show('Please select a term.', 'error'); return; }
     if (!moduleId)  { Toast.show('Please select a module.', 'error'); return; }
 
     const needsQuestions = !['assignment', 'freeform'].includes(format);
@@ -466,6 +504,7 @@ const TeacherController = {
       title,
       subject_id:           subjectId,
       module_id:            moduleId,
+      term,
       activity_type:        actType,
       activity_type_custom: actType === 'other' ? actCustom : null,
       format_type:          format,

@@ -70,18 +70,25 @@ const AnalyticsEngine = (() => {
     return Math.round((below / population.length) * 100);
   }
 
+  /** Mean and standard deviation of a Beta(alpha, beta) distribution. */
+  function betaStats(alpha, beta) {
+    const mean = alpha / (alpha + beta);
+    const variance = (alpha * beta) / (Math.pow(alpha + beta, 2) * (alpha + beta + 1));
+    return { mean, sd: Math.sqrt(variance) };
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   // 1. DESCRIPTIVE — Grade Progress
   // ══════════════════════════════════════════════════════════════════════
-  async function getGradeProgress(sb, studentId, subjectId = null) {
-    const cacheKey = `descriptive.grade_progress.subject_${subjectId || "all"}`;
+  async function getGradeProgress(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `descriptive.grade_progress.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
       if (!subjectIds.length) return { data: [], enrolled_subject_ids: [] };
 
       const { data: subs, error } = await sb
         .from("activity_submissions")
-        .select("score, max_score, submitted_at, activities(id, title, activity_type, subject_id)")
+        .select("score, max_score, submitted_at, activities(id, title, activity_type, subject_id, term)")
         .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
       if (error) throw new Error(error.message);
 
@@ -91,6 +98,7 @@ const AnalyticsEngine = (() => {
         const act = sub.activities;
         if (!act || !enrolledSet.has(act.subject_id)) continue;
         if (subjectId && act.subject_id !== subjectId) continue;
+        if (term && act.term !== term) continue;
         const pct = sub.max_score > 0 ? Math.round((sub.score / sub.max_score) * 1000) / 10 : null;
         data.push({
           date: sub.submitted_at.slice(0, 10),
@@ -106,14 +114,15 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 2. DESCRIPTIVE — Attendance Calendar
   // ══════════════════════════════════════════════════════════════════════
-  async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null) {
-    const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}`;
+  async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null, term = null) {
+    const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const { data, error } = await sb.rpc('get_student_attendance_calendar', {
         p_student_id: studentId,
         p_subject_id: subjectId,
         p_year: year,
-        p_month: month
+        p_month: month,
+        p_term: term
       });
       if (error) throw new Error(error.message);
       return data;
@@ -131,12 +140,13 @@ const AnalyticsEngine = (() => {
   //    (class_size was always 1). Same bug class, same fix pattern, as
   //    "Students Like You" (§8).
   // ══════════════════════════════════════════════════════════════════════
-  async function getScoreVsClassAverage(sb, studentId, subjectId = null) {
-    const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}`;
+  async function getScoreVsClassAverage(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const { data, error } = await sb.rpc("get_score_vs_class_average", {
         p_student_id: studentId,
         p_subject_ids: subjectId ? [subjectId] : null,
+        p_term: term,
       });
       if (error) throw new Error(error.message);
       return { data: data?.data || [] };
@@ -146,16 +156,18 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 4. DESCRIPTIVE — Module Reading Progress
   // ══════════════════════════════════════════════════════════════════════
-  async function getModuleReadingProgress(sb, studentId, subjectId = null) {
-    const cacheKey = `descriptive.module_progress.subject_${subjectId || "all"}`;
+  async function getModuleReadingProgress(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `descriptive.module_progress.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
       if (!subjectIds.length) return { subjects: [], totals: { read: 0, total: 0, pct: 0 } };
       const filterIds = subjectId ? [subjectId] : subjectIds;
 
-      const { data: modules, error: mErr } = await sb
+      let modQuery = sb
         .from("modules").select("*").in("subject_id", filterIds).eq("is_published", true)
         .order("subject_id").order("order");
+      if (term) modQuery = modQuery.eq("term", term);
+      const { data: modules, error: mErr } = await modQuery;
       if (mErr) throw new Error(mErr.message);
 
       const { data: reads, error: rErr } = await sb
@@ -194,15 +206,15 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 5. DESCRIPTIVE — Subject Radar
   // ══════════════════════════════════════════════════════════════════════
-  async function getSubjectRadar(sb, studentId) {
-    const cacheKey = "descriptive.subject_radar";
+  async function getSubjectRadar(sb, studentId, term = null) {
+    const cacheKey = `descriptive.subject_radar.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
       if (!subjectIds.length) return { axes: [] };
 
       const { data: subs, error } = await sb
         .from("activity_submissions")
-        .select("score, max_score, activities(subject_id)")
+        .select("score, max_score, activities(subject_id, term)")
         .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
       if (error) throw new Error(error.message);
 
@@ -210,6 +222,7 @@ const AnalyticsEngine = (() => {
       const perSubject = new Map();
       for (const sub of (subs || [])) {
         const sid = sub.activities?.subject_id;
+        if (term && sub.activities?.term !== term) continue;
         if (sid && subjectSet.has(sid) && sub.max_score > 0) {
           if (!perSubject.has(sid)) perSubject.set(sid, []);
           perSubject.get(sid).push((sub.score / sub.max_score) * 100);
@@ -243,10 +256,10 @@ const AnalyticsEngine = (() => {
     return { predicted_grade: null, range_low: null, range_high: null, confidence: "n/a", n_observations: 0, current_avg: null, supporting_factors: [] };
   }
 
-  async function getPredictedFinalGrade(sb, studentId, subjectId = null) {
-    const cacheKey = `predicted_grade.subject_${subjectId || "all"}`;
+  async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `predicted_grade.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const perf = await computePerformanceComponents(sb, studentId, subjectId);
+      const perf = await computePerformanceComponents(sb, studentId, subjectId, term);
       if (!perf) return emptyPrediction();
 
       const { academicPct, attendancePct, modulePct, countedActivities, factors } = perf;
@@ -285,43 +298,99 @@ const AnalyticsEngine = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // 7. GRADE IMPROVEMENT PROBABILITY
-  //    School standard (Objective §7): gap-based lookup table against the
-  //    Predicted Final Grade above — NOT a Bayesian Beta posterior.
-  //      Gap = Target Grade − Predicted Grade
-  //      Gap ≤ 2 → 95%, ≤5 → 80%, ≤10 → 60%, ≤15 → 40%, >15 → 20%
+  // 7. GRADE IMPROVEMENT PROBABILITY — real Beta-Binomial posterior.
+  //
+  //    "Success" on a graded activity = scored >= target%. We treat the
+  //    student's own graded activities as Bernoulli evidence about their
+  //    true long-run rate (theta) of hitting this target, and update a
+  //    prior built from the class's own rate at that same target
+  //    (empirical Bayes / "weakly informative prior").
+  //
+  //      Prior:      Beta(alpha0, beta0), centered on the class-wide rate,
+  //                  weighted as PRIOR_STRENGTH pseudo-observations — small
+  //                  enough that 3-4 of the student's own graded activities
+  //                  start to dominate the estimate.
+  //      Likelihood: the student's own successes/failures against target%.
+  //      Posterior:  Beta(alpha0 + successes, beta0 + failures).
+  //      Reported probability = posterior mean (the standard Beta-Binomial
+  //      posterior-predictive probability of success on the next activity).
+  //
+  //    This replaces the old static gap-lookup table (Gap ≤2 → 95%, etc.),
+  //    which had no way to express "not enough evidence yet" beyond one
+  //    flat cutoff, and ignored the class context entirely.
   // ══════════════════════════════════════════════════════════════════════
-  async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null) {
-    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.target_${Math.trunc(targetGrade)}`;
+  const PRIOR_STRENGTH = 4; // effective sample size of the class-wide prior
+
+  async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null, term = null) {
+    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.term_${term || "all"}.target_${Math.trunc(targetGrade)}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const prediction = await getPredictedFinalGrade(sb, studentId, subjectId);
+      const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term);
       const predicted = prediction.predicted_grade;
       if (predicted === null) {
         return { probability: null, target_grade: targetGrade, predicted_grade: null, n_observations: 0, recommendation: null };
       }
 
-      const gap = targetGrade - predicted;
-      let probability;
-      if (gap <= 2) probability = 95;
-      else if (gap <= 5) probability = 80;
-      else if (gap <= 10) probability = 60;
-      else if (gap <= 15) probability = 40;
-      else probability = 20;
+      const { data: evidence, error } = await sb.rpc("get_beta_binomial_evidence", {
+        p_student_id: studentId,
+        p_subject_ids: subjectId ? [subjectId] : null,
+        p_target_pct: targetGrade,
+        p_term: term,
+      });
+      if (error) throw new Error(error.message);
 
+      const { my_successes: mySucc, my_failures: myFail, peer_successes: peerSucc, peer_failures: peerFail } = evidence;
+
+      // Prior: class-wide rate at this target, or an uninformative 50/50
+      // split if nobody else in the subject has a graded activity yet.
+      const peerTotal = peerSucc + peerFail;
+      const priorRate = peerTotal > 0 ? peerSucc / peerTotal : 0.5;
+      const alpha0 = priorRate * PRIOR_STRENGTH;
+      const beta0 = (1 - priorRate) * PRIOR_STRENGTH;
+
+      const posterior = betaStats(alpha0 + mySucc, beta0 + myFail);
+      const probability = Math.round(posterior.mean * 100);
+
+      // 90% credible interval via the normal approximation to the Beta
+      // posterior (accurate once alpha+beta isn't tiny, which the prior's
+      // pseudo-count already guarantees even with zero of the student's
+      // own graded activities).
+      const Z90 = 1.645;
+      const credibleLow = Math.max(0, Math.round((posterior.mean - Z90 * posterior.sd) * 100));
+      const credibleHigh = Math.min(100, Math.round((posterior.mean + Z90 * posterior.sd) * 100));
+
+      // A secondary, genuinely different question from the headline number:
+      // "how likely is it that this student's true rate beats the class
+      // average rate at this target?" — a one-sample z-test of the
+      // posterior mean against the prior rate, via the normal CDF.
+      const zVsClass = posterior.sd > 0 ? (posterior.mean - priorRate) / posterior.sd : 0;
+      const aboveClassAvgProbability = Math.round(normalCdf(zVsClass) * 100);
+
+      const evidenceCount = mySucc + myFail;
       const label = probability >= 80 ? "Very likely" : probability >= 60 ? "Likely" : probability >= 40 ? "Possible" : "Challenging";
 
-      const recommendation = gap <= 0
-        ? "You're already on track to meet or exceed this target grade."
-        : gap <= 5
-          ? "A small, consistent improvement on upcoming graded activities should close this gap."
-          : gap <= 10
-            ? "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 75% of the prediction."
-            : "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
+      const gap = targetGrade - predicted;
+      let recommendation;
+      if (evidenceCount === 0) {
+        recommendation = `This estimate is currently based on your class's history at the ${targetGrade}% mark, since you don't have a graded activity of your own yet — it will sharpen as your results come in.`;
+      } else if (gap <= 0) {
+        recommendation = "You're already on track to meet or exceed this target grade.";
+      } else if (gap <= 5) {
+        recommendation = "A small, consistent improvement on upcoming graded activities should close this gap.";
+      } else if (gap <= 10) {
+        recommendation = "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 75% of the prediction.";
+      } else {
+        recommendation = "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
+      }
 
       return {
         probability, target_grade: targetGrade, predicted_grade: predicted, label,
         n_observations: prediction.n_observations,
         recommendation,
+        // New: real Bayesian detail the old lookup table couldn't provide.
+        credible_low: credibleLow, credible_high: credibleHigh,
+        evidence_count: evidenceCount,
+        class_rate_at_target: Math.round(priorRate * 100),
+        above_class_average_probability: aboveClassAvgProbability,
       };
     });
   }
@@ -342,10 +411,14 @@ const AnalyticsEngine = (() => {
   //    client, preserving the spec's "Never expose student identities"
   //    requirement.
   // ══════════════════════════════════════════════════════════════════════
-  async function getStudentsLikeYou(sb, studentId) {
-    const cacheKey = "bayesian.students_like_you";
+  async function getStudentsLikeYou(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `bayesian.students_like_you.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const { data, error } = await sb.rpc("get_engagement_percentile", { p_student_id: studentId });
+      const { data, error } = await sb.rpc("get_engagement_percentile", {
+        p_student_id: studentId,
+        p_subject_ids: subjectId ? [subjectId] : null,
+        p_term: term,
+      });
       if (error) throw new Error(error.message);
 
       if (data?.percentile === null || data?.percentile === undefined) {
@@ -387,7 +460,7 @@ const AnalyticsEngine = (() => {
   // weights differ, exactly as the spec defines two separate formulas that
   // share the same three inputs.
   // ══════════════════════════════════════════════════════════════════════
-  async function computePerformanceComponents(sb, studentId, subjectId = null) {
+  async function computePerformanceComponents(sb, studentId, subjectId = null, term = null) {
     const allSubjectIds = await resolveSubjectIds(sb, studentId);
     if (!allSubjectIds.length) return null;
     const subjectIds = subjectId ? allSubjectIds.filter(id => id === subjectId) : allSubjectIds;
@@ -396,27 +469,32 @@ const AnalyticsEngine = (() => {
     const nowIso = new Date().toISOString();
 
     // ── §2 Attendance Score: Present = 100%, Late = 50%, Absent = 0% ──────
-    // Computed server-side via get_attendance_score(). Direct client-side
-    // queries against attendance_sessions/attendance_records were unreliable
-    // for some students (returned 0 sessions even when the student's own
-    // "My Attendance" page — powered by a separate, already-correct RPC —
-    // showed real data). Routing through a SECURITY DEFINER RPC removes
-    // that ambiguity and guarantees this number always matches what the
-    // student sees on their Attendance page.
     const { data: attScore, error: attErr } = await sb.rpc("get_attendance_score", {
       p_student_id: studentId,
       p_subject_ids: subjectIds,
+      p_term: term,
     });
     if (attErr) throw new Error(attErr.message);
     const totalSessions = attScore?.total_sessions || 0;
     const attendancePct = attScore?.attendance_pct ?? null;
 
+    // ── Modules in scope (subject + term), shared by §3 and §1 below ──────
+    let modQuery = sb.from("modules").select("id").in("subject_id", subjectIds).eq("is_published", true);
+    if (term) modQuery = modQuery.eq("term", term);
+    const { data: modsInScope, error: modErr } = await modQuery;
+    if (modErr) throw new Error(modErr.message);
+    const modIds = (modsInScope || []).map(m => m.id);
+    const totalMods = modIds.length;
+
     // ── §3 Module Score: Modules Read / Total Modules ─────────────────────
-    const { count: totalMods } = await sb
-      .from("modules").select("id", { count: "exact", head: true })
-      .in("subject_id", subjectIds).eq("is_published", true);
-    const { count: reads } = await sb
-      .from("student_module_reads").select("id", { count: "exact", head: true }).eq("student_id", studentId);
+    // FIX: this used to count ALL of the student's module reads across
+    // their entire account, uncorrelated to subject or term, and just
+    // clamped it against totalMods — only "worked" by coincidence. Now
+    // properly scoped to the modules actually in scope.
+    const { count: reads } = totalMods
+      ? await sb.from("student_module_reads").select("id", { count: "exact", head: true })
+          .eq("student_id", studentId).in("module_id", modIds)
+      : { count: 0 };
     const modulePct = totalMods ? (Math.min(reads || 0, totalMods) / totalMods) * 100 : null;
 
     // ── §1 Academic Score: Total Earned / Total Possible ──────────────────
@@ -424,10 +502,15 @@ const AnalyticsEngine = (() => {
     // or undated. A past-due activity the student never submitted counts as
     // 0 earned against its own max_score (not a flat 100), so a missed
     // 10-point quiz doesn't get weighted the same as a missed 100-point exam.
-    const { data: applicableActs } = await sb
+    // Term scoping: activities.term is a direct column, set explicitly when
+    // the teacher creates the activity -- filtered straight, no join needed.
+    let actQuery = sb
       .from("activities").select("id, max_score, due_date")
       .in("subject_id", subjectIds).eq("is_published", true)
       .or(`due_date.is.null,due_date.lte.${nowIso}`);
+    if (term) actQuery = actQuery.eq("term", term);
+    const { data: applicableActs, error: actErr } = await actQuery;
+    if (actErr) throw new Error(actErr.message);
 
     const { data: subs } = await sb
       .from("activity_submissions")
@@ -493,10 +576,10 @@ const AnalyticsEngine = (() => {
     return { rating: "At Risk", color: "at_risk", emoji: "🔴" };
   }
 
-  async function getRiskAssessment(sb, studentId, subjectId = null) {
-    const cacheKey = `performance.rating.subject_${subjectId || "all"}`;
+  async function getRiskAssessment(sb, studentId, subjectId = null, term = null) {
+    const cacheKey = `performance.rating.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const perf = await computePerformanceComponents(sb, studentId, subjectId);
+      const perf = await computePerformanceComponents(sb, studentId, subjectId, term);
       if (!perf) {
         return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
       }
