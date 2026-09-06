@@ -116,7 +116,7 @@ const GradebookController = {
       this._allStudents = await api.getSectionStudents(sectionId).catch(() => []);
 
       // Default: first subject, first term
-      this._currentSubjectId = classSubjects[0].subject_id;
+      this._currentSubjectId = sectionSubjects[0].subject_id;
       this._currentTerm      = '1st';
 
       await this._renderSubjectGrades();
@@ -179,7 +179,7 @@ const GradebookController = {
       let cached = this._subjectCache[cacheKey];
       if (!cached) {
         const [activities, modules, attendance, moduleReadsData] = await Promise.all([
-          api.getTeacherActivities({ subject_id: subjectId }).catch(() => []),
+          api.getTeacherActivities({ subject_id: subjectId, term }).catch(() => []),
           api.getMyModules(subjectId).catch(() => []),
           api.getAttendanceSectionStudents(this._currentSectionId, { subjectId, term }).catch(() => ({ students: [], total_meetings: 0 })),
           api.getClassModuleReads(this._currentClassId, subjectId).catch(() => ({ module_reads: {}, total_modules: 0 })),
@@ -436,7 +436,7 @@ const GradebookController = {
       ['2.50','73–76%','Passing'],['2.75','69–72%','Conditional'],['3.00','65–68%','Barely Passing'],
       ['5.00','Below 65%','Failed'],[],
       ['Formula:','',''],
-      ['Overall % = (Activity% × 60%) + (Module Read% × 30%) + (Attendance% × 10%)','',''],
+      ['Overall % = (Activity% × 75%) + (Attendance% × 15%) + (Module Read% × 10%)','',''],
     ]);
     ws3['!cols'] = [{ wch:14 },{ wch:16 },{ wch:20 }];
     XLSX.utils.book_append_sheet(wb, ws3, 'Grade Scale');
