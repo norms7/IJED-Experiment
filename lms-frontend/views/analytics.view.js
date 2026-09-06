@@ -26,6 +26,13 @@ const AnalyticsView = {
           <p class="analytics-sub">Understand your academic journey with data-driven insights.</p>
         </div>
         <div class="analytics-filters">
+          <select id="analytics-term-filter" class="analytics-select" onchange="AnalyticsController.onTermChange(this.value)">
+            <option value="">All Terms</option>
+            <option value="1st">1st Term</option>
+            <option value="2nd">2nd Term</option>
+            <option value="3rd">3rd Term</option>
+            <option value="4th">4th Term</option>
+          </select>
           <select id="analytics-subject-filter" class="analytics-select" onchange="AnalyticsController.onSubjectChange(this.value)">
             <option value="">All Subjects</option>
             ${opts}
