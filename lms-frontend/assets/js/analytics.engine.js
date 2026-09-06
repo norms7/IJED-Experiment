@@ -88,7 +88,7 @@ const AnalyticsEngine = (() => {
 
       const { data: subs, error } = await sb
         .from("activity_submissions")
-        .select("score, max_score, submitted_at, activities(id, title, activity_type, subject_id, modules(term))")
+        .select("score, max_score, submitted_at, activities(id, title, activity_type, subject_id, term)")
         .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
       if (error) throw new Error(error.message);
 
@@ -98,7 +98,7 @@ const AnalyticsEngine = (() => {
         const act = sub.activities;
         if (!act || !enrolledSet.has(act.subject_id)) continue;
         if (subjectId && act.subject_id !== subjectId) continue;
-        if (term && act.modules?.term !== term) continue;
+        if (term && act.term !== term) continue;
         const pct = sub.max_score > 0 ? Math.round((sub.score / sub.max_score) * 1000) / 10 : null;
         data.push({
           date: sub.submitted_at.slice(0, 10),
@@ -214,7 +214,7 @@ const AnalyticsEngine = (() => {
 
       const { data: subs, error } = await sb
         .from("activity_submissions")
-        .select("score, max_score, activities(subject_id, modules(term))")
+        .select("score, max_score, activities(subject_id, term)")
         .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
       if (error) throw new Error(error.message);
 
@@ -222,7 +222,7 @@ const AnalyticsEngine = (() => {
       const perSubject = new Map();
       for (const sub of (subs || [])) {
         const sid = sub.activities?.subject_id;
-        if (term && sub.activities?.modules?.term !== term) continue;
+        if (term && sub.activities?.term !== term) continue;
         if (sid && subjectSet.has(sid) && sub.max_score > 0) {
           if (!perSubject.has(sid)) perSubject.set(sid, []);
           perSubject.get(sid).push((sub.score / sub.max_score) * 100);
@@ -502,18 +502,15 @@ const AnalyticsEngine = (() => {
     // or undated. A past-due activity the student never submitted counts as
     // 0 earned against its own max_score (not a flat 100), so a missed
     // 10-point quiz doesn't get weighted the same as a missed 100-point exam.
-    // Term scoping: activities have no term column of their own -- an
-    // activity's term comes from its module (module_id -> modules.term) --
-    // so we fetch with the term nested and filter here rather than joining
-    // on subject_id alone, which would ignore term entirely.
-    const { data: applicableActsRaw, error: actErr } = await sb
-      .from("activities").select("id, max_score, due_date, modules(term)")
+    // Term scoping: activities.term is a direct column, set explicitly when
+    // the teacher creates the activity -- filtered straight, no join needed.
+    let actQuery = sb
+      .from("activities").select("id, max_score, due_date")
       .in("subject_id", subjectIds).eq("is_published", true)
       .or(`due_date.is.null,due_date.lte.${nowIso}`);
+    if (term) actQuery = actQuery.eq("term", term);
+    const { data: applicableActs, error: actErr } = await actQuery;
     if (actErr) throw new Error(actErr.message);
-    const applicableActs = term
-      ? (applicableActsRaw || []).filter(a => a.modules?.term === term)
-      : (applicableActsRaw || []);
 
     const { data: subs } = await sb
       .from("activity_submissions")
