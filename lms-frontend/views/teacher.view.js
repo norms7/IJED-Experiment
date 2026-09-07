@@ -463,7 +463,7 @@ const TeacherView = {
           ${termOptions}
         </select>
         <span style="font-size:12px;color:var(--gray-400)">
-          Showing grades for <strong style="color:var(--maroon)">${escHtml(activeSubject.subject_name || '')}</strong> — <strong>${escHtml(activeTerm)} Quarter</strong>
+          Showing grades for <strong style="color:var(--maroon)">${escHtml(activeSubject.subject_name || '')}</strong> — <strong>${escHtml(activeTerm)} Term</strong>
         </span>
       </div>
 
@@ -474,16 +474,16 @@ const TeacherView = {
           <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--maroon);line-height:1.2">${studentCount}</div>
         </div>
         <div class="stat-card" style="padding:12px 14px;min-width:0">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Activities (60%)</div>
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Activities (75%)</div>
           <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--maroon);line-height:1.2">${totalActivities}</div>
         </div>
         <div class="stat-card" style="padding:12px 14px;min-width:0">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Modules (30%)</div>
-          <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--maroon);line-height:1.2">${totalModules}</div>
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Attendance (15%)</div>
+          <div style="font-size:clamp(14px,3.5vw,18px);font-weight:700;color:var(--maroon);line-height:1.2">${attTotal > 0 ? attTotal + ' mtgs' : '—'}</div>
         </div>
         <div class="stat-card" style="padding:12px 14px;min-width:0">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Attendance (10%)</div>
-          <div style="font-size:clamp(14px,3.5vw,18px);font-weight:700;color:var(--maroon);line-height:1.2">${attTotal > 0 ? attTotal + ' mtgs' : '—'}</div>
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Modules (10%)</div>
+          <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--maroon);line-height:1.2">${totalModules}</div>
         </div>
       </div>
 
@@ -496,7 +496,7 @@ const TeacherView = {
                 <th style="white-space:nowrap">STUDENT NAME</th>
                 <th style="white-space:nowrap">LRN / STUD. NO.</th>
                 <th style="text-align:center;white-space:nowrap">ACTS <span style="font-weight:400;font-size:10px;opacity:.75">(SUB/TOT)</span></th>
-                <th style="text-align:center;white-space:nowrap">ACT% <span style="font-weight:400;font-size:10px;opacity:.75">(60%)</span></th>
+                <th style="text-align:center;white-space:nowrap">ACT% <span style="font-weight:400;font-size:10px;opacity:.75">(75%)</span></th>
                 <th style="text-align:center;white-space:nowrap">MODS <span style="font-weight:400;font-size:10px;opacity:.75">(READ/TOT)</span></th>
                 <th style="text-align:center;white-space:nowrap">ATT. <span style="font-weight:400;font-size:10px;opacity:.75">(PRES/TOT)</span></th>
                 <th style="text-align:center;white-space:nowrap">OVERALL %</th>
@@ -515,7 +515,7 @@ const TeacherView = {
         1.00 (97-100%) · 1.25 (93-96%) · 1.50 (89-92%) · 1.75 (85-88%) · 2.00 (81-84%) ·
         2.25 (77-80%) · 2.50 (73-76%) · 2.75 (69-72%) · 3.00 (65-68%) · 5.00 (&lt;65% · Failed)
         <br><span style="color:var(--gray-400);margin-top:4px;display:block">
-          Formula: (Activity% × 60%) + (Module Read% × 30%) + (Attendance% × 10%)
+          Formula: (Activity% × 75%) + (Attendance% × 15%) + (Module Read% × 10%)
         </span>
       </div>`;
   },
