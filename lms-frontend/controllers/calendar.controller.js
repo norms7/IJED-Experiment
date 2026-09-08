@@ -184,7 +184,7 @@ const CalendarController = {
       ).join('');
 
       cells += `
-        <div class="cal-cell${isToday ? ' cal-today' : ''}${isSel ? ' cal-selected' : ''}${hasClass ? ' cal-has-class' : ''}"
+        <div class="cal-cell${isToday ? ' cal-today' : ''}${isSel ? ' cal-selected' : ''}${hasClass ? ' cal-has-class' : ''}${events.length ? ' cal-has-events' : ''}"
              onclick="CalendarController.selectDay('${dateStr}')"
              data-date="${dateStr}"
              ${hasClass ? `title="${classesToday.length} class(es) scheduled"` : ''}>
