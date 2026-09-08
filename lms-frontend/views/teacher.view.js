@@ -65,9 +65,9 @@ const TeacherView = {
           <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! ${lmsIcon('school')}</div>
           <div class="welcome-sub">Your assigned subjects & sections</div>
         </div>
-        <div class="welcome-emoji">${LMS_ICONS.bookOpen}</div>
+        <div class="welcome-emoji">${LMS_ICONS.clipboard}</div>
       </div>
-      <div class="stat-grid mb-4">
+      <div class="stat-grid teacher-dashboard-stat-grid mb-4">
         <div class="stat-card"><div class="stat-icon" style="background:rgba(139,26,46,0.08)">${LMS_ICONS.bookOpen}</div><div><div class="stat-value">${subjects.length}</div><div class="stat-label">Assigned Subjects</div></div></div>
       </div>
       <div class="teacher-subjects-grid">${cards}</div>`;
@@ -463,7 +463,7 @@ const TeacherView = {
             </div>
           </div>
         </div>
-        <div class="section-header-right">
+        <div class="section-header-right teacher-resource-header-actions">
           <div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search students…" /></div>
           <button class="btn btn-outline btn-sm" onclick="GradebookController.exportSection()">${lmsIcon('download')} Export Excel</button>
         </div>
