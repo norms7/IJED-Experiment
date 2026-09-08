@@ -180,9 +180,9 @@ const GradebookController = {
       if (!cached) {
         const [activities, modules, attendance, moduleReadsData] = await Promise.all([
           api.getTeacherActivities({ subject_id: subjectId, term }).catch(() => []),
-          api.getMyModules(subjectId).catch(() => []),
+          api.getMyModules(subjectId, term).catch(() => []),
           api.getAttendanceSectionStudents(this._currentSectionId, { subjectId, term }).catch(() => ({ students: [], total_meetings: 0 })),
-          api.getClassModuleReads(subjectId, term).catch(() => ({ module_reads: {}, total_modules: 0 })),
+          api.getClassModuleReads(subjectId, term).catch(() => ({ module_reads: {}, read_module_ids: {}, total_modules: 0 })),
         ]);
 
         // Fetch submissions per activity
@@ -194,11 +194,16 @@ const GradebookController = {
           )
         );
 
-        cached = { activities: activitiesWithSubs, modules, attendance, moduleReads: moduleReadsData.module_reads || {}, totalModules: moduleReadsData.total_modules || modules.length };
+        cached = {
+          activities: activitiesWithSubs, modules, attendance,
+          moduleReads: moduleReadsData.module_reads || {},
+          readModuleIds: moduleReadsData.read_module_ids || {},
+          totalModules: moduleReadsData.total_modules || modules.length,
+        };
         this._subjectCache[cacheKey] = cached;
       }
 
-      const { activities, modules, attendance, moduleReads } = cached;
+      const { activities, modules, attendance, moduleReads, readModuleIds } = cached;
 
       // Annotate students with attendance and module reads for this subject+term
       const attMap   = {};
@@ -208,6 +213,7 @@ const GradebookController = {
       const studentsAnnotated = this._allStudents.map(stu => ({
         ...stu,
         _modulesRead: moduleReads[stu.id] ?? 0,
+        _readModuleIds: readModuleIds[stu.id] || [],
         _attPresent:  attMap[stu.id]?.present ?? 0,
         _attLate:     attMap[stu.id]?.late ?? 0,
         _attTotal:    attTotal,
@@ -245,7 +251,8 @@ const GradebookController = {
   // ── Per-student breakdown modal ───────────────────────────────────────────
   viewStudentBreakdown(studentId, studentName) {
     if (!this._lastExportData) { Toast.show('No gradebook loaded', 'error'); return; }
-    const { activities, modules, subjectName, term } = this._lastExportData;
+    const { activities, modules, subjectName, term, students } = this._lastExportData;
+    const readIds = new Set(students?.find(s => s.id === studentId)?._readModuleIds || []);
 
     const TYPE_LABELS = { quiz:'Quiz', long_quiz:'Long Quiz', task_performance:'Task Performance',
       exam:'Exam', lab_exercise:'Lab Exercise', assignment:'Assignment', other:'Other' };
@@ -286,16 +293,21 @@ const GradebookController = {
         </div>`;
     }).join('') || '<div style="color:var(--gray-400);font-size:13px;text-align:center;padding:12px">No activities</div>';
 
-    const modCards = modules.map(mod => `
+    const modCards = modules.map(mod => {
+      const wasRead = readIds.has(mod.id);
+      const badge = wasRead
+        ? `<span class="badge badge-green" style="font-size:10px">Read</span>`
+        : `<span class="badge badge-gray" style="font-size:10px">Not read</span>`;
+      return `
       <div style="background:var(--gray-50,#faf9f9);border:1px solid var(--gray-100,#f0e8e8);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:13px;font-weight:600;color:var(--maroon)">${escHtml(mod.title)}</span>
-        <span class="badge badge-gray" style="font-size:10px">—</span>
-      </div>`
-    ).join('') || '<div style="color:var(--gray-400);font-size:13px;text-align:center;padding:12px">No modules</div>';
+        ${badge}
+      </div>`;
+    }).join('') || '<div style="color:var(--gray-400);font-size:13px;text-align:center;padding:12px">No modules</div>';
 
     const body = `
       <div style="font-weight:600;font-size:15px;margin-bottom:4px;color:var(--maroon)">📋 ${escHtml(studentName)}</div>
-      <div style="font-size:12px;color:var(--gray-400);margin-bottom:14px">${escHtml(subjectName)} · ${escHtml(term)} Quarter</div>
+      <div style="font-size:12px;color:var(--gray-400);margin-bottom:14px">${escHtml(subjectName)} · ${escHtml(term)} Term</div>
       <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px">Activities</div>
       <div style="margin-bottom:16px">${actCards}</div>
       <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px">Modules</div>
