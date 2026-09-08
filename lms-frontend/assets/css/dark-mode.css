@@ -1,0 +1,481 @@
+/* Shared dark-mode contrast layer. Loaded after all component styles. */
+body.dark-mode {
+  --dm-page: #171116;
+  --dm-surface: #241a20;
+  --dm-surface-raised: #302229;
+  --dm-surface-soft: #392932;
+  --dm-border: #5a3d47;
+  --dm-border-strong: #765260;
+  --dm-text: #fff4f6;
+  --dm-text-secondary: #ead6db;
+  --dm-text-muted: #c5a8b0;
+  --dm-text-faint: #aa8993;
+  --dm-link: #ffb5c4;
+  --dm-focus: #f0c040;
+}
+
+body.dark-mode #page-app,
+body.dark-mode #page-login,
+body.dark-mode .content-area,
+body.dark-mode .main-content {
+  background: var(--dm-page) !important;
+  color: var(--dm-text) !important;
+}
+
+body.dark-mode .topbar,
+body.dark-mode .card,
+body.dark-mode .stat-card,
+body.dark-mode .table-card,
+body.dark-mode .module-card,
+body.dark-mode .activity-card,
+body.dark-mode .teacher-subject-card,
+body.dark-mode .teacher-card,
+body.dark-mode .student-subject-card,
+body.dark-mode .section-block,
+body.dark-mode .analytics-card,
+body.dark-mode .login-card,
+body.dark-mode .modal-content,
+body.dark-mode .profile-dropdown,
+body.dark-mode .notif-dropdown {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+  color: var(--dm-text) !important;
+}
+
+body.dark-mode .topbar-toggle {
+  background: var(--dm-surface-raised) !important;
+  color: var(--dm-text-secondary) !important;
+  border: 1px solid var(--dm-border) !important;
+}
+body.dark-mode .topbar-toggle:hover {
+  background: var(--dm-surface-soft) !important;
+  color: var(--dm-text) !important;
+  border-color: var(--dm-border-strong) !important;
+}
+body.dark-mode .topbar-toggle:focus-visible {
+  outline: 2px solid var(--dm-focus) !important;
+  outline-offset: 2px;
+}
+body.dark-mode .enrolled-subjects-stat-icon {
+  color: #ff8fa3 !important;
+  background: #4a2630 !important;
+}
+body.dark-mode .student-dashboard-stat-grid > .stat-card {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .semester-tab {
+  color: var(--dm-link) !important;
+  border-color: var(--dm-link) !important;
+}
+body.dark-mode .semester-tab[style*="background:var(--maroon"] {
+  color: #fff !important;
+  background: #8b1a36 !important;
+  border-color: #8b1a36 !important;
+}
+
+body.dark-mode .card-header,
+body.dark-mode .module-card-header,
+body.dark-mode .teacher-card-body,
+body.dark-mode .student-subject-card-header,
+body.dark-mode .modal-header,
+body.dark-mode .modal-footer,
+body.dark-mode .section-block-header,
+body.dark-mode .notif-dropdown-header,
+body.dark-mode .notif-item {
+  border-color: var(--dm-border) !important;
+}
+
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3,
+body.dark-mode h4,
+body.dark-mode h5,
+body.dark-mode .section-header h2,
+body.dark-mode .page-header,
+body.dark-mode .card-title,
+body.dark-mode .card-header,
+body.dark-mode .analytics-title,
+body.dark-mode .analytics-card-title,
+body.dark-mode .modal-title,
+body.dark-mode .topbar-page-title,
+body.dark-mode .teacher-subject-name,
+body.dark-mode .section-block-title,
+body.dark-mode .module-card-title,
+body.dark-mode .login-title {
+  color: var(--dm-text) !important;
+}
+
+body.dark-mode p,
+body.dark-mode label,
+body.dark-mode .section-header p,
+body.dark-mode .card p,
+body.dark-mode .module-card-desc,
+body.dark-mode .teacher-subject-details,
+body.dark-mode .subject-teacher,
+body.dark-mode .analytics-sub,
+body.dark-mode .analytics-card-sub,
+body.dark-mode .form-label,
+body.dark-mode .notif-item-msg,
+body.dark-mode .profile-dropdown-item {
+  color: var(--dm-text-secondary) !important;
+}
+
+body.dark-mode .text-muted,
+body.dark-mode .stat-label,
+body.dark-mode .module-card-meta,
+body.dark-mode .teacher-email,
+body.dark-mode .teacher-section-label,
+body.dark-mode .section-block-count,
+body.dark-mode .analytics-empty-sub,
+body.dark-mode .topbar-time,
+body.dark-mode .notif-item-time,
+body.dark-mode .profile-dropdown-email,
+body.dark-mode .search-box span {
+  color: var(--dm-text-muted) !important;
+}
+
+body.dark-mode a { color: var(--dm-link) !important; }
+body.dark-mode strong { color: var(--dm-text) !important; }
+
+body.dark-mode .form-control,
+body.dark-mode .analytics-select,
+body.dark-mode .search-box,
+body.dark-mode .search-box input {
+  background: var(--dm-surface-raised) !important;
+  border-color: var(--dm-border-strong) !important;
+  color: var(--dm-text) !important;
+}
+body.dark-mode .form-control::placeholder,
+body.dark-mode .search-box input::placeholder {
+  color: var(--dm-text-faint) !important;
+}
+body.dark-mode .form-control:focus,
+body.dark-mode .analytics-select:focus,
+body.dark-mode .search-box:focus-within {
+  border-color: var(--dm-focus) !important;
+  box-shadow: 0 0 0 2px rgba(240,192,64,.2) !important;
+}
+
+body.dark-mode .data-table th,
+body.dark-mode .activity-table thead tr {
+  background: var(--dm-surface-soft) !important;
+  color: var(--dm-text) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .data-table td,
+body.dark-mode .activity-table tbody td {
+  color: var(--dm-text-secondary) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .data-table tr:hover td,
+body.dark-mode .activity-table tbody tr:hover {
+  background: var(--dm-surface-raised) !important;
+}
+body.dark-mode .activity-table .term-divider-row td {
+  background: var(--dm-surface-soft) !important;
+  border-color: var(--dm-border) !important;
+  color: var(--dm-text-secondary) !important;
+}
+body.dark-mode .table-wrap:has(.activity-table) {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .student-attendance-card {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .student-attendance-header {
+  background: var(--dm-surface-raised) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .student-attendance-header [style*="color:var(--maroon"],
+body.dark-mode .student-attendance-header [style*="color:#555"] {
+  color: var(--dm-text) !important;
+}
+body.dark-mode .student-attendance-header [style*="color:var(--gray-500"] {
+  color: var(--dm-text-secondary) !important;
+}
+body.dark-mode .student-attendance-overall {
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .student-attendance-overall span {
+  color: var(--dm-text-secondary) !important;
+}
+body.dark-mode .student-attendance-overall div[style*="background:#eee"] {
+  background: var(--dm-border) !important;
+}
+body.dark-mode .student-attendance-table thead tr {
+  background: var(--dm-surface-soft) !important;
+}
+body.dark-mode .student-attendance-table thead,
+body.dark-mode .student-attendance-table thead tr,
+body.dark-mode .student-attendance-table thead th {
+  background: var(--dm-surface-soft) !important;
+}
+body.dark-mode .student-attendance-table th {
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .student-attendance-table td {
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .student-attendance-table td[style*="color:#555"],
+body.dark-mode .student-attendance-table td[style*="color:#666"] {
+  color: var(--dm-text-secondary) !important;
+}
+
+body.dark-mode .btn-outline,
+body.dark-mode .btn-ghost {
+  background: transparent !important;
+  color: var(--dm-text-secondary) !important;
+  border-color: var(--dm-border-strong) !important;
+}
+body.dark-mode .btn-outline:hover,
+body.dark-mode .btn-ghost:hover {
+  background: var(--dm-surface-soft) !important;
+  color: var(--dm-text) !important;
+}
+body.dark-mode .btn-danger {
+  background: #4a2028 !important;
+  color: #ffb2bd !important;
+}
+body.dark-mode .btn-primary {
+  color: #fff8e8 !important;
+}
+
+body.dark-mode .badge-green,
+body.dark-mode .grade-a,
+body.dark-mode .grade-pass { background: #173b28 !important; color: #9aefb7 !important; }
+body.dark-mode .badge-gold,
+body.dark-mode .grade-c { background: #493915 !important; color: #ffe29a !important; }
+body.dark-mode .badge-red,
+body.dark-mode .badge-danger,
+body.dark-mode .grade-d,
+body.dark-mode .grade-fail { background: #4a2028 !important; color: #ffb2bd !important; }
+body.dark-mode .badge-blue,
+body.dark-mode .grade-b { background: #1b3555 !important; color: #b7d7ff !important; }
+body.dark-mode .badge-maroon { background: #512230 !important; color: #ffc1cd !important; }
+body.dark-mode .badge-gray,
+body.dark-mode .grade-ng { background: var(--dm-surface-soft) !important; color: var(--dm-text-secondary) !important; }
+
+body.dark-mode .stat-icon,
+body.dark-mode .subject-icon,
+body.dark-mode .notif-item-icon {
+  background: var(--dm-surface-soft) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .stat-icon svg,
+body.dark-mode .subject-icon svg,
+body.dark-mode .lms-inline-icon svg,
+body.dark-mode .admin-inline-icon {
+  color: currentColor !important;
+}
+
+body.dark-mode .empty-state-title,
+body.dark-mode .empty-state-sub,
+body.dark-mode .empty-state-desc,
+body.dark-mode .analytics-empty-title,
+body.dark-mode .analytics-empty-sub {
+  color: var(--dm-text-secondary) !important;
+}
+body.dark-mode .empty-state-icon,
+body.dark-mode .analytics-empty-icon { color: var(--dm-text-muted) !important; }
+
+body.dark-mode .module-card-footer,
+body.dark-mode .subject-accordion-inner,
+body.dark-mode .section-block-header,
+body.dark-mode .peer-profile-item,
+body.dark-mode .notif-item:hover,
+body.dark-mode .profile-dropdown-item:hover {
+  background: var(--dm-surface-raised) !important;
+}
+
+body.dark-mode [style*="background:#fff"],
+body.dark-mode [style*="background: #fff"],
+body.dark-mode [style*="background:white"],
+body.dark-mode [style*="background: white"] {
+  background: var(--dm-surface) !important;
+  color: var(--dm-text) !important;
+}
+body.dark-mode [style*="color:#1a1a2e"],
+body.dark-mode [style*="color: #1a1a2e"],
+body.dark-mode [style*="color:#333"],
+body.dark-mode [style*="color: #333"] { color: var(--dm-text) !important; }
+body.dark-mode [style*="color:#555"],
+body.dark-mode [style*="color: #555"],
+body.dark-mode [style*="color:#666"],
+body.dark-mode [style*="color: #666"],
+body.dark-mode [style*="color:#777"],
+body.dark-mode [style*="color: #777"],
+body.dark-mode [style*="color:#888"],
+body.dark-mode [style*="color: #888"],
+body.dark-mode [style*="color:#999"],
+body.dark-mode [style*="color: #999"] { color: var(--dm-text-muted) !important; }
+
+body.dark-mode .notif-dropdown-title,
+body.dark-mode .notif-item-title,
+body.dark-mode .profile-dropdown-name { color: var(--dm-text) !important; }
+body.dark-mode .notif-item.notif-unread { background: #3b202b !important; }
+body.dark-mode .notif-item-time,
+body.dark-mode .profile-dropdown-email { color: var(--dm-text-faint) !important; }
+
+body.dark-mode .skeleton-title,
+body.dark-mode .skeleton-chart,
+body.dark-mode .skel {
+  background: linear-gradient(90deg, var(--dm-surface) 25%, var(--dm-surface-soft) 50%, var(--dm-surface) 75%) !important;
+  background-size: 200% 100% !important;
+}
+
+body.dark-mode .analytics-tab { color: var(--dm-text-secondary) !important; }
+body.dark-mode .analytics-tab.active { color: #ffc1cd !important; border-bottom-color: #e05b78 !important; }
+body.dark-mode .analytics-card-title > span,
+body.dark-mode .analytics-icon,
+body.dark-mode .analytics-tab-icon { color: #ffc1cd !important; }
+
+/* Teacher resource labels and icons use inline subject colors in light mode.
+   Override those colors in dark mode so maroon/red content remains readable. */
+body.dark-mode .module-card-subject,
+body.dark-mode .module-card-subject svg,
+body.dark-mode .module-subject-icon,
+body.dark-mode .module-subject-icon svg {
+  color: #ffb5c4 !important;
+  stroke: currentColor !important;
+}
+body.dark-mode .activity-card .badge-maroon {
+  background: #512230 !important;
+  color: #ffd0d8 !important;
+}
+body.dark-mode .activity-card .badge-maroon .lms-inline-icon,
+body.dark-mode .activity-card .badge-maroon svg,
+body.dark-mode .activity-card .lms-inline-icon {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+body.dark-mode .activity-card > .teacher-activity-layout .badge:not(.badge-maroon):not(.badge-green):not(.badge-gold):not(.badge-gray):not(.badge-blue):not(.badge-red):not(.badge-danger) {
+  background: var(--dm-surface-soft) !important;
+  color: var(--dm-text-secondary) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .activity-card .teacher-activity-meta {
+  color: var(--dm-text-secondary) !important;
+}
+body.dark-mode .activity-card .teacher-activity-meta .lms-inline-icon {
+  color: #ffc1cd !important;
+}
+
+/* Calendar cells and inline calendar panels need their own dark surfaces. */
+body.dark-mode .cal-cell:not(.cal-today):not(.cal-selected) {
+  background: var(--dm-surface-raised) !important;
+}
+body.dark-mode .cal-cell.cal-has-class:not(.cal-today):not(.cal-selected) {
+  background: #30252b !important;
+  box-shadow: inset 0 0 0 1.5px #765260 !important;
+}
+body.dark-mode .cal-cell.cal-has-events:not(.cal-today):not(.cal-selected) {
+  background: #2d2429 !important;
+  box-shadow: inset 0 0 0 1px #604450 !important;
+}
+body.dark-mode .cal-cell.cal-selected {
+  background: #512230 !important;
+  outline-color: #f08098 !important;
+}
+body.dark-mode .cal-cell.cal-today {
+  background: #8b1a36 !important;
+}
+body.dark-mode .cal-dow,
+body.dark-mode .cal-section-title,
+body.dark-mode .cal-empty-day { color: var(--dm-text-muted) !important; }
+body.dark-mode .cal-nav,
+body.dark-mode .cal-day-header { border-color: var(--dm-border) !important; }
+body.dark-mode .cal-day-header,
+body.dark-mode .cal-nav span,
+body.dark-mode .cal-event-title { color: var(--dm-text) !important; }
+body.dark-mode .cal-event-item { background: var(--dm-surface-raised) !important; }
+body.dark-mode .cal-event-desc { color: var(--dm-text-secondary) !important; }
+body.dark-mode .calendar-empty-icon,
+body.dark-mode .calendar-empty-icon svg {
+  color: #ff8fa3 !important;
+  stroke: currentColor !important;
+}
+body.dark-mode .cal-right #cal-day-panel [style*="color:var(--gray-600)"],
+body.dark-mode .cal-right #cal-day-panel [style*="color:var(--gray-400)"] {
+  color: var(--dm-text-secondary) !important;
+}
+body.dark-mode .cal-left > div[style*="background:"] {
+  background: var(--dm-surface-raised) !important;
+  color: var(--dm-text) !important;
+}
+body.dark-mode .cal-left > div[style*="background:"] [style*="color:"] {
+  color: var(--dm-text) !important;
+}
+
+/* Inline maroon text is readable in light mode but too dark on dark surfaces. */
+body.dark-mode .text-maroon,
+body.dark-mode [style*="color:var(--maroon)"],
+body.dark-mode [style*="color: var(--maroon)"],
+body.dark-mode [style*="color:var(--maroon-dark)"],
+body.dark-mode [style*="color: var(--maroon-dark)"] {
+  color: #ffb5c4 !important;
+}
+body.dark-mode .data-table td [style*="color:var(--maroon)"] svg,
+body.dark-mode .data-table td [style*="color: var(--maroon)"] svg {
+  color: #ffb5c4 !important;
+  stroke: currentColor !important;
+}
+
+/* Student surfaces: restore contrast for subject icons, stat icons, and text. */
+body.dark-mode .student-subject-card .subject-icon {
+  background: var(--dm-surface-soft) !important;
+  border-color: var(--dm-border-strong) !important;
+  color: color-mix(in srgb, var(--subject-color) 45%, white) !important;
+}
+body.dark-mode .student-subject-card .subject-icon svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+body.dark-mode .student-subject-card-icon {
+  background: color-mix(in srgb, var(--subject-icon-color) 22%, var(--dm-surface-soft)) !important;
+  border: 1px solid color-mix(in srgb, var(--subject-icon-color) 55%, var(--dm-border-strong));
+  color: color-mix(in srgb, var(--subject-icon-color) 70%, white) !important;
+}
+body.dark-mode .student-subject-card-icon svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+body.dark-mode .db-subject-item {
+  background: linear-gradient(90deg, rgba(34,197,94,.10) 0%, transparent 70%) !important;
+  border-left-color: #2f8f5b !important;
+}
+body.dark-mode .db-subject-item > div[style*="width:36px"] {
+  background: #1d3d2b !important;
+  border-color: #2f6f50 !important;
+  color: #5b9f79 !important;
+}
+body.dark-mode .db-subject-item > div[style*="width:36px"] svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+body.dark-mode .student-subject-card .subject-name,
+body.dark-mode .student-subject-card .subject-teacher,
+body.dark-mode .db-subject-item [style*="color:#1a1a2e"],
+body.dark-mode .db-subject-item [style*="color: #1a1a2e"] {
+  color: var(--dm-text-secondary) !important;
+}
+body.dark-mode .student-subject-card .accordion-chevron { color: var(--dm-text-muted) !important; }
+body.dark-mode .student-subject-card .subject-accordion-inner,
+body.dark-mode .student-subject-card .accordion-content-item {
+  background: var(--dm-surface-raised) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .stat-card .stat-icon {
+  background: var(--dm-surface-soft) !important;
+}
+body.dark-mode .stat-card .stat-icon svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+body.dark-mode .mod-remaining svg {
+  width: 14px !important;
+  height: 14px !important;
+  vertical-align: -2px;
+}

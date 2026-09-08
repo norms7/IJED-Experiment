@@ -290,6 +290,7 @@ tbody tr:last-child td { border-bottom: none; }
   grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
   gap: clamp(10px, 2vw, 16px);
 }
+.stat-grid.teacher-dashboard-stat-grid { grid-template-columns: minmax(0, 1fr) !important; }
 .stat-card {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -1758,15 +1759,15 @@ body.dark-mode .stat-card[style] { background: #1e1013 !important; border-color:
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 120px;
+  height: 120px;
   margin: 0 auto 8px;
   color: var(--maroon);
 }
 .activity-result-icon svg {
   display: block;
-  width: 32px;
-  height: 32px;
+  width: 120px;
+  height: 120px;
 }
 .activity-result-remarks {
   display: flex;
