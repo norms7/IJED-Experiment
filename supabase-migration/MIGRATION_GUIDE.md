@@ -15,6 +15,7 @@ Do this on a **new branch**, not `Norms-Branch` or `main`. Suggested:
    Backups → trigger a manual backup. If anything goes wrong, you restore
    and lose nothing.
 2. Export your current data as a safety net too:
+
    ```bash
    pg_dump "postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres" \
      --data-only --no-owner --no-privileges > data_backup.sql
@@ -51,13 +52,16 @@ Your current `users` table has emails + bcrypt hashes, but Supabase Auth
 doesn't know about them yet. You have two options:
 
 ### Option A — Reset passwords (recommended, simplest)
+
 For each existing user (or have them self-serve via "Forgot Password"):
 
 1. Create their Supabase Auth account:
+
    ```sql
    -- Run once per user, or better, do this via the Dashboard:
    -- Authentication → Users → Add User → enter their email + a temp password
    ```
+
    The `on_auth_user_created` trigger (from `03_functions.sql`) will
    automatically match the new Auth user to their existing `users` row by
    email and set `auth_uid`.
@@ -66,11 +70,13 @@ For each existing user (or have them self-serve via "Forgot Password"):
    "Send password recovery").
 
 ### Option B — Bulk-create via Edge Function
+
 If you have many users, loop through them calling
 `supabase.auth.admin.createUser()` from a one-off script using the
 service role key (never in the browser). Same trigger links them.
 
 **Verify the link worked:**
+
 ```sql
 select id, email, auth_uid from users where auth_uid is null;
 -- should return 0 rows once everyone is migrated
@@ -104,11 +110,13 @@ are automatically available inside Edge Functions.
 ## Phase 4 — Storage bucket for module files
 
 Dashboard → Storage → New Bucket:
+
 - Name: `module-files`
 - Public: **Yes** (so `getPublicUrl()` works without extra signing logic —
   fine for an LMS where files are course material, not sensitive)
 
 Then add a simple storage policy so teachers can upload:
+
 ```sql
 create policy "Teachers can upload module files"
 on storage.objects for insert
@@ -126,21 +134,27 @@ using (bucket_id = 'module-files');
 
 1. Add the Supabase JS SDK to your HTML entry point, **before** your own
    scripts:
+
    ```html
    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
    ```
+
 2. Replace the old API script tag:
+
    ```html
    <!-- OLD -->
    <script defer src="assets/js/lms-admin-api.js"></script>
    <!-- NEW -->
    <script defer src="assets/js/lms-supabase-api.js"></script>
    ```
+
 3. Edit `lms-supabase-api.js` and fill in the two constants at the top:
+
    ```js
    const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
    const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";  // Dashboard → Settings → API
    ```
+
    The anon key is safe to ship in frontend code — RLS is what actually
    protects your data, not key secrecy.
 4. Delete (or just stop loading) `lms-frontend/models/models.js` — it was
@@ -157,6 +171,7 @@ using (bucket_id = 'module-files');
 Go through this checklist in order — each role builds on the previous:
 
 **Admin:**
+
 - [ ] Log in
 - [ ] Dashboard stats load
 - [ ] Create a class, section, subject
@@ -164,6 +179,7 @@ Go through this checklist in order — each role builds on the previous:
 - [ ] Create a student account, enroll them in a subject
 
 **Teacher:**
+
 - [ ] Log in as the teacher you just created
 - [ ] See assigned subjects/classes
 - [ ] Upload a module file
@@ -172,6 +188,7 @@ Go through this checklist in order — each role builds on the previous:
 - [ ] Create an attendance session with records
 
 **Student:**
+
 - [ ] Log in as the student
 - [ ] See enrolled subjects + modules
 - [ ] Mark a module as read
@@ -179,10 +196,12 @@ Go through this checklist in order — each role builds on the previous:
 - [ ] Submit the essay-only activity → should show "pending grade"
 
 **Back to Teacher:**
+
 - [ ] Manually grade the essay submission
 - [ ] Confirm a notification appears for the student
 
 **Back to Student:**
+
 - [ ] Confirm the graded result shows up
 - [ ] Confirm dashboard stats updated
 
@@ -204,13 +223,13 @@ No further setup needed — `getDescriptiveAnalytics()`, `getBayesianAnalytics()
 all work exactly as before from the student controller's point of view.
 
 Add this to the Phase 6 test checklist:
+
 - [ ] Student → Analytics tab loads grade progress, attendance calendar,
       score-vs-average, module progress, and subject radar
 - [ ] Student → Bayesian tab shows predicted grade, improvement probability,
       "students like you" percentile, and risk assessment
 - [ ] Numbers look sane (predicted grade somewhere between observed scores
       and the 78 prior if very few submissions exist yet)
-
 
 ---
 

@@ -41,7 +41,7 @@ const AttendanceController = {
     } catch (err) {
       console.error('[Attendance] loadSections:', err);
       if (wrap) wrap.innerHTML = `<div class="empty-state">
-        <div class="empty-state-icon">⚠️</div>
+        <div class="empty-state-icon">${LMS_ICONS.warning}</div>
         <div class="empty-state-title">Failed to load sections</div>
         <div class="empty-state-sub">${escHtml(err.message)}</div>
       </div>`;
@@ -83,7 +83,7 @@ const AttendanceController = {
           </div>
         </div>
       </div>
-      <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading…</div></div>`;
+      <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading…</div></div>`;
 
     try {
       const [summaryData, sessions] = await Promise.all([
@@ -154,12 +154,12 @@ const AttendanceController = {
   // ── Internal: show modal (create or edit) ─────────────────────────────────
   _showAttendanceModal(existingSession) {
     const isEdit  = !!existingSession;
-    const title   = isEdit ? '✏️ Edit Attendance Session' : '📝 Take Attendance';
+    const title   = isEdit ? `${lmsIcon('edit')} Edit Attendance Session` : `${lmsIcon('clipboard')} Take Attendance`;
     const body    = TeacherView.attendanceModal(this._currentStudents, existingSession, this._currentSubjects || []);
     const footer  = `
       <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
       <button class="btn btn-primary" onclick="AttendanceController.saveAttendance()">
-        ${isEdit ? '💾 Update' : '✅ Save Attendance'}
+        ${isEdit ? `${lmsIcon('save')} Update` : `${lmsIcon('check')} Save Attendance`}
       </button>`;
 
     Modal.show(title, body, footer);
@@ -248,10 +248,10 @@ const AttendanceController = {
     const footer = `
       <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
       <button class="btn btn-danger" onclick="AttendanceController._confirmDelete(${sessionId})">
-        🗑️ Yes, Delete
+        ${lmsIcon('trash')} Yes, Delete
       </button>`;
     Modal.show(
-      '⚠️ Delete Session',
+      `${lmsIcon('warning')} Delete Session`,
       `<p>Are you sure you want to delete the attendance session for <strong>${escHtml(sessionDate)}</strong>?</p>
        <p style="color:var(--gray-400);font-size:13px;margin-top:8px">This will permanently remove all attendance records for that day.</p>`,
       footer

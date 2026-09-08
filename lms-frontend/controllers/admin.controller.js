@@ -123,7 +123,7 @@ const AdminController = {
           </div>
         </div>
         <div class="form-group" style="margin-top: 12px;">
-          <label class="form-label" style="font-weight: 600;">📚 Subjects & Classes (at least one)</label>
+          <label class="form-label" style="font-weight: 600;">${ADMIN_ICONS.book} Subjects & Classes (at least one)</label>
           <div id="teacher-assignments-container">
             <div class="assignment-row" data-index="0" style="margin-bottom: 16px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 12px;">
               <div class="form-row">
@@ -546,7 +546,7 @@ const AdminController = {
         extraFields = `
           <hr><h4>Teacher Details</h4>
           <div class="form-row"><div class="form-group"><label>Employee ID</label><input class="form-control" id="e-empid" value="${escHtml(teacherProfile?.employee_id || '')}" /></div><div class="form-group"><label>Specialization</label><input class="form-control" id="e-spec" value="${escHtml(teacherProfile?.specialization || '')}" /></div></div>
-          <div class="form-group"><label class="form-label" style="font-weight:600;">📚 Subjects & Classes</label><div id="edit-assignments-container">${assignmentsHtml}</div><button type="button" id="add-edit-assignment-btn" class="btn btn-outline btn-sm">+ Add Another Subject & Class</button></div>`;
+          <div class="form-group"><label class="form-label" style="font-weight:600;">${ADMIN_ICONS.book} Subjects & Classes</label><div id="edit-assignments-container">${assignmentsHtml}</div><button type="button" id="add-edit-assignment-btn" class="btn btn-outline btn-sm">${ADMIN_ICONS.plus} Add Another Subject & Class</button></div>`;
       }
 
       if (role === 'student') {
@@ -929,7 +929,7 @@ const AdminController = {
     const loadingModal = document.createElement('div');
     loadingModal.id = 'enroll-subjects-modal';
     loadingModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    loadingModal.innerHTML = `<div style="background:#fff;border-radius:12px;padding:32px;min-width:320px;text-align:center;"><div style="font-size:24px;margin-bottom:8px">📚</div><p style="color:#888">Loading subjects…</p></div>`;
+    loadingModal.innerHTML = `<div style="background:#fff;border-radius:12px;padding:32px;min-width:320px;text-align:center;"><div style="font-size:24px;margin-bottom:8px">${ADMIN_ICONS.book}</div><p style="color:#888">Loading subjects…</p></div>`;
     document.body.appendChild(loadingModal);
     try {
       const [allSubjects, enrolled] = await Promise.all([
@@ -946,7 +946,7 @@ const AdminController = {
       ).join('');
       loadingModal.innerHTML = `<div style="background:#fff;border-radius:12px;padding:28px;width:520px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-          <div><h3 style="margin:0;color:#1a1a2e">📚 Enroll in Subjects</h3><p style="margin:4px 0 0;color:#888;font-size:13px">${escHtml(studentName)}</p></div>
+          <div><h3 style="margin:0;color:#1a1a2e">${ADMIN_ICONS.book} Enroll in Subjects</h3><p style="margin:4px 0 0;color:#888;font-size:13px">${escHtml(studentName)}</p></div>
           <button onclick="document.getElementById('enroll-subjects-modal').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#888;line-height:1;">✕</button>
         </div>
         ${allSubjects.length === 0
@@ -1085,7 +1085,7 @@ const AdminController = {
           Students already in the system (matched by Email or LRN) will have their section/subject
           placement updated — their account and password are left untouched.
         </p>
-        <button class="btn btn-outline btn-sm" onclick="AdminController.downloadStudentImportTemplate()">⬇ Download Template</button>
+        <button class="btn btn-outline btn-sm" onclick="AdminController.downloadStudentImportTemplate()">${ADMIN_ICONS.download} Download Template</button>
       </div>
       <div class="form-group">
         <label>Excel File (.xlsx)</label>
@@ -1390,13 +1390,13 @@ const AdminController = {
 
     let html = `<div class="import-summary" style="display:flex;gap:16px;margin-bottom:12px">
       <div>✅ <strong>${created.length}</strong> created</div>
-      <div>🔁 <strong>${updated.length}</strong> updated</div>
+      <div>${ADMIN_ICONS.transfer} <strong>${updated.length}</strong> updated</div>
       <div>❌ <strong>${errors.length}</strong> errors</div>
     </div>`;
 
     if (created.length) {
       this._lastImportCredentials = created;
-      html += `<button class="btn btn-outline btn-sm" onclick="AdminController._downloadCredentials(AdminController._lastImportCredentials)">⬇ Download Credentials (${created.length})</button>`;
+      html += `<button class="btn btn-outline btn-sm" onclick="AdminController._downloadCredentials(AdminController._lastImportCredentials)">${ADMIN_ICONS.download} Download Credentials (${created.length})</button>`;
     }
 
     if (errors.length) {
@@ -1470,7 +1470,7 @@ const AdminController = {
     }
     try {
       const result = await api.sendAnnouncement(title, msg, target);
-      Toast.show(`📢 Announcement sent to ${result.sent_to ?? ''} user(s).`, 'success');
+      Toast.show(`${ADMIN_ICONS.megaphone} Announcement sent to ${result.sent_to ?? ''} user(s).`, 'success');
       this.closeAnnouncement();
       document.getElementById('announce-title').value = '';
       document.getElementById('announce-msg').value   = '';

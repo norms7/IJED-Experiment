@@ -121,9 +121,17 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
   transition: box-shadow var(--transition);
 }
 .analytics-card:hover { box-shadow: var(--shadow); }
+
+.analytics-module-progress-card {
+  grid-column: 1 / -1;
+  width: fit-content;
+  max-width: 75%;
+  box-sizing: border-box;
+}
 
 .analytics-card-wide {
   grid-column: 1 / -1;    /* always full width */
@@ -134,8 +142,19 @@
 .analytics-card-sub    { font-size: 12px; color: var(--gray-400); }
 
 /* ── Chart canvas wrappers ──────────────────────────────────── */
-.chart-wrapper    { position: relative; height: 260px; width: 100%; }
-.chart-wrapper-sm { position: relative; height: 220px; width: 100%; }
+.chart-wrapper    { position: relative; height: 260px; width: 100%; min-width: 0; }
+.chart-wrapper-sm { position: relative; height: 220px; width: 100%; min-width: 0; }
+.chart-wrapper-subject-performance { height: 360px; }
+.subject-radar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+.subject-radar-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.subject-radar-legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: 0 0 10px; }
+body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
 
 /* ── Skeleton loaders ───────────────────────────────────────── */
 .skeleton-title {
@@ -271,7 +290,7 @@
   margin-bottom: 4px;
 }
 .mod-overall-bar-wrap {
-  flex: 1;
+  flex: 0 1 55%;
   height: 8px;
   background: var(--gray-100);
   border-radius: 4px;
@@ -287,7 +306,7 @@
 .mod-list { display: flex; flex-direction: column; gap: 8px; }
 .mod-subject-row {
   display: grid;
-  grid-template-columns: 120px 1fr 40px 50px;
+  grid-template-columns: 220px 1fr 40px 50px;
   align-items: center;
   gap: 8px;
 }
@@ -295,9 +314,9 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--gray-800);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 .mod-bar-wrap {
   height: 7px;
@@ -309,6 +328,11 @@
 .mod-pct  { font-size: 12px; font-weight: 700; text-align: right; }
 .mod-count { font-size: 11px; color: var(--gray-400); }
 .mod-remaining { font-size: 12px; color: var(--gray-400); margin-top: 8px; text-align: center; }
+.mod-remaining svg { width: 14px; height: 14px; vertical-align: -2px; }
+
+.analytics-module-progress-card .mod-subject-row {
+  grid-template-columns: 220px minmax(100px, 38%) 36px 40px;
+}
 
 /* ══════════════════════════════════════════════════════════════
    BAYESIAN — GAUGE
@@ -481,17 +505,27 @@ body.dark-mode .skeleton-chart    {
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .analytics-grid { grid-template-columns: 1fr; }
+  .analytics-module-progress-card { grid-column: 1; width: 100%; }
   .analytics-card-wide { grid-column: 1; }
   .analytics-header { flex-direction: column; }
   .analytics-tabs { overflow-x: auto; }
   .analytics-tab  { white-space: nowrap; }
-  .mod-subject-row { grid-template-columns: 90px 1fr 36px 44px; }
+  .mod-subject-row { grid-template-columns: minmax(0, 1fr) 72px 36px 44px; }
+  .mod-subject-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .chart-wrapper { height: 220px; overflow: hidden; }
+  .chart-wrapper-subject-performance { height: 280px; }
+  .chart-wrapper canvas { display: block; max-width: 100% !important; }
   .risk-signal-row { grid-template-columns: 110px 1fr 40px; }
   .peer-profile-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .improv-target-row { flex-direction: column; gap: 10px; }
+  .mod-overall-bar-wrap { flex: 1; }
+  .analytics-module-progress-card .mod-subject-row { grid-template-columns: minmax(0, 1fr) 72px 36px 44px; }
 }
 
 @media (max-width: 480px) {
+  .analytics-card { padding: 14px; gap: 10px; }
+  .analytics-card-title { font-size: 13px; }
+  .analytics-card-sub { font-size: 11px; }
   .analytics-tab { font-size: 12px; padding: 8px 14px; }
   .gauge-value   { font-size: 26px; }
   .improv-prob-val { font-size: 28px; }

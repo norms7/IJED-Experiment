@@ -43,10 +43,24 @@ const App = {
     if (window.innerWidth <= 768) {
       sb.classList.toggle('mobile-open');
       ov.classList.toggle('show');
+      this.updateSidebarToggle();
     } else {
       this.sidebarCollapsed = !this.sidebarCollapsed;
       sb.classList.toggle('collapsed', this.sidebarCollapsed);
+      Storage.set('ijla_sidebar_collapsed', this.sidebarCollapsed);
+      this.updateSidebarToggle();
     }
+  },
+
+  updateSidebarToggle() {
+    const toggle = document.getElementById('sidebar-toggle');
+    if (!toggle) return;
+    const isMobileOpen = document.getElementById('sidebar')?.classList.contains('mobile-open');
+    const isCollapsed = this.sidebarCollapsed && window.innerWidth > 768;
+    const label = isMobileOpen ? 'Close sidebar' : isCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    toggle.setAttribute('aria-label', label);
+    toggle.setAttribute('title', label);
+    toggle.setAttribute('aria-expanded', String(!isCollapsed));
   },
 
   /** Update topbar clock every second */
@@ -57,15 +71,33 @@ const App = {
 
   /** Bootstrap the app: dark mode, clock, session restore */
   init() {
+    const savedSidebarState = Storage.get('ijla_sidebar_collapsed');
+    this.sidebarCollapsed = savedSidebarState === true || savedSidebarState === 'true';
+    if (window.innerWidth > 768 && this.sidebarCollapsed) {
+      document.getElementById('sidebar')?.classList.add('collapsed');
+    }
+    this.updateSidebarToggle();
+    window.addEventListener('resize', () => {
+      const sb = document.getElementById('sidebar');
+      if (!sb) return;
+      if (window.innerWidth <= 768) {
+        sb.classList.remove('collapsed');
+      } else {
+        sb.classList.toggle('collapsed', this.sidebarCollapsed);
+      }
+      this.updateSidebarToggle();
+    });
     document.getElementById('sidebar-overlay').addEventListener('click', () => {
       document.getElementById('sidebar').classList.remove('mobile-open');
       document.getElementById('sidebar-overlay').classList.remove('show');
+      this.updateSidebarToggle();
     });
     // Close mobile sidebar when a nav-item is tapped
     document.getElementById('sidebar-nav').addEventListener('click', (e) => {
       if (window.innerWidth <= 768 && e.target.closest('.nav-item')) {
         document.getElementById('sidebar').classList.remove('mobile-open');
         document.getElementById('sidebar-overlay').classList.remove('show');
+        this.updateSidebarToggle();
       }
     });
     // Close mobile sidebar on Escape
@@ -73,6 +105,7 @@ const App = {
       if (e.key === 'Escape') {
         document.getElementById('sidebar').classList.remove('mobile-open');
         document.getElementById('sidebar-overlay').classList.remove('show');
+        this.updateSidebarToggle();
       }
     });
     // Prevent body scroll when mobile sidebar is open

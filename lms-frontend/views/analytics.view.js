@@ -10,6 +10,23 @@
 
 "use strict";
 
+const ANALYTICS_ICONS = {
+  chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 15V9M12 15V5M17 15v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  trend: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 9 12l3 3 7-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h4v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  crystal: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a8 8 0 0 1 16 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6.5 18.5h11M12 16l3.8-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 13.5 7.5 14M17.5 14l1-0.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  inbox: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4V5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 15h4l1.5 2h5L16 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  warning: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 9 16H3L12 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v5M12 17h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  file: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l5 5v11A2.5 2.5 0 0 1 16.5 22h-9A2.5 2.5 0 0 1 5 19.5v-13A2.5 2.5 0 0 1 7.5 4H7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 3.5V9h5M8.5 13h6M8.5 16.5h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  radar: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7.5 5.5-2.8 9-9.4 0-2.8-9L12 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m12 3v14.5M4.5 8.5l7.5 3 7.5-3M7.3 17.5 12 11.5l4.7 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  target: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>',
+  users: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16 11a3 3 0 0 0 0-6M17 14.5h1a4 4 0 0 1 4 4V20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  rating: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5V4ZM8 8h8M8 12h8M8 16h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+const analyticsIcon = (name, className = 'analytics-icon') => `<span class="${className}">${ANALYTICS_ICONS[name]}</span>`;
+
 const AnalyticsView = {
 
   // ── Shell: the two-sub-tab wrapper ───────────────────────────────────────
@@ -22,7 +39,7 @@ const AnalyticsView = {
     return `
       <div class="analytics-header">
         <div>
-          <h2 class="analytics-title">📊 Performance Analytics</h2>
+          <h2 class="analytics-title">${analyticsIcon('chart')}Performance Analytics</h2>
           <p class="analytics-sub">Understand your academic journey with data-driven insights.</p>
         </div>
         <div class="analytics-filters">
@@ -44,11 +61,11 @@ const AnalyticsView = {
       <div class="analytics-tabs">
         <button class="analytics-tab active" data-tab="descriptive"
           onclick="AnalyticsController.switchTab('descriptive', this)">
-          📈 Descriptive Analysis
+          ${analyticsIcon('trend', 'analytics-tab-icon')}Descriptive Analysis
         </button>
         <button class="analytics-tab" data-tab="bayesian"
           onclick="AnalyticsController.switchTab('bayesian', this)">
-          🔮 Bayesian Analysis
+          ${analyticsIcon('crystal', 'analytics-tab-icon')}Bayesian Analysis
         </button>
       </div>
 
@@ -90,7 +107,7 @@ const AnalyticsView = {
   empty(message = 'No data available yet. Complete some activities to see your analytics.') {
     return `
       <div class="analytics-empty">
-        <div class="analytics-empty-icon">📭</div>
+        <div class="analytics-empty-icon">${ANALYTICS_ICONS.inbox}</div>
         <div class="analytics-empty-title">Nothing to show yet</div>
         <div class="analytics-empty-sub">${escHtml(message)}</div>
       </div>`;
@@ -101,7 +118,7 @@ const AnalyticsView = {
   error(msg = 'Could not load analytics. Please try again.') {
     return `
       <div class="analytics-empty">
-        <div class="analytics-empty-icon">⚠️</div>
+        <div class="analytics-empty-icon">${ANALYTICS_ICONS.warning}</div>
         <div class="analytics-empty-title">Something went wrong</div>
         <div class="analytics-empty-sub">${escHtml(msg)}</div>
         <button class="btn btn-sm btn-outline" style="margin-top:12px"
@@ -122,7 +139,7 @@ const AnalyticsView = {
         <!-- 1. Grade Progress — Line Chart -->
         <div class="analytics-card analytics-card-wide">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">📈 My Grade Progress</div>
+            <div class="analytics-card-title">${analyticsIcon('trend')}My Grade Progress</div>
             <div class="analytics-card-sub">Score trends over time</div>
           </div>
           ${grade_progress.data.length
@@ -134,7 +151,7 @@ const AnalyticsView = {
         <!-- 2. Attendance Calendar — Heatmap -->
         <div class="analytics-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">🗓️ My Attendance Calendar</div>
+            <div class="analytics-card-title">${analyticsIcon('calendar')}My Attendance Calendar</div>
             <div class="analytics-card-sub">Daily attendance patterns</div>
           </div>
           <div class="att-legend">
@@ -150,7 +167,7 @@ const AnalyticsView = {
         <!-- 3. Score vs Class Average — Bar Chart -->
         <div class="analytics-card analytics-card-wide">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">📊 Activity Score vs Class Average</div>
+            <div class="analytics-card-title">${analyticsIcon('chart')}Activity Score vs Class Average</div>
             <div class="analytics-card-sub">How you compare to your peers</div>
           </div>
           ${score_vs_avg.data.length
@@ -160,23 +177,23 @@ const AnalyticsView = {
         </div>
 
         <!-- 4. Module Reading Progress — Progress Bars -->
-        <div class="analytics-card">
+        <div class="analytics-card analytics-module-progress-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">📄 Module Reading Progress</div>
+            <div class="analytics-card-title">${analyticsIcon('file')}Module Reading Progress</div>
             <div class="analytics-card-sub">Learning engagement with course materials</div>
           </div>
           ${AnalyticsView._moduleProgress(module_progress)}
         </div>
 
-        <!-- 5. Subject Radar — Radar Chart -->
-        <div class="analytics-card">
+        <!-- 5. Subject Performance — Colored Comparison Chart -->
+        <div class="analytics-card analytics-card-wide analytics-subject-performance-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">🕸️ Subject Performance Overview</div>
-            <div class="analytics-card-sub">Strengths and areas for growth</div>
+            <div class="analytics-card-title">${analyticsIcon('chart')}Subject Performance Overview</div>
+            <div class="analytics-card-sub">Average performance by subject</div>
           </div>
           ${subject_radar.axes.length >= 3
-            ? `<div class="chart-wrapper chart-wrapper-sm"><canvas id="chart-subject-radar"></canvas></div>`
-            : AnalyticsView.empty('Enroll in at least 3 subjects to see the radar chart.')
+            ? `<div class="subject-radar-legend">${subject_radar.axes.map((axis, index) => `<span class="subject-radar-legend-item"><i style="background:${['#8B1E3F', '#1B998B', '#2D6CDF', '#F28E2B', '#7B2CBF', '#0081A7', '#C99700', '#D1495B', '#3A5A40', '#6A4C93', '#E76F51', '#264653'][index % 12]}"></i>${escHtml(axis.subject_name)}</span>`).join('')}</div><div class="chart-wrapper chart-wrapper-subject-performance"><canvas id="chart-subject-radar"></canvas></div>`
+            : AnalyticsView.empty('Enroll in at least 3 subjects to see the subject comparison.')
           }
         </div>
 
@@ -274,8 +291,8 @@ const AnalyticsView = {
           const c = s.completion_pct >= 80 ? 'var(--green)' : s.completion_pct >= 50 ? '#f59e0b' : 'var(--red)';
           return `
             <div class="mod-subject-row">
-              <div class="mod-subject-name" title="Subject ID ${s.subject_id}">
-                Subject ${s.subject_id}
+              <div class="mod-subject-name" title="${escHtml(s.subject_name || `Subject ${s.subject_id}`)}">
+                ${escHtml(s.subject_name || `Subject ${s.subject_id}`)}
               </div>
               <div class="mod-bar-wrap">
                 <div class="mod-bar" style="width:${s.completion_pct}%;background:${c}"></div>
@@ -287,7 +304,7 @@ const AnalyticsView = {
       </div>
       ${totals.total - totals.read > 0
         ? `<p class="mod-remaining">${totals.total - totals.read} module(s) remaining</p>`
-        : `<p class="mod-remaining" style="color:var(--green)">✅ All modules read!</p>`
+        : `<p class="mod-remaining" style="color:var(--green)">${ANALYTICS_ICONS.check} All modules read!</p>`
       }`;
   },
 
@@ -304,7 +321,7 @@ const AnalyticsView = {
         <!-- 1. Predicted Final Grade — Gauge -->
         <div class="analytics-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">🎯 Predicted Final Grade</div>
+            <div class="analytics-card-title">${analyticsIcon('target')}Predicted Final Grade</div>
             <div class="analytics-card-sub">Academic 75% · Attendance 15% · Module Progress 10%</div>
           </div>
           ${AnalyticsView._predictedGrade(predicted_grade)}
@@ -313,7 +330,7 @@ const AnalyticsView = {
         <!-- 2. Grade Improvement Probability -->
         <div class="analytics-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">📈 Grade Improvement Probability</div>
+            <div class="analytics-card-title">${analyticsIcon('trend')}Grade Improvement Probability</div>
             <div class="analytics-card-sub">Chance of reaching your target grade</div>
           </div>
           ${AnalyticsView._improvementProb(improvement_probability)}
@@ -322,7 +339,7 @@ const AnalyticsView = {
         <!-- 3. Students Like You -->
         <div class="analytics-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">👥 Students Like You</div>
+            <div class="analytics-card-title">${analyticsIcon('users')}Students Like You</div>
             <div class="analytics-card-sub">Anonymous comparison with similar engagement profiles</div>
           </div>
           ${AnalyticsView._studentsLikeYou(students_like_you)}
@@ -331,7 +348,7 @@ const AnalyticsView = {
         <!-- 4. Overall Performance Rating -->
         <div class="analytics-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">🚦 Overall Performance Rating</div>
+            <div class="analytics-card-title">${analyticsIcon('rating')}Overall Performance Rating</div>
             <div class="analytics-card-sub">Academic 75% · Attendance 15% · Module Progress 10%</div>
           </div>
           ${AnalyticsView._riskAssessment(risk_assessment)}
