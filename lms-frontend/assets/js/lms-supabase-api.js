@@ -615,12 +615,18 @@ class LMSAdminAPI {
     });
   }
 
-  async getClassModuleReads(classId, subjectId = null) {
-    const cacheKey = `teacher:modreads:${classId}:${subjectId || "all"}`;
+  async getClassModuleReads(subjectId, term = null) {
+    // Scoped by subject + teacher, not class_id -- class_id on modules is
+    // not reliably populated (can be null even for real, in-use modules),
+    // so filtering by it silently returns zero modules and makes every
+    // student's read count look like 0/N. subject_id + teacher_id is the
+    // same reliable pattern getMyModules() already uses.
+    const cacheKey = `teacher:modreads:${subjectId}:${term || "all"}`;
     return this._cached(cacheKey, 30_000, async () => {
-      // Get published modules for this class (optionally filtered by subject)
-      let modQ = this.sb.from("modules").select("id").eq("class_id", classId).eq("is_published", true);
-      if (subjectId) modQ = modQ.eq("subject_id", subjectId);
+      const teacherId = await this._myTeacherId();
+      let modQ = this.sb.from("modules").select("id")
+        .eq("subject_id", subjectId).eq("teacher_id", teacherId).eq("is_published", true);
+      if (term) modQ = modQ.eq("term", term);
       const { data: mods } = await modQ;
       const moduleIds = (mods || []).map(m => m.id);
       if (!moduleIds.length) return { module_reads: {}, total_modules: 0 };
