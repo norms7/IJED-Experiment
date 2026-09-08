@@ -182,7 +182,7 @@ const GradebookController = {
           api.getTeacherActivities({ subject_id: subjectId, term }).catch(() => []),
           api.getMyModules(subjectId).catch(() => []),
           api.getAttendanceSectionStudents(this._currentSectionId, { subjectId, term }).catch(() => ({ students: [], total_meetings: 0 })),
-          api.getClassModuleReads(this._currentClassId, subjectId).catch(() => ({ module_reads: {}, total_modules: 0 })),
+          api.getClassModuleReads(subjectId, term).catch(() => ({ module_reads: {}, total_modules: 0 })),
         ]);
 
         // Fetch submissions per activity
