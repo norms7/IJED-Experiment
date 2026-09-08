@@ -177,7 +177,7 @@ const AnalyticsView = {
         </div>
 
         <!-- 4. Module Reading Progress — Progress Bars -->
-        <div class="analytics-card">
+        <div class="analytics-card analytics-module-progress-card">
           <div class="analytics-card-header">
             <div class="analytics-card-title">${analyticsIcon('file')}Module Reading Progress</div>
             <div class="analytics-card-sub">Learning engagement with course materials</div>
@@ -185,15 +185,15 @@ const AnalyticsView = {
           ${AnalyticsView._moduleProgress(module_progress)}
         </div>
 
-        <!-- 5. Subject Radar — Radar Chart -->
-        <div class="analytics-card">
+        <!-- 5. Subject Performance — Colored Comparison Chart -->
+        <div class="analytics-card analytics-card-wide analytics-subject-performance-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('radar')}Subject Performance Overview</div>
-            <div class="analytics-card-sub">Strengths and areas for growth</div>
+            <div class="analytics-card-title">${analyticsIcon('chart')}Subject Performance Overview</div>
+            <div class="analytics-card-sub">Average performance by subject</div>
           </div>
           ${subject_radar.axes.length >= 3
-            ? `<div class="chart-wrapper chart-wrapper-sm"><canvas id="chart-subject-radar"></canvas></div>`
-            : AnalyticsView.empty('Enroll in at least 3 subjects to see the radar chart.')
+            ? `<div class="subject-radar-legend">${subject_radar.axes.map((axis, index) => `<span class="subject-radar-legend-item"><i style="background:${['#8B1E3F', '#1B998B', '#2D6CDF', '#F28E2B', '#7B2CBF', '#0081A7', '#C99700', '#D1495B', '#3A5A40', '#6A4C93', '#E76F51', '#264653'][index % 12]}"></i>${escHtml(axis.subject_name)}</span>`).join('')}</div><div class="chart-wrapper chart-wrapper-subject-performance"><canvas id="chart-subject-radar"></canvas></div>`
+            : AnalyticsView.empty('Enroll in at least 3 subjects to see the subject comparison.')
           }
         </div>
 
@@ -291,8 +291,8 @@ const AnalyticsView = {
           const c = s.completion_pct >= 80 ? 'var(--green)' : s.completion_pct >= 50 ? '#f59e0b' : 'var(--red)';
           return `
             <div class="mod-subject-row">
-              <div class="mod-subject-name" title="Subject ID ${s.subject_id}">
-                Subject ${s.subject_id}
+              <div class="mod-subject-name" title="${escHtml(s.subject_name || `Subject ${s.subject_id}`)}">
+                ${escHtml(s.subject_name || `Subject ${s.subject_id}`)}
               </div>
               <div class="mod-bar-wrap">
                 <div class="mod-bar" style="width:${s.completion_pct}%;background:${c}"></div>
