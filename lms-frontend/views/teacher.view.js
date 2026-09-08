@@ -6,6 +6,14 @@
 
 "use strict";
 
+const TEACHER_SUBJECT_STYLES = {
+  'Mathematics': { color: '#8b0020', icon: LMS_ICONS.calculator },
+  'Science':     { color: '#2e6b3e', icon: LMS_ICONS.beaker },
+  'English':     { color: '#1a4a8a', icon: LMS_ICONS.bookOpen },
+  'Filipino':    { color: '#c04a00', icon: LMS_ICONS.globe },
+  'MAPEH':       { color: '#6a0dad', icon: LMS_ICONS.palette },
+};
+
 const TeacherView = {
 
   dashboard(user, subjects = null) {
@@ -13,26 +21,26 @@ const TeacherView = {
       return `
         <div class="welcome-banner">
           <div class="welcome-text">
-            <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! 👩‍🏫</div>
+            <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! ${lmsIcon('school')}</div>
             <div class="welcome-sub">Loading your subjects…</div>
           </div>
-          <div class="welcome-emoji">📚</div>
+          <div class="welcome-emoji">${LMS_ICONS.bookOpen}</div>
         </div>
         <div class="stat-grid mb-4">
-          <div class="stat-card"><div class="stat-icon" style="background:#fde8ec">📚</div><div><div class="stat-value">—</div><div class="stat-label">My Subjects</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:rgba(139,26,46,0.08)">${LMS_ICONS.bookOpen}</div><div><div class="stat-value">—</div><div class="stat-label">My Subjects</div></div></div>
         </div>
-        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading…</div></div>`;
+        <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading…</div></div>`;
     }
     if (subjects.length === 0) {
       return `
         <div class="welcome-banner">
           <div class="welcome-text">
-            <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! 👩‍🏫</div>
+            <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! ${lmsIcon('school')}</div>
             <div class="welcome-sub">No subjects assigned yet. Contact your administrator.</div>
           </div>
-          <div class="welcome-emoji">📚</div>
+          <div class="welcome-emoji">${LMS_ICONS.bookOpen}</div>
         </div>
-        <div class="empty-state"><div class="empty-state-icon">📚</div><div class="empty-state-title">No subjects assigned</div></div>`;
+        <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.book}</div><div class="empty-state-title">No subjects assigned</div></div>`;
     }
     const cards = subjects.map(sub => `
       <div class="teacher-subject-card">
@@ -41,48 +49,54 @@ const TeacherView = {
           <span class="badge badge-maroon">${escHtml(sub.section_name)}</span>
         </div>
         <div class="teacher-subject-details">
-          <div>🏫 ${escHtml(sub.grade_level)}</div>
-          <div>⏰ ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
+          <div>${lmsIcon('school')} ${escHtml(sub.grade_level)}</div>
+          <div>${lmsIcon('clock')} ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
         </div>
         <div class="teacher-subject-actions">
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.section_id}, '${escHtml(sub.subject_name)}')">👥 View Students</button>
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.subject_id}, ${sub.class_id})">📤 Upload Material</button>
-          <button class="btn btn-xs btn-primary" onclick="DashboardController.loadSection('modules')">📋 Manage Activities</button>
+          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.section_id}, '${escHtml(sub.subject_name)}')">${lmsIcon('users')} View Students</button>
+          <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.subject_id}, ${sub.class_id})">${lmsIcon('upload')} Upload Material</button>
+          <button class="btn btn-xs btn-primary" onclick="DashboardController.loadSection('modules')">${lmsIcon('clipboard')} Manage Activities</button>
         </div>
       </div>
     `).join('');
     return `
       <div class="welcome-banner">
         <div class="welcome-text">
-          <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! 👩‍🏫</div>
+          <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! ${lmsIcon('school')}</div>
           <div class="welcome-sub">Your assigned subjects & sections</div>
         </div>
-        <div class="welcome-emoji">📚</div>
+        <div class="welcome-emoji">${LMS_ICONS.bookOpen}</div>
       </div>
       <div class="stat-grid mb-4">
-        <div class="stat-card"><div class="stat-icon" style="background:#fde8ec">📚</div><div><div class="stat-value">${subjects.length}</div><div class="stat-label">Assigned Subjects</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:rgba(139,26,46,0.08)">${LMS_ICONS.bookOpen}</div><div><div class="stat-value">${subjects.length}</div><div class="stat-label">Assigned Subjects</div></div></div>
       </div>
       <div class="teacher-subjects-grid">${cards}</div>`;
   },
 
   mySubjects(user, subjects = null) {
-    if (!subjects) return `<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading subjects…</div></div>`;
-    if (subjects.length === 0) return `<div class="empty-state"><div class="empty-state-icon">📚</div><div class="empty-state-title">No subjects assigned</div></div>`;
-    const rows = subjects.map(sub => `
+    if (!subjects) return `<div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading subjects…</div></div>`;
+    if (subjects.length === 0) return `<div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.book}</div><div class="empty-state-title">No subjects assigned</div></div>`;
+    const subjectFallbackColors = ['#7b1830', '#9a6a12', '#39717a', '#b16a32', '#76506a'];
+    const rows = subjects.map((sub, index) => {
+      const style = TEACHER_SUBJECT_STYLES[sub.subject_name] || {
+        color: subjectFallbackColors[index % subjectFallbackColors.length],
+      };
+      return `
       <div class="subject-item" data-searchable>
-        <div class="subject-color-dot" style="background:var(--maroon)"></div>
-        <div style="font-size:30px">📘</div>
+        <div class="subject-color-dot" style="background:${style.color}"></div>
+        <div style="width:30px;height:30px;color:${style.color};display:inline-flex;align-items:center;justify-content:center">${LMS_ICONS.book}</div>
         <div class="subject-info">
           <div class="subject-name">${escHtml(sub.subject_name)}</div>
           <div class="subject-teacher">${escHtml(sub.section_name)} · ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
         </div>
         <div class="subject-actions">
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.class_id}, '${escHtml(sub.subject_name)}')">👥 Students</button>
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.subject_id}, ${sub.class_id})">📤 Upload</button>
-          <button class="btn btn-xs btn-primary" onclick="DashboardController.loadSection('modules')">📋 Activities</button>
+          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.class_id}, '${escHtml(sub.subject_name)}')">${lmsIcon('users')} Students</button>
+          <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.subject_id}, ${sub.class_id})">${lmsIcon('upload')} Upload</button>
+          <button class="btn btn-xs btn-primary" onclick="DashboardController.loadSection('modules')">${lmsIcon('clipboard')} Activities</button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>My Subjects</h2><p>Subjects assigned to you</p></div>
@@ -95,81 +109,83 @@ const TeacherView = {
       return `
         <div class="section-header">
           <div class="section-header-left"><h2>Modules</h2><p id="module-count">Loading…</p></div>
-          <div class="section-header-right"><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">➕ Add Module</button></div>
+          <div class="section-header-right teacher-resource-header-actions"><div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">${lmsIcon('plus')} Add Module</button></div>
         </div>
-        <div class="module-grid" id="teacher-module-grid"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading modules…</div></div></div>`;
+        <div class="module-grid" id="teacher-module-grid"><div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading modules…</div></div></div>`;
     }
 
-    const SUBJECT_STYLES = {
-      'Mathematics': { color: '#8b0020', icon: '➕' },
-      'Science':     { color: '#2e6b3e', icon: '🔬' },
-      'English':     { color: '#1a4a8a', icon: '📖' },
-      'Filipino':    { color: '#c04a00', icon: '🇵🇭' },
-      'MAPEH':       { color: '#6a0dad', icon: '🎨' },
-    };
+    const SUBJECT_STYLES = TEACHER_SUBJECT_STYLES;
     const API_BASE = 'https://ijed-hcj-1.onrender.com';
 
     const cards = apiModules.map(m => {
-      const style   = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: '📚' };
+      const style   = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: LMS_ICONS.book };
       const hasFile = !!m.file_url;
       const resolvedUrl = m.file_url && m.file_url.startsWith('http') ? m.file_url : `${API_BASE}${m.file_url}`;
       const fileBtn = hasFile
-        ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener">📂 Open PDF</a>`
+        ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener">${lmsIcon('fileOpen')} Open PDF</a>`
         : `<span class="btn btn-xs btn-outline" style="opacity:.5;cursor:default">No file</span>`;
       const termLabel = m.term ? `${m.term} Term` : '';
-      const meta = [termLabel, m.file_name ? `📎 ${escHtml(m.file_name)}` : ''].filter(Boolean).join(' · ');
+      const meta = [termLabel, m.file_name ? `${lmsIcon('attachment')} ${escHtml(m.file_name)}` : ''].filter(Boolean).join(' · ');
       return `<div class="module-card" data-searchable>
         <div class="module-card-header">
-          <div class="module-card-subject" style="color:${style.color}">${style.icon} ${escHtml(m._subject_name || 'Unknown')}</div>
+          <div class="module-card-subject" style="color:${style.color}"><span class="module-subject-icon">${style.icon}</span>${escHtml(m._subject_name || 'Unknown')}</div>
           <div class="module-card-title">${escHtml(m.title)}</div>
           <div class="module-card-desc">${escHtml(m.description || '')}</div>
         </div>
         <div class="module-card-footer">
           <span class="module-card-meta">${meta || 'No file attached'}</span>
-          <div class="flex gap-1">${fileBtn}<button class="btn btn-xs btn-danger" onclick="TeacherController.deleteModule(${m.id})">🗑️</button></div>
+          <div class="flex gap-1">${fileBtn}<button class="btn btn-xs btn-danger" onclick="TeacherController.deleteModule(${m.id})">${lmsIcon('trash')}</button></div>
         </div>
       </div>`;
     }).join('');
 
-    const grid = cards || `<div class="empty-state"><div class="empty-state-icon">📄</div><div class="empty-state-title">No modules yet</div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">Add Module</button></div>`;
+    const grid = cards || `<div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.file}</div><div class="empty-state-title">No modules yet</div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">Add Module</button></div>`;
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Modules</h2><p id="module-count">${apiModules.length} module(s) uploaded</p></div>
-        <div class="section-header-right"><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">➕ Add Module</button></div>
+        <div class="section-header-right teacher-resource-header-actions"><div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">${lmsIcon('plus')} Add Module</button></div>
       </div>
       <div class="module-grid" id="teacher-module-grid">${grid}</div>`;
   },
 
   activities(user, apiActivities = null) {
     const TYPE_LABELS = {
-      quiz:             '📝 Quiz',
-      long_quiz:        '📋 Long Quiz',
-      task_performance: '🎯 Task Performance',
-      exam:             '📜 Exam',
-      lab_exercise:     '🔬 Lab Exercise',
-      assignment:       '📌 Assignment',
-      other:            '📄 Other',
+      quiz:             'Quiz',
+      long_quiz:        'Long Quiz',
+      task_performance: 'Task Performance',
+      exam:             'Exam',
+      lab_exercise:     'Laboratory Exercise',
+      assignment:       'Assignment',
+      other:            'Other',
     };
     const FORMAT_LABELS = {
-      multiple_choice: '🔘 Multiple Choice',
-      checkbox:        '☑️ Checkbox',
-      enumeration:     '📝 Fill in Blank',
-      freeform:        '✍️ Essay',
-      assignment:      '📋 Assignment',
-      hybrid:          '🔀 Hybrid',
+      multiple_choice: 'Multiple Choice',
+      checkbox:        'Checkbox',
+      enumeration:     'Fill in Blank',
+      freeform:        'Essay',
+      assignment:      'Assignment',
+      hybrid:          'Hybrid',
+    };
+    const TYPE_ICONS = {
+      quiz: 'clipboard', long_quiz: 'clipboard', task_performance: 'target',
+      exam: 'file', lab_exercise: 'beaker', assignment: 'file', other: 'file'
+    };
+    const FORMAT_ICONS = {
+      multiple_choice: 'target', checkbox: 'check', enumeration: 'file',
+      freeform: 'pen', assignment: 'clipboard', hybrid: 'transfer'
     };
 
     if (apiActivities === null) {
       return `
         <div class="section-header">
           <div class="section-header-left"><h2>Activities & Quizzes</h2><p id="act-count">Loading…</p></div>
-          <div class="section-header-right">
-            <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" /></div>
-            <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+          <div class="section-header-right teacher-activity-header-actions">
+            <div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search activities…" /></div>
+            <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">${lmsIcon('plus')} Create Activity</button>
           </div>
         </div>
         <div id="teacher-activity-grid">
-          <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading activities…</div></div>
+          <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading activities…</div></div>
         </div>`;
     }
 
@@ -177,22 +193,24 @@ const TeacherView = {
       return `
         <div class="section-header">
           <div class="section-header-left"><h2>Activities & Quizzes</h2><p>0 activities</p></div>
-          <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+          <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">${lmsIcon('plus')} Create Activity</button>
         </div>
         <div class="empty-state">
-          <div class="empty-state-icon">📝</div>
+          <div class="empty-state-icon">${LMS_ICONS.clipboard}</div>
           <div class="empty-state-title">No activities yet</div>
           <div class="empty-state-sub">Create your first quiz, exam, or assignment for students.</div>
-          <button class="btn btn-primary mt-3" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+          <button class="btn btn-primary mt-3" onclick="TeacherController.openAddActivity()">${lmsIcon('plus')} Create Activity</button>
         </div>`;
     }
 
     const cards = apiActivities.map(a => {
       const typeLabel   = TYPE_LABELS[a.activity_type]  || a.activity_type;
       const formatLabel = FORMAT_LABELS[a.format_type]  || a.format_type;
+      const typeIcon    = TYPE_ICONS[a.activity_type] || 'file';
+      const formatIcon  = FORMAT_ICONS[a.format_type] || 'file';
       const gradeBadge  = a.grading_mode === 'auto'
-        ? `<span class="badge badge-green" style="font-size:10px">⚡ Auto</span>`
-        : `<span class="badge badge-gold"  style="font-size:10px">✏️ Manual</span>`;
+        ? `<span class="badge badge-green" style="font-size:10px">${lmsIcon('check')} Auto</span>`
+        : `<span class="badge badge-gold"  style="font-size:10px">${lmsIcon('pen')} Manual</span>`;
       const dueLabel   = a.due_date   ? `Due: ${new Date(a.due_date).toLocaleDateString()}`     : 'No due date';
       const startLabel = a.start_date ? `Opens: ${new Date(a.start_date).toLocaleDateString()}` : '';
       const qCount     = a.questions?.length ?? 0;
@@ -205,27 +223,27 @@ const TeacherView = {
 
       return `
         <div class="activity-card" data-searchable style="border:1px solid var(--gray-200);border-radius:10px;padding:16px;background:white;margin-bottom:12px">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-            <div style="flex:1">
+          <div class="teacher-activity-layout">
+            <div class="teacher-activity-content">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-                <span class="badge badge-maroon" style="font-size:11px">${escHtml(typeLabel)}${escHtml(customType)}</span>
-                <span class="badge" style="background:var(--gray-100);color:var(--gray-700);font-size:11px">${escHtml(formatLabel)}</span>
+                <span class="badge badge-maroon" style="font-size:11px">${lmsIcon(typeIcon)}${escHtml(typeLabel)}${escHtml(customType)}</span>
+                <span class="badge" style="background:var(--gray-100);color:var(--gray-700);font-size:11px">${lmsIcon(formatIcon)}${escHtml(formatLabel)}</span>
                 ${gradeBadge}
                 ${pubBadge}
               </div>
               <div style="font-weight:600;font-size:15px;margin-bottom:4px">${escHtml(a.title)}</div>
               ${a.instructions ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">${escHtml(a.instructions.slice(0,120))}${a.instructions.length > 120 ? '…' : ''}</div>` : ''}
-              <div style="font-size:12px;color:var(--gray-400);display:flex;gap:16px;flex-wrap:wrap">
-                <span>📊 ${qCount} question${qCount !== 1 ? 's' : ''} · ${maxPts} pts</span>
-                <span>📅 ${dueLabel}</span>
-                ${startLabel ? `<span>🕑 ${startLabel}</span>` : ''}
-                <span>📬 ${a.submission_count ?? 0} submitted</span>
+              <div class="teacher-activity-meta">
+                <span>${lmsIcon('chart')} ${qCount} question${qCount !== 1 ? 's' : ''} · ${maxPts} pts</span>
+                <span>${lmsIcon('calendar')} ${dueLabel}</span>
+                <span>${startLabel ? `${lmsIcon('clock')} ${startLabel}` : '—'}</span>
+                <span>${lmsIcon('inbox')} ${a.submission_count ?? 0} submitted</span>
               </div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:6px;min-width:100px">
-              <button class="btn btn-xs btn-outline" onclick="TeacherController.openGradeActivity(${a.id})">📊 Submissions</button>
-              <button class="btn btn-xs btn-outline" onclick="TeacherController.openEditActivity(${a.id})">✏️ Edit</button>
-              <button class="btn btn-xs btn-danger"  onclick="TeacherController.deleteActivity(${a.id})">🗑️ Delete</button>
+            <div class="teacher-activity-actions">
+              <button class="btn btn-xs btn-outline" onclick="TeacherController.openGradeActivity(${a.id})">${lmsIcon('chart')} Submissions</button>
+              <button class="btn btn-xs btn-outline" onclick="TeacherController.openEditActivity(${a.id})">${lmsIcon('edit')} Edit</button>
+              <button class="btn btn-xs btn-danger"  onclick="TeacherController.deleteActivity(${a.id})">${lmsIcon('trash')} Delete</button>
             </div>
           </div>
         </div>`;
@@ -237,9 +255,9 @@ const TeacherView = {
           <h2>Activities & Quizzes</h2>
           <p id="act-count">${apiActivities.length} activity(s)</p>
         </div>
-        <div class="section-header-right">
-          <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" /></div>
-          <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+        <div class="section-header-right teacher-activity-header-actions">
+          <div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search activities…" /></div>
+          <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">${lmsIcon('plus')} Create Activity</button>
         </div>
       </div>
       <div id="teacher-activity-grid">${cards}</div>`;
@@ -250,15 +268,15 @@ const TeacherView = {
     return `
       <div class="section-header">
         <div class="section-header-left">
-          <h2>📊 Digital Gradebook</h2>
+          <h2>${lmsIcon('chart')} Digital Gradebook</h2>
           <p id="grade-count">Loading sections…</p>
         </div>
         <div class="section-header-right">
-          <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search sections…" /></div>
+          <div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search sections…" /></div>
         </div>
       </div>
       <div id="gradebook-sections-wrap">
-        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading sections…</div></div>
+        <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading sections…</div></div>
       </div>`;
   },
 
@@ -266,7 +284,7 @@ const TeacherView = {
   gradebookSectionsList(subjects) {
     if (!subjects || subjects.length === 0) {
       return `<div class="empty-state">
-        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-icon">${LMS_ICONS.clipboard}</div>
         <div class="empty-state-title">No sections assigned</div>
         <div class="empty-state-sub">Contact your administrator to get sections assigned.</div>
       </div>`;
@@ -305,7 +323,7 @@ const TeacherView = {
         <td><span class="badge badge-gray" id="student-count-${sec.section_id}">Loading…</span></td>
         <td>
           <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
-            📊 View Gradebook
+            ${lmsIcon('chart')} View Gradebook
           </button>
         </td>
       </tr>`).join('');
@@ -356,7 +374,7 @@ const TeacherView = {
     const WEIGHT_MODULES    = 0.10;
 
     const rows = loading
-      ? `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">⏳ Loading grades…</td></tr>`
+      ? `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">${LMS_ICONS.loading} Loading grades…</td></tr>`
       : (students.map(stu => {
           const studentId  = stu.id;
           const fullName   = `${stu.user?.first_name || ''} ${stu.user?.last_name || ''}`.trim() || `Student #${studentId}`;
@@ -428,7 +446,7 @@ const TeacherView = {
               <span class="badge ${gradeColor}" style="font-size:12px;font-weight:700">${escHtml(String(finalGrade))}</span>
             </td>
             <td>
-              <button class="btn btn-xs btn-outline" onclick="GradebookController.viewStudentBreakdown(${studentId}, '${escHtml(fullName)}')">🔍 Details</button>
+              <button class="btn btn-xs btn-outline" onclick="GradebookController.viewStudentBreakdown(${studentId}, '${escHtml(fullName)}')">${lmsIcon('search')} Details</button>
             </td>
           </tr>`;
         }).join('') || `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">No students enrolled.</td></tr>`);
@@ -446,8 +464,8 @@ const TeacherView = {
           </div>
         </div>
         <div class="section-header-right">
-          <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search students…" /></div>
-          <button class="btn btn-outline btn-sm" onclick="GradebookController.exportSection()">📥 Export Excel</button>
+          <div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search students…" /></div>
+          <button class="btn btn-outline btn-sm" onclick="GradebookController.exportSection()">${lmsIcon('download')} Export Excel</button>
         </div>
       </div>
 
@@ -529,16 +547,16 @@ const TeacherView = {
     return `
       <div class="section-header">
         <div class="section-header-left">
-          <h2>🗓️ Attendance Monitoring</h2>
+          <h2>${lmsIcon('calendar')} Attendance Monitoring</h2>
           <p id="att-count">Loading sections…</p>
         </div>
         <div class="search-box">
-          <span>🔍</span>
+          <span>${LMS_ICONS.search}</span>
           <input type="text" id="global-search" placeholder="Search sections…" />
         </div>
       </div>
       <div id="att-sections-wrap">
-        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading…</div></div>
+        <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading…</div></div>
       </div>`;
   },
 
@@ -546,7 +564,7 @@ const TeacherView = {
   attendanceSectionsList(sections) {
     if (!sections || sections.length === 0) {
       return `<div class="empty-state">
-        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-icon">${LMS_ICONS.clipboard}</div>
         <div class="empty-state-title">No sections assigned</div>
       </div>`;
     }
@@ -572,7 +590,7 @@ const TeacherView = {
         <td>
           <button class="btn btn-xs btn-primary"
             onclick="event.stopPropagation();AttendanceController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
-            📋 View Attendance
+            ${lmsIcon('clipboard')} View Attendance
           </button>
         </td>
       </tr>`;
@@ -631,7 +649,7 @@ const TeacherView = {
             <div style="margin-top:10px">
               <button class="btn btn-xs btn-primary" style="width:100%"
                 onclick="event.stopPropagation();AttendanceController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
-                📋 View Attendance
+                ${lmsIcon('clipboard')} View Attendance
               </button>
             </div>
           </div>`;
@@ -693,12 +711,12 @@ const TeacherView = {
             ${termOptions}
           </select>
           <div class="search-box" style="margin:0">
-            <span>🔍</span>
+            <span>${LMS_ICONS.search}</span>
             <input type="text" id="global-search" placeholder="Search students…" />
           </div>
           <button class="btn btn-primary btn-sm"
             onclick="AttendanceController.openTakeAttendance()">
-            📝 Take Attendance
+            ${lmsIcon('clipboard')} Take Attendance
           </button>
         </div>
       </div>
@@ -744,7 +762,7 @@ const TeacherView = {
 
       <!-- Session History -->
       <div style="margin-top:20px">
-        <div style="font-weight:600;font-size:14px;color:var(--maroon);margin-bottom:10px">📅 Session History</div>
+        <div style="font-weight:600;font-size:14px;color:var(--maroon);margin-bottom:10px">${lmsIcon('calendar')} Session History</div>
         <div id="att-sessions-list">
           <div style="color:var(--gray-400);font-size:13px">Loading sessions…</div>
         </div>
@@ -767,12 +785,12 @@ const TeacherView = {
           ${badge}
           <span class="badge badge-maroon" style="font-size:10px;white-space:nowrap">${escHtml(s.term)} Term</span>
           <div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0">
-            <button class="btn btn-xs btn-outline" onclick="AttendanceController.editSession(${s.id})">✏️ Edit</button>
-            <button class="btn btn-xs btn-danger" onclick="AttendanceController.deleteSession(${s.id}, '${escHtml(s.session_date)}')">🗑️</button>
+            <button class="btn btn-xs btn-outline" onclick="AttendanceController.editSession(${s.id})">${lmsIcon('edit')} Edit</button>
+            <button class="btn btn-xs btn-danger" onclick="AttendanceController.deleteSession(${s.id}, '${escHtml(s.session_date)}')">${lmsIcon('trash')}</button>
           </div>
         </div>
         <!-- Row 2: notes (only if present) -->
-        ${s.notes ? `<div style="padding:4px 12px 8px;font-size:12px;color:var(--gray-500);word-break:break-word;overflow-wrap:break-word;border-top:1px solid var(--gray-100)">📝 ${escHtml(s.notes)}</div>` : ''}
+        ${s.notes ? `<div style="padding:4px 12px 8px;font-size:12px;color:var(--gray-500);word-break:break-word;overflow-wrap:break-word;border-top:1px solid var(--gray-100)">${lmsIcon('file')} ${escHtml(s.notes)}</div>` : ''}
       </div>`;
     }).join('');
     return rows;
@@ -888,8 +906,8 @@ const TeacherView = {
           Students — mark status below
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-          <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('present')" style="color:var(--green,#16a34a)">✅ All Present</button>
-          <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('absent')" style="color:#dc2626">❌ All Absent</button>
+          <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('present')" style="color:var(--green,#16a34a)">${lmsIcon('check')} All Present</button>
+          <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('absent')" style="color:#dc2626">${lmsIcon('xmark')} All Absent</button>
         </div>
         <div class="table-wrap" style="max-height:380px;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table style="width:100%;border-collapse:collapse">
@@ -909,7 +927,7 @@ const TeacherView = {
       </div>
 
       <div id="att-no-class-msg" style="${hasClass ? 'display:none' : ''};margin-top:16px;padding:16px;background:var(--gray-50);border-radius:var(--radius);text-align:center;color:var(--gray-400);font-size:13px">
-        📅 No class on this date — this meeting will be counted but no attendance will be recorded.
+        ${LMS_ICONS.calendar} No class on this date — this meeting will be counted but no attendance will be recorded.
       </div>`;
   },
 

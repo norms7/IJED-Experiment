@@ -6,6 +6,31 @@
 
 "use strict";
 
+const adminSvg = content => `<svg class="admin-inline-icon" viewBox="0 0 24 24" aria-hidden="true">${content}</svg>`;
+const adminStroke = 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+const ADMIN_ICONS = {
+  wave: adminSvg('<path d="m4 20 .8-4.1L16.8 4a2.1 2.1 0 0 1 3 3L7.7 18.9 4 20Z" ' + adminStroke + '/><path d="m14.5 6.5 3 3" ' + adminStroke + '/>'),
+  admin: adminSvg('<rect x="3.5" y="7" width="17" height="12" rx="2" ' + adminStroke + '/><path d="M8 7V5a1.5 1.5 0 0 1 1.5-1.5h5A1.5 1.5 0 0 1 16 5v2M3.5 11h17M10 11v2h4v-2" ' + adminStroke + '/>'),
+  users: adminSvg('<path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16 11a3 3 0 0 0 0-6M17 14.5h1a4 4 0 0 1 4 4V20" ' + adminStroke + '/>'),
+  teacher: adminSvg('<path d="M4 20V8.5L12 4l8 4.5V20M8 20v-5h8v5M3 20h18M8 9h0M12 9h0M16 9h0" ' + adminStroke + '/>'),
+  student: adminSvg('<circle cx="12" cy="7.5" r="3.5" ' + adminStroke + '/><path d="M4.5 20a7.5 7.5 0 0 1 15 0" ' + adminStroke + '/>'),
+  file: adminSvg('<path d="M7 3.5h7l5 5v11A2.5 2.5 0 0 1 16.5 22h-9A2.5 2.5 0 0 1 5 19.5v-13A2.5 2.5 0 0 1 7.5 4H7Z" ' + adminStroke + '/><path d="M14 3.5V9h5M8.5 13h6M8.5 16.5h6" ' + adminStroke + '/>'),
+  activity: adminSvg('<rect x="4" y="5" width="16" height="15" rx="2.5" ' + adminStroke + '/><path d="M9 3.5v3M15 3.5v3M8 10.5h8M8 14h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
+  loading: adminSvg('<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8" stroke-dasharray="18 8" fill="none"/>'),
+  plus: adminSvg('<path d="M12 5v14M5 12h14" ' + adminStroke + '/>'),
+  megaphone: adminSvg('<path d="m4 13 12 5V6L4 11v2ZM16 9.5l4-2v9l-4-2M6 14l2 5h3l-2-5" ' + adminStroke + '/>'),
+  download: adminSvg('<path d="M12 3v12M7 10l5 5 5-5M5 20h14" ' + adminStroke + '/>'),
+  upload: adminSvg('<path d="M12 15V3M7 8l5-5 5 5M5 20h14" ' + adminStroke + '/>'),
+  school: adminSvg('<path d="M4 20V5.5h16V20M2.5 20h19M8 9h2M14 9h2M8 13h2M14 13h2M8 17h2M14 17h2" ' + adminStroke + '/>'),
+  transfer: adminSvg('<path d="M4 7h15M15 3l4 4-4 4M20 17H5M9 13l-4 4 4 4" ' + adminStroke + '/>'),
+  audit: adminSvg('<rect x="4" y="4" width="16" height="16" rx="2" ' + adminStroke + '/><path d="M8 9h8M8 13h8M8 17h5" ' + adminStroke + '/>'),
+  trash: adminSvg('<path d="M5 7h14M10 11v5M14 11v5M8 7l1 13h6l1-13M9 7l1-3h4l1 3" ' + adminStroke + '/>'),
+  search: adminSvg('<circle cx="11" cy="11" r="5.5" ' + adminStroke + '/><path d="m16 16 4 4" ' + adminStroke + '/>'),
+  edit: adminSvg('<path d="m4 16.5-.7 3.7 3.7-.7L19 7.5 16.5 5 4 16.5ZM15 6.5l2.5 2.5" ' + adminStroke + '/>'),
+  book: adminSvg('<path d="M5 6.8A2.8 2.8 0 0 1 7.8 4H19v13.2A2.8 2.8 0 0 0 16.2 14H7.8A2.8 2.8 0 0 0 5 16.8V6.8ZM5 6.8V18a2 2 0 0 0 2 2h11.5" ' + adminStroke + '/>'),
+  clock: adminSvg('<circle cx="12" cy="12" r="8" ' + adminStroke + '/><path d="M12 7.5v4.5l3 2" ' + adminStroke + '/>')
+};
+
 const AdminView = {
 
   help(user) {
@@ -88,19 +113,19 @@ const AdminView = {
       return `
         <div class="welcome-banner">
           <div class="welcome-text">
-            <div class="welcome-title">Good day, ${escHtml(user.name?.split(' ')[0] || 'Admin')}! 👋</div>
+            <div class="welcome-title">Good day, ${escHtml(user.name?.split(' ')[0] || 'Admin')}! ${ADMIN_ICONS.wave}</div>
             <div class="welcome-sub">Loading dashboard data...</div>
           </div>
-          <div class="welcome-emoji">👨‍💼</div>
+          <div class="welcome-emoji">${ADMIN_ICONS.admin}</div>
         </div>
         <div class="stat-grid mb-4">
-          <div class="stat-card"><div class="stat-icon" style="background:#fde8ec">👥</div><div><div class="stat-value">—</div><div class="stat-label">Total Users</div></div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:#e6f4ea">👩‍🏫</div><div><div class="stat-value">—</div><div class="stat-label">Teachers</div></div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:#fff0e6">🎓</div><div><div class="stat-value">—</div><div class="stat-label">Students</div></div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:#e8f0fa">📄</div><div><div class="stat-value">—</div><div class="stat-label">Modules</div></div></div>
-          <div class="stat-card"><div class="stat-icon" style="background:#fde8ec">📝</div><div><div class="stat-value">—</div><div class="stat-label">Activities</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:rgba(139,26,46,0.08);color:#8b1a2e">${ADMIN_ICONS.users}</div><div><div class="stat-value">—</div><div class="stat-label">Total Users</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:rgba(107,85,88,0.10);color:#6b5558">${ADMIN_ICONS.teacher}</div><div><div class="stat-value">—</div><div class="stat-label">Teachers</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:rgba(59,130,246,0.10);color:#1d4ed8">${ADMIN_ICONS.student}</div><div><div class="stat-value">—</div><div class="stat-label">Students</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:rgba(34,197,94,0.10);color:#1f8f4e">${ADMIN_ICONS.file}</div><div><div class="stat-value">—</div><div class="stat-label">Modules</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:rgba(245,158,11,0.12);color:#b86b00">${ADMIN_ICONS.activity}</div><div><div class="stat-value">—</div><div class="stat-label">Activities</div></div></div>
         </div>
-        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading...</div></div>`;
+        <div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.loading}</div><div class="empty-state-title">Loading...</div></div>`;
     }
 
     const totalUsers  = stats.total_users     || 0;
@@ -113,18 +138,18 @@ const AdminView = {
     return `
       <div class="welcome-banner">
         <div class="welcome-text">
-          <div class="welcome-title">Good day, ${escHtml(user.name?.split(' ')[0] || 'Admin')}! 👋</div>
+          <div class="welcome-title">Good day, ${escHtml(user.name?.split(' ')[0] || 'Admin')}! ${ADMIN_ICONS.wave}</div>
           <div class="welcome-sub">Here's an overview of the IJED Learning Management System.</div>
         </div>
-        <div class="welcome-emoji">👨‍💼</div>
+        <div class="welcome-emoji">${ADMIN_ICONS.admin}</div>
       </div>
 
       <div class="stat-grid mb-4">
-        ${this._statCard('👥', '#fde8ec', totalUsers,  'Total Users')}
-        ${this._statCard('👩‍🏫', '#e6f4ea', teachers,   'Teachers')}
-        ${this._statCard('🎓', '#fff0e6', students,    'Students')}
-        ${this._statCard('📄', '#e8f0fa', modules,     'Modules')}
-        ${this._statCard('📝', '#fde8ec', activities,  'Activities')}
+        ${this._statCard(ADMIN_ICONS.users, 'rgba(139,26,46,0.08)', totalUsers,  'Total Users')}
+        ${this._statCard(ADMIN_ICONS.teacher, 'rgba(107,85,88,0.10)', teachers,   'Teachers')}
+        ${this._statCard(ADMIN_ICONS.student, 'rgba(59,130,246,0.10)', students,    'Students')}
+        ${this._statCard(ADMIN_ICONS.file, 'rgba(34,197,94,0.10)', modules,     'Modules')}
+        ${this._statCard(ADMIN_ICONS.activity, 'rgba(245,158,11,0.12)', activities,  'Activities')}
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap;">
@@ -149,11 +174,11 @@ const AdminView = {
         <div class="card" style="order:4;">
           <div class="card-header"><span class="card-title">Quick Actions</span></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
-            <button class="btn btn-primary w-full" style="justify-content:center" onclick="AdminController.openAddUser()">➕ Add New User</button>
-            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-teachers')">👩‍🏫 Manage Teachers</button>
-            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-students')">🎓 Manage Students</button>
-            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-users')">👥 All Users</button>
-            <button class="btn btn-outline w-full" style="justify-content:center;border-color:var(--maroon);color:var(--maroon)" onclick="AdminController.openAnnouncement()">📢 Send Announcement</button>
+            <button class="btn btn-primary w-full" style="justify-content:center" onclick="AdminController.openAddUser()">${ADMIN_ICONS.plus} Add New User</button>
+            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-teachers')">${ADMIN_ICONS.teacher} Manage Teachers</button>
+            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-students')">${ADMIN_ICONS.student} Manage Students</button>
+            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-users')">${ADMIN_ICONS.users} All Users</button>
+            <button class="btn btn-outline w-full" style="justify-content:center;border-color:var(--maroon);color:var(--maroon)" onclick="AdminController.openAnnouncement()">${ADMIN_ICONS.megaphone} Send Announcement</button>
           </div>
         </div>
       </div>
@@ -161,7 +186,7 @@ const AdminView = {
       <!-- Announcement Modal -->
       <div id="announcement-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center;">
         <div style="background:#fff;border-radius:var(--radius);padding:28px;width:440px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18)">
-          <h3 style="margin:0 0 16px;color:var(--maroon-dark)">📢 Send Announcement</h3>
+          <h3 style="margin:0 0 16px;color:var(--maroon-dark)">${ADMIN_ICONS.megaphone} Send Announcement</h3>
           <div style="margin-bottom:12px">
             <label class="form-label">Send To</label>
             <select id="announce-target" class="form-control">
@@ -180,7 +205,7 @@ const AdminView = {
           </div>
           <div style="display:flex;gap:10px;justify-content:flex-end">
             <button class="btn btn-outline" onclick="AdminController.closeAnnouncement()">Cancel</button>
-            <button class="btn btn-primary" onclick="AdminController.sendAnnouncement()">Send 📢</button>
+            <button class="btn btn-primary" onclick="AdminController.sendAnnouncement()">${ADMIN_ICONS.megaphone} Send</button>
           </div>
         </div>
       </div>`;
@@ -188,7 +213,7 @@ const AdminView = {
 
   _statCard(icon, bg, value, label) {
     return `<div class="stat-card">
-      <div class="stat-icon" style="background:${bg}">${icon}</div>
+      <div class="stat-icon" style="background:${bg};${bg.includes('139,26,46') ? 'color:#8b1a2e;' : bg.includes('107,85,88') ? 'color:#6b5558;' : bg.includes('34,197,94') ? 'color:#1f8f4e;' : bg.includes('59,130,246') ? 'color:#1d4ed8;' : bg.includes('245,158,11') ? 'color:#b86b00;' : ''}">${icon}</div>
       <div><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>
     </div>`;
   },
@@ -203,18 +228,18 @@ const AdminView = {
             <p id="um-stats" style="margin:4px 0 0;color:var(--gray-400);font-size:13px">Loading...</p>
           </div>
           <div class="um-header-actions">
-            <button class="btn btn-outline btn-sm" onclick="AdminController.exportCSV('all')">⬇ Export Students</button>
-            <button class="btn btn-outline btn-sm" onclick="AdminController.openImportStudents()">⬆ Import Students</button>
-            <button class="btn btn-primary" onclick="AdminController.openAddUser()">➕ Add User</button>
+            <button class="btn btn-outline btn-sm" onclick="AdminController.exportCSV('all')">${ADMIN_ICONS.download} Export Students</button>
+            <button class="btn btn-outline btn-sm" onclick="AdminController.openImportStudents()">${ADMIN_ICONS.upload} Import Students</button>
+            <button class="btn btn-primary" onclick="AdminController.openAddUser()">${ADMIN_ICONS.plus} Add User</button>
           </div>
         </div>
         <div class="um-tabs" id="um-tabs">
           <button class="um-tab active" data-tab="all">All Users (<span id="tab-all-count">0</span>)</button>
-          <button class="um-tab" data-tab="teachers">👩‍🏫 Teachers (<span id="tab-teachers-count">0</span>)</button>
-          <button class="um-tab" data-tab="students">🎓 Students (<span id="tab-students-count">0</span>)</button>
-          <button class="um-tab" data-tab="sections">🏫 Sections (<span id="tab-sections-count">0</span>)</button>
-          <button class="um-tab" data-tab="transfer">🔁 Transfer</button>
-          <button class="um-tab" data-tab="audit">📋 Audit Log</button>
+          <button class="um-tab" data-tab="teachers">${ADMIN_ICONS.teacher} Teachers (<span id="tab-teachers-count">0</span>)</button>
+          <button class="um-tab" data-tab="students">${ADMIN_ICONS.student} Students (<span id="tab-students-count">0</span>)</button>
+          <button class="um-tab" data-tab="sections">${ADMIN_ICONS.school} Sections (<span id="tab-sections-count">0</span>)</button>
+          <button class="um-tab" data-tab="transfer">${ADMIN_ICONS.transfer} Transfer</button>
+          <button class="um-tab" data-tab="audit">${ADMIN_ICONS.audit} Audit Log</button>
         </div>
         <div id="um-pane-all"></div>
         <div id="um-pane-teachers" style="display:none"></div>
@@ -227,7 +252,7 @@ const AdminView = {
 
   /* ── All Users pane ── */
   _allUsersPane(users) {
-    if (!users.length) return '<div class="empty-state"><div class="empty-state-icon">👥</div><div class="empty-state-title">No users found</div></div>';
+    if (!users.length) return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.users}</div><div class="empty-state-title">No users found</div></div>`;
     const rows = users.map(u => {
       const roleTag = `<span class="badge badge-${u.role?.name === 'teacher' ? 'blue' : u.role?.name === 'student' ? 'green' : 'maroon'}">${u.role?.name || u.role}</span>`;
       const extra = u.role?.name === 'teacher' ? '—' : (u.student_number || '—');
@@ -240,8 +265,8 @@ const AdminView = {
         <td><span class="badge ${u.is_active ? 'badge-green' : 'badge-red'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
         <td>
           <div class="actions-cell">
-            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${u.id})">✏️ Edit</button>
-            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${u.id})">🗑 Remove</button>
+            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${u.id})">${ADMIN_ICONS.edit} Edit</button>
+            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${u.id})">${ADMIN_ICONS.trash} Remove</button>
           </div>
          </td>
        </tr>`;
@@ -249,7 +274,7 @@ const AdminView = {
 
     return `
       <div class="um-toolbar">
-        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search by name, email…"/></div>
+        <div class="search-box"><span>${ADMIN_ICONS.search}</span><input type="text" id="global-search" placeholder="Search by name, email…"/></div>
         <select class="form-control" style="width:140px" onchange="AdminController._filterRole(this.value)">
           <option value="">All Roles</option><option value="teacher">Teacher</option><option value="student">Student</option>
         </select>
@@ -269,12 +294,12 @@ const AdminView = {
 
   /* ── Teachers pane ── */
   _teachersPane(teachers) {
-    if (!teachers.length) return '<div class="empty-state"><div class="empty-state-icon">👩‍🏫</div><div class="empty-state-title">No teachers yet</div></div>';
+    if (!teachers.length) return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.teacher}</div><div class="empty-state-title">No teachers yet</div></div>`;
     const cards = teachers.map(t => this._teacherCard(t)).join('');
     return `
       <div class="um-toolbar">
-        <div class="search-box"><span>🔍</span><input type="text" placeholder="Search teachers…" oninput="AdminController._filterCards(this.value,'teacher-card')"/></div>
-        <button class="btn btn-primary" onclick="AdminController.openAddUser('teacher')">➕ Add Teacher</button>
+        <div class="search-box"><span>${ADMIN_ICONS.search}</span><input type="text" placeholder="Search teachers…" oninput="AdminController._filterCards(this.value,'teacher-card')"/></div>
+        <button class="btn btn-primary" onclick="AdminController.openAddUser('teacher')">${ADMIN_ICONS.plus} Add Teacher</button>
       </div>
       <div class="teacher-grid">${cards}</div>`;
   },
@@ -290,9 +315,9 @@ const AdminView = {
     if (t.class_assignments && t.class_assignments.length) {
       assignmentsHtml = t.class_assignments.map(a => `
         <div class="assignment-item">
-          <div class="assignment-subject">📘 ${escHtml(a.subject.name)}</div>
-          <div class="assignment-class">🏫 ${escHtml(a.class_.name)} (${escHtml(a.class_.grade_level || '')})</div>
-          <div class="assignment-schedule">⏰ ${a.schedule || 'No schedule'}</div>
+          <div class="assignment-subject">${ADMIN_ICONS.book} ${escHtml(a.subject.name)}</div>
+          <div class="assignment-class">${ADMIN_ICONS.school} ${escHtml(a.class_.name)} (${escHtml(a.class_.grade_level || '')})</div>
+          <div class="assignment-schedule">${ADMIN_ICONS.clock} ${a.schedule || 'No schedule'}</div>
         </div>
       `).join('');
       schRows = t.class_assignments.map(a => `
@@ -316,12 +341,12 @@ const AdminView = {
             <span class="badge ${isActive ? 'badge-green' : 'badge-red'}">${isActive ? 'Active' : 'Inactive'}</span>
           </div>
           <div class="teacher-actions">
-            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${t.user.id})">✏️ Edit</button>
-            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${t.user.id})">🗑</button>
+            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${t.user.id})">${ADMIN_ICONS.edit} Edit</button>
+            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${t.user.id})">${ADMIN_ICONS.trash}</button>
           </div>
         </div>
         <div class="teacher-card-body">
-          <div class="teacher-section-label">📚 ASSIGNMENTS</div>
+          <div class="teacher-section-label">${ADMIN_ICONS.book} ASSIGNMENTS</div>
           <div class="assignments-list">${assignmentsHtml}</div>
           <div class="teacher-section-label" style="margin-top:10px">📅 WEEKLY SCHEDULE</div>
           <div class="sch-list">${schRows}</div>
@@ -331,7 +356,7 @@ const AdminView = {
 
   /* ── Students pane ── */
   _studentsPane(students, sections) {
-    if (!students.length) return '<div class="empty-state"><div class="empty-state-icon">🎓</div><div class="empty-state-title">No students yet</div></div>';
+    if (!students.length) return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.student}</div><div class="empty-state-title">No students yet</div></div>`;
 
     const sectionMap = {};
     sections.forEach(sec => { sectionMap[sec.id] = sec.name; });
@@ -356,16 +381,16 @@ const AdminView = {
           <td class="text-sm">${escHtml(sectionName)}</td>
           <td class="text-sm"><span class="badge ${s.user.is_active ? 'badge-green' : 'badge-red'}">${s.user.is_active ? 'Active' : 'Inactive'}</span></td>
           <td class="actions-cell">
-            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${s.user.id})">✏️ Edit</button>
-            <button class="btn btn-xs btn-primary" onclick="AdminController.openEnrollSubjects(${s.id}, '${escHtml(fullName)}')">📚 Subjects</button>
-            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${s.user.id})">🗑</button>
+            <button class="btn btn-xs btn-outline" onclick="AdminController.openEditUser(${s.user.id})">${ADMIN_ICONS.edit} Edit</button>
+            <button class="btn btn-xs btn-primary" onclick="AdminController.openEnrollSubjects(${s.id}, '${escHtml(fullName)}')">${ADMIN_ICONS.book} Subjects</button>
+            <button class="btn btn-xs btn-danger" onclick="AdminController.deleteUser(${s.user.id})">${ADMIN_ICONS.trash}</button>
           </td>
         </tr>`;
       }).join('');
       return `
         <div class="section-block">
           <div class="section-block-header">
-            <span class="section-block-title">🏫 ${escHtml(sectionName)}</span>
+            <span class="section-block-title">${ADMIN_ICONS.school} ${escHtml(sectionName)}</span>
             <span class="section-block-count">${grp.length} student${grp.length !== 1 ? 's' : ''}</span>
           </div>
           <div class="table-wrap">
@@ -378,10 +403,10 @@ const AdminView = {
     }).join('');
     return `
       <div class="um-toolbar">
-        <div class="search-box"><span>🔍</span><input type="text" id="student-search" placeholder="Search students…" oninput="AdminController._filterStudents(this.value)"/></div>
-        <button class="btn btn-primary" onclick="AdminController.openAddUser('student')">➕ Add Student</button>
-        <button class="btn btn-outline btn-sm" onclick="AdminController.openImportStudents()">⬆ Import</button>
-        <button class="btn btn-outline btn-sm" onclick="AdminController.exportCSV('student')">⬇ Export</button>
+        <div class="search-box"><span>${ADMIN_ICONS.search}</span><input type="text" id="student-search" placeholder="Search students…" oninput="AdminController._filterStudents(this.value)"/></div>
+        <button class="btn btn-primary" onclick="AdminController.openAddUser('student')">${ADMIN_ICONS.plus} Add Student</button>
+        <button class="btn btn-outline btn-sm" onclick="AdminController.openImportStudents()">${ADMIN_ICONS.upload} Import</button>
+        <button class="btn btn-outline btn-sm" onclick="AdminController.exportCSV('student')">${ADMIN_ICONS.download} Export</button>
       </div>
       <div id="student-section-blocks">${sectionBlocks}</div>`;
   },
@@ -389,7 +414,7 @@ const AdminView = {
   /* ── Sections pane ── */
   _sectionsPane(sections, students = []) {
     if (!sections || !sections.length) {
-      return '<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">No sections yet</div><button class="btn btn-primary mt-3" onclick="AdminController.openAddSection()">➕ Add Section</button></div>';
+      return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.school}</div><div class="empty-state-title">No sections yet</div><button class="btn btn-primary mt-3" onclick="AdminController.openAddSection()">${ADMIN_ICONS.plus} Add Section</button></div>`;
     }
     // Count students currently assigned to each section.
     const countBySection = {};
@@ -411,13 +436,13 @@ const AdminView = {
         <td class="text-sm">${studentCount}</td>
         <td class="text-sm">${escHtml(sec.school_year || '—')}</td>
         <td class="actions-cell">
-          <button class="btn btn-xs btn-outline" onclick="AdminController.openEditSection(${sec.id})">✏️ Edit</button>
-          <button class="btn btn-xs btn-danger" onclick="AdminController.deleteSection(${sec.id})">🗑</button>
+          <button class="btn btn-xs btn-outline" onclick="AdminController.openEditSection(${sec.id})">${ADMIN_ICONS.edit} Edit</button>
+          <button class="btn btn-xs btn-danger" onclick="AdminController.deleteSection(${sec.id})">${ADMIN_ICONS.trash}</button>
         </td>
       </tr>`;
     }).join('');
     return `
-      <div class="um-toolbar"><button class="btn btn-primary" onclick="AdminController.openAddSection()">➕ Add Section</button></div>
+      <div class="um-toolbar"><button class="btn btn-primary" onclick="AdminController.openAddSection()">${ADMIN_ICONS.plus} Add Section</button></div>
       <div class="card table-card">
         <div class="table-wrap">
           <table class="data-table">
@@ -436,12 +461,12 @@ const AdminView = {
      unchecked, since not everyone moves up at the same time. */
   _transferPane(sections) {
     if (!sections || !sections.length) {
-      return '<div class="empty-state"><div class="empty-state-icon">🔁</div><div class="empty-state-title">No sections yet</div><div class="empty-state-sub">Create sections first under the Sections tab.</div></div>';
+      return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.transfer}</div><div class="empty-state-title">No sections yet</div><div class="empty-state-sub">Create sections first under the Sections tab.</div></div>`;
     }
     const sectionOpts = sections.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
     return `
       <div class="card" style="padding:20px;max-width:720px">
-        <h3 style="margin:0 0 6px;color:var(--maroon-dark)">🔁 Transfer / Promote Students</h3>
+        <h3 style="margin:0 0 6px;color:var(--maroon-dark)">${ADMIN_ICONS.transfer} Transfer / Promote Students</h3>
         <p style="margin:0 0 18px;font-size:13px;color:var(--gray-400)">
           Move students from one section to the next at the end of a school year.
           Their grades and attendance stay exactly as they were — only their current
@@ -492,7 +517,7 @@ const AdminView = {
           <tbody>${rows}</tbody>
         </table>
       </div>
-      <button class="btn btn-primary" style="margin-top:14px" onclick="AdminController.confirmTransfer()">🔁 Transfer Selected Students</button>
+      <button class="btn btn-primary" style="margin-top:14px" onclick="AdminController.confirmTransfer()">${ADMIN_ICONS.transfer} Transfer Selected Students</button>
     `;
   },
 
@@ -507,7 +532,7 @@ const AdminView = {
      import actions) is a separate feature to build when needed. */
   _auditPane() {
     return `<div class="empty-state">
-      <div class="empty-state-icon">📋</div>
+      <div class="empty-state-icon">${ADMIN_ICONS.audit}</div>
       <div class="empty-state-title">Audit log isn't set up yet</div>
       <div class="empty-state-sub">This needs a dedicated audit table and logging hooks on admin actions — ask to have it built when you're ready.</div>
     </div>`;

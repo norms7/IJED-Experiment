@@ -59,7 +59,7 @@ const GradebookController = {
     } catch (err) {
       console.error('[Gradebook] loadSections error:', err);
       if (wrap) wrap.innerHTML = `<div class="empty-state">
-        <div class="empty-state-icon">⚠️</div>
+        <div class="empty-state-icon">${LMS_ICONS.warning}</div>
         <div class="empty-state-title">Failed to load sections</div>
         <div class="empty-state-sub">${escHtml(err.message)}</div>
       </div>`;
@@ -87,7 +87,7 @@ const GradebookController = {
           </div>
         </div>
       </div>
-      <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Building gradebook…</div></div>`;
+      <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Building gradebook…</div></div>`;
 
     try {
       // Resolve subjects for this section
@@ -105,7 +105,7 @@ const GradebookController = {
 
       if (sectionSubjects.length === 0) {
         area.innerHTML = `<div class="empty-state">
-          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-icon">${LMS_ICONS.clipboard}</div>
           <div class="empty-state-title">No subjects found for this section</div>
           <button class="btn btn-primary mt-3" onclick="DashboardController.loadSection('grades')">← Back</button>
         </div>`;
@@ -125,7 +125,7 @@ const GradebookController = {
       console.error('[Gradebook] openSection error:', err);
       Toast.show('Failed to load gradebook: ' + err.message, 'error');
       area.innerHTML = `<div class="empty-state">
-        <div class="empty-state-icon">⚠️</div>
+        <div class="empty-state-icon">${LMS_ICONS.warning}</div>
         <div class="empty-state-title">Error loading gradebook</div>
         <div class="empty-state-sub">${escHtml(err.message)}</div>
         <button class="btn btn-primary mt-3" onclick="DashboardController.loadSection('grades')">← Back</button>
@@ -155,7 +155,7 @@ const GradebookController = {
     const tableWrap = document.getElementById('gb-table-wrap');
     if (tableWrap) {
       tableWrap.innerHTML = `<div class="empty-state" style="padding:40px">
-        <div class="empty-state-icon">⏳</div>
+        <div class="empty-state-icon">${LMS_ICONS.loading}</div>
         <div class="empty-state-title">Loading grades…</div>
       </div>`;
     } else {
@@ -306,8 +306,8 @@ const GradebookController = {
     }).join('') || '<div style="color:var(--gray-400);font-size:13px;text-align:center;padding:12px">No modules</div>';
 
     const body = `
-      <div style="font-weight:600;font-size:15px;margin-bottom:4px;color:var(--maroon)">📋 ${escHtml(studentName)}</div>
-      <div style="font-size:12px;color:var(--gray-400);margin-bottom:14px">${escHtml(subjectName)} · ${escHtml(term)} Term</div>
+      <div style="font-weight:600;font-size:15px;margin-bottom:4px;color:var(--maroon)">${LMS_ICONS.clipboard} ${escHtml(studentName)}</div>
+      <div style="font-size:12px;color:var(--gray-400);margin-bottom:14px">${escHtml(subjectName)} · ${escHtml(term)} Quarter</div>
       <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px">Activities</div>
       <div style="margin-bottom:16px">${actCards}</div>
       <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px">Modules</div>

@@ -1,5 +1,6 @@
 # IJED Learning Management System
 
+<!-- markdownlint-disable MD033 -->
 <p align="center">
   <img src="lms-frontend/assets/images/logo.png" alt="IJED Logo" width="120"/>
 </p>
@@ -17,6 +18,7 @@
   <img src="https://img.shields.io/badge/Auth-JWT-000000?logo=jsonwebtokens" alt="JWT"/>
 </p>
 
+<!-- markdownlint-enable MD033 -->
 ---
 
 ## Overview
@@ -28,7 +30,7 @@ IJED LMS is a web-based Learning Management System designed for school administr
 ## Features
 
 | Role | Capabilities |
-|------|-------------|
+| ------ | ------------- |
 | **Admin** | Manage users, teachers, students, classes, sections, subjects, modules, activities; broadcast announcements |
 | **Teacher** | View assigned subjects & students, manage modules (PDF upload), create & grade activities, record attendance per session |
 | **Student** | Access published modules, submit activities, view grades, view own attendance summary, receive notifications, dashboard overview |
@@ -54,7 +56,7 @@ IJED LMS is a web-based Learning Management System designed for school administr
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+| ------- | ----------- |
 | Backend Framework | FastAPI 0.111 |
 | Language | Python 3.12 |
 | ORM | SQLAlchemy 2.0 (async) |
@@ -69,7 +71,7 @@ IJED LMS is a web-based Learning Management System designed for school administr
 
 ## Project Structure
 
-```
+```text
 IJED/
 ├── lms-admin-backend/                  # FastAPI backend
 │   ├── app/
@@ -235,7 +237,7 @@ python seed.py
 This creates the following default accounts:
 
 | Email | Password | Role |
-|-------|----------|------|
+| ------- | ---------- | ------ |
 | `admin@lms.edu` | `Admin@1234` | admin |
 | `teacher@lms.edu` | `Teacher@1234` | teacher |
 | `student@lms.edu` | `Student@1234` | student |
@@ -248,9 +250,9 @@ This creates the following default accounts:
 uvicorn app.main:app --reload --port 8000
 ```
 
-- **Swagger UI:** http://localhost:8000/docs
-- **ReDoc:** http://localhost:8000/redoc
-- **Health Check:** http://localhost:8000/health
+- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **Health Check:** [http://localhost:8000/health](http://localhost:8000/health)
 
 ---
 
@@ -277,6 +279,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "access_token": "eyJhbGci...",
@@ -288,6 +291,7 @@ Content-Type: application/json
 ```
 
 Use the token on every subsequent request:
+
 ```http
 Authorization: Bearer eyJhbGci...
 ```
@@ -299,7 +303,7 @@ Authorization: Bearer eyJhbGci...
 #### Admin Endpoints
 
 | Resource | Methods | Base Path |
-|----------|---------|-----------|
+| ---------- | --------- | ----------- |
 | Dashboard Stats | GET | `/admin/dashboard/stats` |
 | Users | GET, POST, PUT, DELETE | `/admin/users` |
 | Teachers | GET, POST, PUT, DELETE | `/admin/teachers` |
@@ -316,7 +320,7 @@ Authorization: Bearer eyJhbGci...
 #### Teacher Endpoints
 
 | Resource | Methods | Path |
-|----------|---------|------|
+| ---------- | --------- | ------ |
 | My subjects | GET | `/teacher/me/subjects` |
 | My modules | GET, POST, DELETE | `/teacher/me/modules` |
 | PDF upload | POST | `/teacher/me/modules/upload` |
@@ -333,7 +337,7 @@ Authorization: Bearer eyJhbGci...
 #### Student Endpoints
 
 | Resource | Methods | Path |
-|----------|---------|------|
+| ---------- | --------- | ------ |
 | Dashboard | GET | `/student/me/dashboard` |
 | My subjects | GET | `/student/me/subjects` |
 | My modules | GET | `/student/me/modules` |
@@ -347,7 +351,7 @@ Authorization: Bearer eyJhbGci...
 #### Notifications
 
 | Resource | Methods | Path |
-|----------|---------|------|
+| ---------- | --------- | ------ |
 | SSE stream | GET | `/notifications/stream` |
 | My notifications | GET | `/notifications` |
 | Delete notification | DELETE | `/notifications/{id}` |
@@ -359,7 +363,7 @@ Full interactive docs available at `/docs` when the server is running.
 
 ## Database Schema
 
-```
+```text
 roles ──< users ──< teachers ──< teacher_class_assignments >── classes
                 │                                                  │
                 │                                              subjects
@@ -498,4 +502,6 @@ This project is developed for **Infant Jesus Learning Academy** (Imelda Justice 
 
 ---
 
+<!-- markdownlint-disable MD033 -->
 <p align="center">Built with ❤️ for IJED · Infant Jesus Learning Academy</p>
+<!-- markdownlint-enable MD033 -->

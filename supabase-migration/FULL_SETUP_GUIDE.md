@@ -1,5 +1,6 @@
 # IJED LMS — Supabase Experiment: Full Setup Guide
-### From the zip you downloaded → Git → Supabase → Vercel, live
+
+## From the zip you downloaded → Git → Supabase → Vercel, live
 
 Follow these in order. Each phase assumes the previous one is done.
 
@@ -16,6 +17,7 @@ cd ijed-supabase-experiment
 You have two options for where this lives in git. Pick one:
 
 ### Option A — New branch on your existing Bitbucket repo (recommended)
+
 Keeps this experiment alongside your real thesis repo, easy to compare/merge later.
 
 ```bash
@@ -30,12 +32,15 @@ git push -u origin supabase-experiment
 ```
 
 ### Option B — Fresh standalone repo (cleanest, no risk to the real project at all)
+
 ```bash
 git init
 git add .
 git commit -m "Initial commit: Supabase-only experiment"
 ```
+
 Then create a new empty repo on GitHub or Bitbucket and:
+
 ```bash
 git remote add origin <new-repo-url>
 git branch -M main
@@ -66,7 +71,9 @@ git commit -m "Ignore venv"
 3. Wait ~2 minutes for provisioning.
 
 ### Get your keys
+
 Dashboard → **Settings → API**. You need two values for later:
+
 - **Project URL** — looks like `https://xxxxxxxxxxxx.supabase.co`
 - **anon public key** — long JWT-looking string
 
@@ -101,9 +108,11 @@ Create the 8 accounts listed in `supabase-migration/SAMPLE_DATA_README.md`
 you, and check **"Auto Confirm User"** on each one.
 
 Verify they linked to their profile rows:
+
 ```sql
 select email, auth_uid is not null as linked from users order by email;
 ```
+
 All 8 should show `linked = true`.
 
 ---
@@ -111,10 +120,12 @@ All 8 should show `linked = true`.
 ## PHASE 5 — Storage bucket (for module file uploads)
 
 Dashboard → **Storage → New Bucket**:
+
 - Name: `module-files`
 - Public bucket: **ON**
 
 Then SQL Editor, run:
+
 ```sql
 create policy "Teachers can upload module files"
 on storage.objects for insert
@@ -132,6 +143,7 @@ using (bucket_id = 'module-files');
 You need the Supabase CLI for this one piece.
 
 **Install the CLI:**
+
 ```bash
 # macOS / Linux
 brew install supabase/tap/supabase
@@ -145,6 +157,7 @@ npx supabase --version
 ```
 
 **Login and link to your project:**
+
 ```bash
 supabase login
 # opens a browser to authorize
@@ -155,9 +168,11 @@ supabase link --project-ref xxxxxxxxxxxx
 ```
 
 **Deploy the function:**
+
 ```bash
 supabase functions deploy admin-create-user --project-ref xxxxxxxxxxxx
 ```
+
 (The function code is already at
 `supabase-migration/edge_functions/admin-create-user/index.ts` — the CLI
 looks for it under a `supabase/functions/` folder, so if it can't find it,
@@ -178,6 +193,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOi...";                       // your anon pu
 ```
 
 Save, commit, push:
+
 ```bash
 git add lms-frontend/assets/js/lms-supabase-api.js
 git commit -m "Configure Supabase project keys"
@@ -229,7 +245,7 @@ error — paste it to me and I'll fix the specific file fast.
 ## Quick reference — what lives where
 
 | Thing | Where |
-|---|---|
+| --- | --- |
 | Frontend code | `lms-frontend/` (this is what Vercel deploys) |
 | Supabase SQL + guides | `supabase-migration/` (not deployed — reference only) |
 | Old FastAPI backend | `lms-admin-backend/` (untouched, your rollback path) |
@@ -239,5 +255,6 @@ error — paste it to me and I'll fix the specific file fast.
 ---
 
 ## If you want to redo this on a brand-new Supabase project later
+
 Just repeat Phases 2–7 — nothing in the frontend code or Vercel deployment
 needs to change except the two constants in Phase 7.

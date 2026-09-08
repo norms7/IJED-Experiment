@@ -2,7 +2,7 @@
 
 ## 1. Run the SQL, in order, in a fresh Supabase project's SQL Editor
 
-```
+```text
 01_schema.sql
 02_rls_policies.sql
 03_functions.sql
@@ -23,22 +23,23 @@ Go to **Dashboard → Authentication → Users → Add User** and create these
 seed data) — any password works, suggested ones below for convenience.
 Check "Auto Confirm User" so they can log in immediately.
 
-| Role    | Email                  | Suggested Password | Name             |
-|---------|------------------------|---------------------|------------------|
-| Admin   | admin@ijed.test        | Admin123!           | Grace Villanueva |
-| Teacher | teacher1@ijed.test     | Teacher123!         | Maria Santos (Math + Science) |
-| Teacher | teacher2@ijed.test     | Teacher123!         | Juan Cruz (English) |
-| Student | student1@ijed.test     | Student123!         | Ana Reyes        |
-| Student | student2@ijed.test     | Student123!         | Ben Tan          |
-| Student | student3@ijed.test     | Student123!         | Carla Lim        |
-| Student | student4@ijed.test     | Student123!         | Dario Cruz       |
-| Student | student5@ijed.test     | Student123!         | Elena Bautista   |
+| Role    | Email                 | Suggested Password | Name                          |
+|---------|-----------------------|--------------------|-------------------------------|
+| Admin   | `admin@ijed.test`     | `Admin123!`        | Grace Villanueva              |
+| Teacher | `teacher1@ijed.test`  | `Teacher123!`      | Maria Santos (Math + Science) |
+| Teacher | `teacher2@ijed.test`  | `Teacher123!`      | Juan Cruz (English)           |
+| Student | `student1@ijed.test`  | `Student123!`      | Ana Reyes                     |
+| Student | `student2@ijed.test`  | `Student123!`      | Ben Tan                       |
+| Student | `student3@ijed.test`  | `Student123!`      | Carla Lim                     |
+| Student | `student4@ijed.test`  | `Student123!`      | Dario Cruz                    |
+| Student | `student5@ijed.test`  | `Student123!`      | Elena Bautista                |
 
 The moment each account is created, the `on_auth_user_created` trigger
 (from `03_functions.sql`) fires and sets `auth_uid` on the matching
 `users` row automatically — no extra SQL needed.
 
 **Verify the link worked:**
+
 ```sql
 select email, auth_uid is not null as linked from users order by email;
 -- all 8 rows should show linked = true

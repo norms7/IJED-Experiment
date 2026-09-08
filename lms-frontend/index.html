@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="assets/css/notifications.css">
   <link rel="stylesheet" href="assets/css/analytics.css">
   <link rel="stylesheet" href="assets/css/loading.css" />
+  <link rel="stylesheet" href="assets/css/dark-mode.css" />
 </head>
 <body>
 
@@ -368,7 +369,7 @@
     <header class="topbar">
       <div class="topbar-left">
         <button class="topbar-toggle" id="sidebar-toggle"
-          onclick="App.toggleSidebar()" aria-label="Toggle sidebar">☰</button>
+          onclick="App.toggleSidebar()" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">☰</button>
         <span class="topbar-page-title" id="topbar-title">Dashboard</span>
       </div>
       <div class="topbar-right">
@@ -424,6 +425,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script defer src="utils/utils.js"></script>
 <script defer src="utils/loader.js"></script>
+<script defer src="assets/js/lms-icons.js"></script>
 <script defer src="assets/js/analytics.engine.js"></script>
 <script defer src="assets/js/lms-supabase-api.js"></script>
 <script defer src="models/models.js"></script>

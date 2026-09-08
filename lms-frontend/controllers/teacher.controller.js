@@ -131,12 +131,12 @@ const TeacherController = {
   ],
 
   _FORMAT_TYPES: [
-    { value: 'multiple_choice', label: '🔘 Multiple Choice',               grading: 'auto' },
-    { value: 'checkbox',        label: '☑️  Checkbox (multi-select)',       grading: 'auto' },
-    { value: 'enumeration',     label: '📝 Fill in the Blank / Enumeration', grading: 'auto' },
-    { value: 'freeform',        label: '✍️  Freeform / Essay',              grading: 'manual' },
-    { value: 'assignment',      label: '📋 Assignment / Homework',           grading: 'manual' },
-    { value: 'hybrid',          label: '🔀 Hybrid (mixed types)',            grading: 'manual' },
+    { value: 'multiple_choice', label: 'Multiple Choice',               grading: 'auto' },
+    { value: 'checkbox',        label: 'Checkbox (multi-select)',       grading: 'auto' },
+    { value: 'enumeration',     label: 'Fill in the Blank / Enumeration', grading: 'auto' },
+    { value: 'freeform',        label: 'Freeform / Essay',              grading: 'manual' },
+    { value: 'assignment',      label: 'Assignment / Homework',           grading: 'manual' },
+    { value: 'hybrid',          label: 'Hybrid (mixed types)',            grading: 'manual' },
   ],
 
   /** Questions array held in memory while the modal is open */
@@ -144,8 +144,8 @@ const TeacherController = {
 
   _gradingBadge(mode) {
     return mode === 'auto'
-      ? `<span class="badge badge-green" title="System will auto-check answers">⚡ Auto-graded</span>`
-      : `<span class="badge badge-gold"  title="You will manually enter grades">✏️ Manual grading</span>`;
+      ? `<span class="badge badge-green" title="System will auto-check answers">${lmsIcon('check')} Auto-graded</span>`
+      : `<span class="badge badge-gold"  title="You will manually enter grades">${lmsIcon('pen')} Manual grading</span>`;
   },
 
   // ── Create Activity Modal ─────────────────────────────────
@@ -243,7 +243,7 @@ const TeacherController = {
         <div id="act-questions-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px">
             <strong>Questions</strong>
-            <button class="btn btn-xs btn-outline" onclick="TeacherController._addQuestion()">➕ Add Question</button>
+            <button class="btn btn-xs btn-outline" onclick="TeacherController._addQuestion()">${lmsIcon('plus')} Add Question</button>
           </div>
           <div id="act-questions-list">
             <div class="text-muted text-sm" style="padding:12px 0">No questions yet. Click "Add Question" to start.</div>
@@ -252,7 +252,7 @@ const TeacherController = {
 
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
-       <button class="btn btn-primary" onclick="TeacherController.saveActivity()">💾 Save Activity</button>`
+      <button class="btn btn-primary" onclick="TeacherController.saveActivity()">${lmsIcon('save')} Save Activity</button>`
     );
 
     setTimeout(() => {
@@ -344,10 +344,10 @@ const TeacherController = {
     }
     container.innerHTML = this._questions.map((q, idx) => {
       const typeOpts = [
-        { v: 'multiple_choice', l: '🔘 Multiple Choice' },
-        { v: 'checkbox',        l: '☑️  Checkbox' },
-        { v: 'fill_blank',      l: '📝 Fill in the Blank' },
-        { v: 'essay',           l: '✍️  Essay' },
+        { v: 'multiple_choice', l: 'Multiple Choice' },
+        { v: 'checkbox',        l: 'Checkbox' },
+        { v: 'fill_blank',      l: 'Fill in the Blank' },
+        { v: 'essay',           l: 'Essay' },
       ].map(t => `<option value="${t.v}" ${q.type === t.v ? 'selected' : ''}>${t.l}</option>`).join('');
 
       return `
@@ -357,7 +357,7 @@ const TeacherController = {
             <div style="display:flex;gap:6px;align-items:center">
               <label style="font-size:12px;margin:0">Pts:</label>
               <input type="number" min="1" value="${q.points}" style="width:52px" class="form-control form-control-sm" onchange="TeacherController._qSetPoints(${idx}, this.value)" />
-              <button class="btn btn-xs btn-danger" onclick="TeacherController._removeQuestion(${idx})">🗑️</button>
+              <button class="btn btn-xs btn-danger" onclick="TeacherController._removeQuestion(${idx})">${lmsIcon('trash')}</button>
             </div>
           </div>
           <div class="form-row" style="margin-bottom:8px">
@@ -387,7 +387,7 @@ const TeacherController = {
             onchange="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
           ${choices.length > 2 ? `<button class="btn btn-xs btn-ghost" onclick="TeacherController._qRemoveChoice(${idx}, ${ci})">✕</button>` : ''}
         </div>`).join('');
-      return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (select the correct one ◉)</div>${rows}<button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">➕ Add Choice</button></div>`;
+      return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (select the correct one)</div>${rows}<button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">${lmsIcon('plus')} Add Choice</button></div>`;
     }
 
     if (q.type === 'checkbox') {
@@ -404,13 +404,13 @@ const TeacherController = {
             onchange="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
           ${choices.length > 2 ? `<button class="btn btn-xs btn-ghost" onclick="TeacherController._qRemoveChoice(${idx}, ${ci})">✕</button>` : ''}
         </div>`).join('');
-      return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (check all correct answers ☑)</div>${rows}<button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">➕ Add Choice</button></div>`;
+      return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (check all correct answers)</div>${rows}<button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">${lmsIcon('plus')} Add Choice</button></div>`;
     }
 
     if (q.type === 'fill_blank') {
       return `<div style="margin-top:8px"><label style="font-size:12px;color:var(--gray-500)">Expected Answer (exact text match, case-insensitive)</label><input class="form-control form-control-sm" placeholder="e.g. Photosynthesis" value="${escHtml(q.correct || '')}" onchange="TeacherController._qSetCorrect(${idx}, this.value)" /></div>`;
     }
-    return `<div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:6px;background:var(--gray-100);border-radius:4px">📝 Essay — teacher grades manually after submission.</div>`;
+    return `<div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:6px;background:var(--gray-100);border-radius:4px">${LMS_ICONS.file} Essay — teacher grades manually after submission.</div>`;
   },
 
   // ── Question mutation helpers ─────────────────────────────
@@ -525,7 +525,7 @@ const TeacherController = {
       Toast.show('Activity created successfully!', 'success');
       DashboardController.loadSection('activities');
     } catch (err) {
-      if (btn) { btn.disabled = false; btn.textContent = '💾 Save Activity'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = `${lmsIcon('save')} Save Activity`; }
       Toast.show(err.message || 'Failed to create activity.', 'error');
     }
   },
@@ -546,7 +546,7 @@ const TeacherController = {
   // ── Grade Submissions Modal ───────────────────────────────
 
   async openGradeActivity(activityId) {
-    Modal.show('📊 Submissions', '<div class="text-center">Loading submissions…</div>', '', { wide: true });
+    Modal.show(`${lmsIcon('chart')} Submissions`, '<div class="text-center">Loading submissions…</div>', '', { wide: true });
     try {
       const [activity, submissions] = await Promise.all([
         api.getTeacherActivity(activityId),
@@ -583,7 +583,7 @@ const TeacherController = {
             ${escHtml(s.full_name)}
             ${s.class_name ? `<span style="color:#9ca3af;font-size:11px;margin-left:6px">${escHtml(s.class_name)}</span>` : ''}
           </li>`).join('');
-        Modal.show('📊 Submissions',
+        Modal.show(`${lmsIcon('chart')} Submissions`,
           `<div class="empty-state" style="padding:24px 0">
             <div class="empty-state-icon">📭</div>
             <div class="empty-state-title">No submissions yet</div>
@@ -622,7 +622,7 @@ const TeacherController = {
       // Section filter — always show if there's at least 1 section
       const sectionFilterHtml = `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-          <span style="font-size:13px;color:#6b7280;font-weight:500;">📂 Section:</span>
+          <span style="font-size:13px;color:#6b7280;font-weight:500;">${LMS_ICONS.school} Section:</span>
           <select id="submission-section-filter"
             style="padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:13px;cursor:pointer"
             onchange="TeacherController._filterSubmissionRows()">
@@ -658,7 +658,7 @@ const TeacherController = {
                 </span>`).join('')}
             </div>
           </div>`
-        : `<div style="margin-top:10px;font-size:12px;color:#059669">✅ All enrolled students have submitted.</div>`;
+        : `<div style="margin-top:10px;font-size:12px;color:#059669">${LMS_ICONS.check} All enrolled students have submitted.</div>`;
 
       const statBox = (value, label, color) =>
         `<div style="text-align:center;min-width:90px;flex:1">
@@ -700,7 +700,7 @@ const TeacherController = {
         }
 
         const gradeBtn = isManual && !s.is_graded
-          ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score || 100})">✏️ Grade</button>`
+          ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score || 100})">${lmsIcon('pen')} Grade</button>`
           : (s.is_graded ? `<span class="badge badge-green">✓ Graded</span>` : `<span class="badge badge-gray">Auto</span>`);
 
         return `<tr data-class-id="${s.class_id || ''}" data-searchable
@@ -720,7 +720,7 @@ const TeacherController = {
       TeacherController._submissionsCache = { activity, submissions, notSubmitted, computeGrade, isManual, buildRows };
 
       Modal.show(
-        `📊 ${escHtml(activity.title)} — Submissions`,
+        `${lmsIcon('chart')} ${escHtml(activity.title)} — Submissions`,
         `${sectionFilterHtml}
         <div class="table-wrap"><table class="data-table" id="submissions-table">
           <thead><tr><th>Student</th><th>Submitted</th><th>Score</th><th>%</th><th>Grade</th><th>Action</th></tr></thead>
@@ -732,7 +732,7 @@ const TeacherController = {
         { wide: true }
       );
     } catch (err) {
-      Modal.show('📊 Submissions',
+      Modal.show(`${lmsIcon('chart')} Submissions`,
         `<div class="text-danger">Error: ${err.message}</div>`,
         '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>',
         { wide: true }
@@ -760,7 +760,7 @@ const TeacherController = {
 
   // ── View individual student answers ──────────────────────────────────
   async viewStudentAnswers(activityId, submissionId) {
-    Modal.show('📋 Student Answers', '<div class="text-center" style="padding:24px">Loading…</div>', '', { wide: true });
+    Modal.show(`${lmsIcon('clipboard')} Student Answers`, '<div class="text-center" style="padding:24px">Loading…</div>', '', { wide: true });
     try {
       const cache = TeacherController._submissionsCache;
       const submission = cache?.submissions.find(s => s.id === submissionId);
@@ -850,22 +850,22 @@ const TeacherController = {
 
       const gradeSection = submission.is_graded
         ? `<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-            <span>✅ <strong>Graded</strong></span>
+            <span>${LMS_ICONS.check} <strong>Graded</strong></span>
             <span>Score: <strong>${scoreLabel}</strong></span>
             ${submission.grade ? `<span>Grade: <strong>${escHtml(submission.grade)}</strong></span>` : ''}
             ${submission.remarks ? `<span style="color:#6b7280;font-size:13px">${escHtml(submission.remarks)}</span>` : ''}
           </div>`
         : `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 16px;margin-bottom:16px">
-            ⏳ <strong>Pending grade</strong>
+            ${LMS_ICONS.loading} <strong>Pending grade</strong>
             ${activity.grading_mode === 'manual'
               ? `<button class="btn btn-xs btn-primary" style="margin-left:12px"
                    onclick="TeacherController.openManualGrade(${activityId}, ${submissionId}, ${activity.max_score || 100})">
-                   ✏️ Grade Now</button>`
+                   ${lmsIcon('pen')} Grade Now</button>`
               : ''}
           </div>`;
 
       Modal.show(
-        `📋 ${escHtml(studentName)} — Answers`,
+        `${lmsIcon('clipboard')} ${escHtml(studentName)} — Answers`,
         `<div style="font-size:13px;color:#6b7280;margin-bottom:6px">
           Submitted: ${submittedDate} &nbsp;|&nbsp; Activity: <strong>${escHtml(activity.title)}</strong>
         </div>
@@ -883,7 +883,7 @@ const TeacherController = {
   },
 
   openManualGrade(activityId, submissionId, maxScore) {
-    Modal.show('✏️ Enter Grade', `
+    Modal.show(`${lmsIcon('pen')} Enter Grade`, `
       <div class="form-group">
         <label>Score <span class="text-muted">/ ${maxScore}</span></label>
         <input class="form-control" id="mg-score" type="number" min="0" max="${maxScore}" placeholder="0–${maxScore}" />
