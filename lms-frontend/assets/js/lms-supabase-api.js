@@ -629,7 +629,7 @@ class LMSAdminAPI {
       if (term) modQ = modQ.eq("term", term);
       const { data: mods } = await modQ;
       const moduleIds = (mods || []).map(m => m.id);
-      if (!moduleIds.length) return { module_reads: {}, total_modules: 0 };
+      if (!moduleIds.length) return { module_reads: {}, read_module_ids: {}, total_modules: 0 };
 
       // Count unique modules read per student
       const { data: reads } = await this.sb.from("student_module_reads")
@@ -641,10 +641,12 @@ class LMSAdminAPI {
         byStudent[r.student_id].add(r.module_id);
       });
       const module_reads = {};
+      const read_module_ids = {};
       Object.entries(byStudent).forEach(([sid, set]) => {
         module_reads[parseInt(sid)] = set.size;
+        read_module_ids[parseInt(sid)] = [...set];
       });
-      return { module_reads, total_modules: moduleIds.length };
+      return { module_reads, read_module_ids, total_modules: moduleIds.length };
     });
   }
 
@@ -665,10 +667,11 @@ class LMSAdminAPI {
     });
   }
 
-  async getMyModules(subject_id = null) {
-    return this._cached(`teacher:mymodules:${subject_id || ""}`, 60_000, async () => {
+  async getMyModules(subject_id = null, term = null) {
+    return this._cached(`teacher:mymodules:${subject_id || ""}:${term || ""}`, 60_000, async () => {
       let q = this.sb.from("modules").select("*").eq("teacher_id", await this._myTeacherId());
       if (subject_id) q = q.eq("subject_id", subject_id);
+      if (term) q = q.eq("term", term);
       return this._throwIfError(await q);
     });
   }
