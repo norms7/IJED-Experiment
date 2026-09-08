@@ -157,7 +157,7 @@ const AnalyticsEngine = (() => {
   // 4. DESCRIPTIVE — Module Reading Progress
   // ══════════════════════════════════════════════════════════════════════
   async function getModuleReadingProgress(sb, studentId, subjectId = null, term = null) {
-    const cacheKey = `descriptive.module_progress.subject_${subjectId || "all"}.term_${term || "all"}`;
+    const cacheKey = `descriptive.module_progress.v2.subject_${subjectId || "all"}.term_${term || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
       if (!subjectIds.length) return { subjects: [], totals: { read: 0, total: 0, pct: 0 } };
@@ -169,6 +169,10 @@ const AnalyticsEngine = (() => {
       if (term) modQuery = modQuery.eq("term", term);
       const { data: modules, error: mErr } = await modQuery;
       if (mErr) throw new Error(mErr.message);
+
+      const { data: subjects } = await sb
+        .from("subjects").select("id, name").in("id", filterIds);
+      const subjectNames = new Map((subjects || []).map(subject => [subject.id, subject.name]));
 
       const { data: reads, error: rErr } = await sb
         .from("student_module_reads").select("*").eq("student_id", studentId);
@@ -194,7 +198,8 @@ const AnalyticsEngine = (() => {
         const pct = total ? Math.round((readCount / total) * 100) : 0;
         subjectsOut.push({
           subject_id: sid, modules_read: readCount, modules_total: total,
-          completion_pct: pct, remaining: total - readCount, modules: mods,
+          completion_pct: pct, remaining: total - readCount,
+          subject_name: subjectNames.get(sid) || `Subject ${sid}`, modules: mods,
         });
         totalRead += readCount; totalMods += total;
       }
@@ -206,11 +211,25 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 5. DESCRIPTIVE — Subject Radar
   // ══════════════════════════════════════════════════════════════════════
-  async function getSubjectRadar(sb, studentId, term = null) {
-    const cacheKey = `descriptive.subject_radar.term_${term || "all"}`;
+  async function getSubjectRadar(sb, studentId, term = null, semester = 1) {
+    const cacheKey = `descriptive.subject_radar.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId);
       if (!subjectIds.length) return { axes: [] };
+
+      const { data: subjects } = await sb
+        .from("subjects").select("id, name, semester").in("id", subjectIds);
+      const subjectRows = (subjects || []).filter(subject => {
+        if (!semester) return true;
+        const value = String(subject.semester || "").trim().toLowerCase();
+        const expected = String(semester).trim().toLowerCase();
+        return value === expected
+          || value === `${expected} semester`
+          || (expected === "1" && value === "1st")
+          || (expected === "2" && value === "2nd");
+      });
+      const visibleSubjectIds = subjectRows.map(subject => subject.id);
+      if (!visibleSubjectIds.length) return { axes: [] };
 
       const { data: subs, error } = await sb
         .from("activity_submissions")
@@ -218,7 +237,7 @@ const AnalyticsEngine = (() => {
         .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
       if (error) throw new Error(error.message);
 
-      const subjectSet = new Set(subjectIds);
+      const subjectSet = new Set(visibleSubjectIds);
       const perSubject = new Map();
       for (const sub of (subs || [])) {
         const sid = sub.activities?.subject_id;
@@ -229,10 +248,9 @@ const AnalyticsEngine = (() => {
         }
       }
 
-      const { data: subjects } = await sb.from("subjects").select("id, name").in("id", subjectIds);
-      const subjMap = new Map((subjects || []).map(s => [s.id, s.name]));
+      const subjMap = new Map(subjectRows.map(subject => [subject.id, subject.name]));
 
-      const axes = subjectIds.map(sid => {
+      const axes = visibleSubjectIds.map(sid => {
         const scores = perSubject.get(sid) || [];
         const avg = scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : 0;
         return { subject_id: sid, subject_name: subjMap.get(sid) || `Subject ${sid}`, avg_pct: avg, activity_count: scores.length };

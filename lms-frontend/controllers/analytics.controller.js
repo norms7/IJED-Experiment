@@ -248,6 +248,7 @@ const AnalyticsController = {
       this._destroyChart('grade-progress');
       const labels = grade_progress.data.map(d => d.date);
       const pcts   = grade_progress.data.map(d => d.pct);
+      const isDarkMode = document.body.classList.contains('dark-mode');
 
       this._charts['grade-progress'] = new Chart(gpCanvas, {
         type: 'line',
@@ -281,7 +282,7 @@ const AnalyticsController = {
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { position: 'top', labels: { font: { family: 'Nunito', size: 12 } } },
+            legend: { position: 'top', labels: { color: isDarkMode ? '#ead6db' : '#6b5558', font: { family: 'Nunito', size: 12 } } },
             tooltip: {
               callbacks: {
                 afterBody(ctx) {
@@ -300,11 +301,11 @@ const AnalyticsController = {
           scales: {
             y: {
               min: 0, max: 105,
-              ticks: { callback: v => v + '%', font: { family: 'Nunito' } },
-              grid: { color: 'rgba(0,0,0,0.06)' },
+              ticks: { color: isDarkMode ? '#ead6db' : '#6b5558', callback: v => v + '%', font: { family: 'Nunito' } },
+              grid: { color: isDarkMode ? 'rgba(234,214,219,0.22)' : 'rgba(0,0,0,0.10)' },
             },
             x: {
-              ticks: { font: { family: 'Nunito', size: 11 }, maxRotation: 45 },
+              ticks: { color: isDarkMode ? '#ead6db' : '#6b5558', font: { family: 'Nunito', size: 11 }, maxRotation: 45 },
               grid: { display: false },
             },
           },
@@ -318,6 +319,7 @@ const AnalyticsController = {
       this._destroyChart('score-vs-avg');
       const items  = score_vs_avg.data.slice(0, 20);  // cap at 20 for readability
       const labels = items.map(d => d.activity_name.length > 16 ? d.activity_name.slice(0,14)+'…' : d.activity_name);
+      const isDarkMode = document.body.classList.contains('dark-mode');
 
       this._charts['score-vs-avg'] = new Chart(svaCanvas, {
         type: 'bar',
@@ -343,7 +345,7 @@ const AnalyticsController = {
           maintainAspectRatio: false,
           interaction: { mode: 'index' },
           plugins: {
-            legend: { position: 'top', labels: { font: { family: 'Nunito', size: 12 } } },
+            legend: { position: 'top', labels: { color: isDarkMode ? '#ead6db' : '#6b5558', font: { family: 'Nunito', size: 12 } } },
             tooltip: {
               callbacks: {
                 afterBody(ctx) {
@@ -359,11 +361,11 @@ const AnalyticsController = {
           scales: {
             y: {
               min: 0, max: 110,
-              ticks: { callback: v => v + '%', font: { family: 'Nunito' } },
-              grid: { color: 'rgba(0,0,0,0.06)' },
+              ticks: { color: isDarkMode ? '#ead6db' : '#6b5558', callback: v => v + '%', font: { family: 'Nunito' } },
+              grid: { color: isDarkMode ? 'rgba(234,214,219,0.22)' : 'rgba(0,0,0,0.10)' },
             },
             x: {
-              ticks: { font: { family: 'Nunito', size: 10 }, maxRotation: 40 },
+              ticks: { color: isDarkMode ? '#ead6db' : '#6b5558', font: { family: 'Nunito', size: 10 }, maxRotation: 40 },
               grid: { display: false },
             },
           },
@@ -376,19 +378,23 @@ const AnalyticsController = {
     if (radarCanvas && subject_radar.axes.length >= 3) {
       this._destroyChart('subject-radar');
       const axes = subject_radar.axes;
+      const subjectColors = ['#8B1E3F', '#1B998B', '#2D6CDF', '#F28E2B', '#7B2CBF', '#0081A7', '#C99700', '#D1495B', '#3A5A40', '#6A4C93', '#E76F51', '#264653'];
+      const isDarkMode = document.body.classList.contains('dark-mode');
+      const demoSubjectChart = new URLSearchParams(window.location.search).has('demo-subject-chart');
+      const chartAxes = demoSubjectChart
+        ? axes.map((axis, index) => ({ ...axis, avg_pct: [92, 76, 84, 63, 88, 71, 95, 68, 81, 74, 89, 66][index % 12] }))
+        : axes;
 
       this._charts['subject-radar'] = new Chart(radarCanvas, {
-        type: 'radar',
+        type: 'polarArea',
         data: {
           labels: axes.map(a => a.subject_name),
           datasets: [{
-            label: 'My Performance (%)',
-            data: axes.map(a => a.avg_pct),
-            backgroundColor: 'rgba(109,0,25,0.15)',
-            borderColor: '#6d0019',
+            label: 'Average Performance (%)',
+            data: chartAxes.map(a => a.avg_pct),
+            backgroundColor: chartAxes.map((_, index) => `${subjectColors[index % subjectColors.length]}${isDarkMode ? 'dd' : 'cc'}`),
+            borderColor: '#fff',
             borderWidth: 2,
-            pointBackgroundColor: '#6d0019',
-            pointRadius: 5,
           }],
         },
         options: {
@@ -400,10 +406,9 @@ const AnalyticsController = {
           scales: {
             r: {
               min: 0, max: 100,
-              ticks: { stepSize: 25, font: { family: 'Nunito', size: 10 }, backdropColor: 'transparent' },
-              pointLabels: { font: { family: 'Nunito', size: 12, weight: '600' } },
-              grid: { color: 'rgba(109,0,25,0.12)' },
-              angleLines: { color: 'rgba(109,0,25,0.12)' },
+              ticks: { stepSize: 25, color: '#9b7f8a', font: { family: 'Nunito', size: 11 }, backdropColor: 'transparent' },
+              grid: { color: 'rgba(155,127,138,0.5)', lineWidth: 1 },
+              angleLines: { color: 'rgba(155,127,138,0.5)', lineWidth: 1 },
             },
           },
         },

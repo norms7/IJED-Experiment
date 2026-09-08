@@ -306,7 +306,7 @@ const GradebookController = {
     }).join('') || '<div style="color:var(--gray-400);font-size:13px;text-align:center;padding:12px">No modules</div>';
 
     const body = `
-      <div style="font-weight:600;font-size:15px;margin-bottom:4px;color:var(--maroon)">${LMS_ICONS.clipboard} ${escHtml(studentName)}</div>
+      <div style="font-weight:600;font-size:15px;margin-bottom:4px;color:var(--maroon)">${lmsIcon('clipboard')} ${escHtml(studentName)}</div>
       <div style="font-size:12px;color:var(--gray-400);margin-bottom:14px">${escHtml(subjectName)} · ${escHtml(term)} Quarter</div>
       <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px">Activities</div>
       <div style="margin-bottom:16px">${actCards}</div>
