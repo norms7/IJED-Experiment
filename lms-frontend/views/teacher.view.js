@@ -296,7 +296,6 @@ const TeacherView = {
       <tr data-searchable style="cursor:pointer" onclick="GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
         <td>
           <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.section_name)}</div>
-          <div style="font-size:12px;color:var(--gray-400)">${escHtml(sec.grade_level || '')}</div>
         </td>
         <td>
           <div style="display:flex;flex-wrap:wrap;gap:4px">
@@ -343,7 +342,7 @@ const TeacherView = {
     ).join('');
 
     const termOptions = ['1st', '2nd', '3rd', '4th'].map(t =>
-      `<option value="${t}" ${t === activeTerm ? 'selected' : ''}>${t} Quarter</option>`
+      `<option value="${t}" ${t === activeTerm ? 'selected' : ''}>${t} Term</option>`
     ).join('');
 
     // ── Per-student grade rows ─────────────────────────────────────────────
@@ -644,7 +643,7 @@ const TeacherView = {
   attendanceSectionDetail(sectionName, data, subjects, currentSubjectId, currentTerm) {
     const { students, total_meetings } = data;
     const termOptions = ['1st','2nd','3rd','4th'].map(t =>
-      `<option value="${t}" ${t === currentTerm ? 'selected' : ''}>${t} Quarter</option>`
+      `<option value="${t}" ${t === currentTerm ? 'selected' : ''}>${t} Term</option>`
     ).join('');
     const subjOptions = subjects.map(s =>
       `<option value="${s.subject_id}" ${s.subject_id === currentSubjectId ? 'selected' : ''}>${escHtml(s.subject_name)}</option>`
@@ -766,7 +765,7 @@ const TeacherView = {
         <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap;min-width:0">
           <span style="font-weight:600;color:var(--maroon);white-space:nowrap;font-size:13px">${escHtml(s.session_date)}</span>
           ${badge}
-          <span class="badge badge-maroon" style="font-size:10px;white-space:nowrap">${escHtml(s.term)} Quarter</span>
+          <span class="badge badge-maroon" style="font-size:10px;white-space:nowrap">${escHtml(s.term)} Term</span>
           <div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0">
             <button class="btn btn-xs btn-outline" onclick="AttendanceController.editSession(${s.id})">✏️ Edit</button>
             <button class="btn btn-xs btn-danger" onclick="AttendanceController.deleteSession(${s.id}, '${escHtml(s.session_date)}')">🗑️</button>
@@ -783,7 +782,7 @@ const TeacherView = {
   attendanceModal(students, existingSession, subjects = []) {
     const today = new Date().toISOString().slice(0, 10);
     const termOptions = ['1st','2nd','3rd','4th'].map(t =>
-      `<option value="${t}" ${(existingSession?.term || '1st') === t ? 'selected' : ''}>${t} Quarter</option>`
+      `<option value="${t}" ${(existingSession?.term || '1st') === t ? 'selected' : ''}>${t} Term</option>`
     ).join('');
 
     const subjectOptions = subjects.map(s =>
