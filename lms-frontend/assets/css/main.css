@@ -30,9 +30,15 @@
   --gray-50:       #f9f5f5;
   --gray-100:      #f0eaea;
   --gray-200:      #e2d5d7;
+  --gray-300:      #cbb6b8;   /* was referenced but undefined (calendar.controller.js) */
   --gray-400:      #a88f92;
+  --gray-500:      #8f7376;   /* was referenced but undefined (20+ files) */
   --gray-600:      #6b4f52;
+  --gray-700:      #52393c;   /* was referenced but undefined (main.css, layout.css, views) */
   --gray-800:      #3a2426;
+
+  /* Brand alias — some controllers reference --primary directly */
+  --primary:       var(--maroon);
 
   /* Status */
   --green:         #2e6b3e;
@@ -67,6 +73,40 @@
   /* Typography */
   --font-display:  'Lora', Georgia, serif;
   --font-body:     'Nunito', system-ui, sans-serif;
+
+  /* ── Semantic tokens ─────────────────────────────────────────
+     Aliases over the palette above. Components should consume
+     these, not raw color vars, so dark mode (and any future
+     re-theme) is a token swap instead of a per-component override.
+     Values below match current light-mode usage exactly — this
+     is additive, nothing on screen changes yet. */
+  --surface:        var(--white);
+  --surface-subtle: var(--gray-50);
+  --surface-hover:  var(--rose-tint);
+  --border:         var(--gray-100);
+  --border-strong:  var(--gray-200);
+  --text-primary:   var(--gray-800);
+  --text-secondary: var(--gray-600);
+  --text-muted:     var(--gray-400);
+
+  /* ── Spacing scale (8px base, per design-system spec) ───────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── Z-index scale ───────────────────────────────────────────
+     Documents the stacking order already in use (sidebar overlay,
+     modal, toast) so new components don't guess a number. */
+  --z-dropdown: 100;
+  --z-overlay:  1000;
+  --z-modal:    1000;
+  --z-toast:    9999;
 }
 
 /* ── Reset ─────────────────────────────────────────────────── */
