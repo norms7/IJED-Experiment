@@ -445,7 +445,12 @@ const AdminController = {
         const guardianContact = document.getElementById('f-guardian-contact').value.trim();
         const strand          = (document.getElementById('f-strand')?.value || '').toUpperCase();
         const grade           = document.getElementById('f-grade-level')?.value || '';
-        const semester        = parseInt(document.getElementById('f-semester')?.value || '0');
+        const semesterNum     = parseInt(document.getElementById('f-semester')?.value || '0');
+        // Subjects store semester as '1st'/'2nd' strings, not the form's
+        // raw 1/2 -- comparing the two directly (as this used to) meant
+        // matchSem was always false whenever a semester was actually
+        // selected, so this auto-enroll step silently enrolled nobody.
+        const semester         = semesterNum === 1 ? '1st' : semesterNum === 2 ? '2nd' : '';
         const classId         = document.getElementById('f-section-id').value;
 
         const studentProfile  = await api.createStudentProfile({
@@ -489,7 +494,7 @@ const AdminController = {
             });
             if (strandSubjects.length > 0) {
               await api.enrollStudentSubjects(studentProfile.id, strandSubjects.map(s => s.id));
-              const semLabel = semester === 1 ? '1st' : semester === 2 ? '2nd' : '';
+              const semLabel = semester || '';
               Toast.show(`Enrolled in ${strandSubjects.length} subject(s) for ${strand} Grade ${grade}${semLabel ? ' ' + semLabel + ' Sem' : ''}.`, 'info');
             }
           }
@@ -1315,7 +1320,14 @@ const AdminController = {
 
   _matchStrandSubjects(allSubjects, strand, grade, semester) {
     if (!strand || !grade) return [];
-    const sem = parseInt(semester || '0');
+    // Subjects store semester as '1st'/'2nd' strings. CSV import data can
+    // arrive as "1", "1st", "First", etc. -- normalize to the same format
+    // the database actually uses instead of parseInt()'ing it, which
+    // silently matched nothing since subjects.semester was never a number.
+    const semStr = String(semester || '').trim().toLowerCase();
+    const sem = ['1', '1st', 'first'].includes(semStr) ? '1st'
+              : ['2', '2nd', 'second'].includes(semStr) ? '2nd'
+              : '';
     return allSubjects.filter(s => {
       const n = s.name.toUpperCase();
       const matchStrand = n.includes(strand + ' G' + grade);
