@@ -15,8 +15,9 @@ const StudentView = {
    * @param {Array}  subjects  - result from api.getStudentSubjects()
    * @param {Array}  recentGrades - graded ActivitySubmissions (with _activity + _subject attached)
    */
-  dashboard(user, stats = null, subjects = [], recentGrades = []) {
+  dashboard(user, stats = null, subjects = [], recentGrades = [], currentSem = null) {
     const firstName = escHtml((user.full_name || user.name || 'Student').split(' ')[0]);
+    const semLabel  = currentSem === 1 ? '1st Semester' : currentSem === 2 ? '2nd Semester' : null;
 
     /* ── Stat card values (show skeleton dashes while loading) ─────────── */
     const enrolledVal  = stats ? stats.enrolled_subjects : '—';
@@ -45,12 +46,13 @@ const StudentView = {
     const subjectHTML = subjects.length
       ? subjects.map((s, i) => {
           const info = NAMED[s.subject_name] || { color: '#555', icon: LMS_ICONS.book };
+          const subLine = [s.teacher_name, s.schedule].filter(Boolean).join(' · ') || s.class_name || '—';
           return `
             <div class="db-subject-item" style="display:flex;align-items:center;gap:12px;padding:9px 10px;margin:4px 0;border-radius:10px;border-left:3px solid #22c55e;background:linear-gradient(90deg,#e6f4ea 0%,transparent 80%);transition:background .18s;">
               <div style="width:36px;height:36px;border-radius:9px;background:#e6f4ea;color:#2e6b3e;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;box-shadow:0 2px 6px rgba(34,197,94,.14)">${info.icon}</div>
               <div style="flex:1;min-width:0">
                 <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a1a2e">${escHtml(s.subject_name)}</div>
-                <div style="font-size:11px;color:var(--gray-400);margin-top:1px">${escHtml(s.class_name || '—')}</div>
+                <div style="font-size:11px;color:var(--gray-400);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(subLine)}</div>
               </div>
               <span style="font-size:16px;color:${info.color};opacity:.45;flex-shrink:0">›</span>
             </div>`;
@@ -105,7 +107,7 @@ const StudentView = {
           <div class="stat-icon enrolled-subjects-stat-icon" style="background:#fde8ec;color:#8b1a2e">${LMS_ICONS.book}</div>
           <div>
             <div class="stat-value">${enrolledVal}</div>
-            <div class="stat-label">Enrolled Subjects</div>
+            <div class="stat-label">Enrolled Subjects${semLabel ? ` <span style="font-weight:400;opacity:.7">(${semLabel})</span>` : ''}</div>
           </div>
         </div>
 
@@ -153,10 +155,11 @@ const StudentView = {
           <div class="card-header" style="border-bottom:1px solid var(--gray-100);padding-bottom:10px">
             <span class="card-title" style="display:flex;align-items:center;gap:7px">
               <span style="font-size:16px">${lmsIcon('book')}</span> My Subjects
-              ${subjects.length ? `<span style="font-size:11px;font-weight:500;color:var(--gray-400);margin-left:2px">${subjects.length} enrolled</span>` : ''}
+              ${semLabel ? `<span style="font-size:11px;font-weight:500;color:var(--gray-400);margin-left:2px">${semLabel} · ${subjects.length} enrolled</span>` : subjects.length ? `<span style="font-size:11px;font-weight:500;color:var(--gray-400);margin-left:2px">${subjects.length} enrolled</span>` : ''}
             </span>
           </div>
           <div class="card-body" style="padding:4px 10px 8px">${subjectHTML}</div>
+          ${semLabel ? `<div style="padding:0 10px 10px;font-size:11px;color:var(--gray-400)">Showing ${semLabel.toLowerCase()} subjects only. <a href="#" onclick="DashboardController.loadSection('my-subjects');return false;" style="color:var(--maroon);font-weight:600">View all subjects →</a></div>` : ''}
         </div>
         <div class="card">
           <div class="card-header" style="border-bottom:1px solid var(--gray-100);padding-bottom:10px">
@@ -182,26 +185,26 @@ const StudentView = {
         </div>`;
     }
 
-    const sem = currentSem || 1;
+    const sem = currentSem || '1st';
 
     const semesterTabs = `
       <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
-        <button class="semester-tab" onclick="DashboardController.loadSection('my-subjects',{semester:1})"
+        <button class="semester-tab" onclick="DashboardController.loadSection('my-subjects',{semester:'1st'})"
           style="padding:7px 20px;border-radius:20px;border:2px solid var(--maroon,#7b1c1c);
-                 background:${sem===1?'var(--maroon,#7b1c1c)':'transparent'};
-                 color:${sem===1?'#fff':'var(--maroon,#7b1c1c)'};
+                 background:${sem==='1st'?'var(--maroon,#7b1c1c)':'transparent'};
+                 color:${sem==='1st'?'#fff':'var(--maroon,#7b1c1c)'};
                  font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;">
           ${lmsIcon('bookOpen')} 1st Semester
         </button>
-        <button class="semester-tab" onclick="DashboardController.loadSection('my-subjects',{semester:2})"
+        <button class="semester-tab" onclick="DashboardController.loadSection('my-subjects',{semester:'2nd'})"
           style="padding:7px 20px;border-radius:20px;border:2px solid var(--maroon,#7b1c1c);
-                 background:${sem===2?'var(--maroon,#7b1c1c)':'transparent'};
-                 color:${sem===2?'#fff':'var(--maroon,#7b1c1c)'};
+                 background:${sem==='2nd'?'var(--maroon,#7b1c1c)':'transparent'};
+                 color:${sem==='2nd'?'#fff':'var(--maroon,#7b1c1c)'};
                  font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;">
           ${lmsIcon('bookOpen')} 2nd Semester
         </button>
         <span style="align-self:center;font-size:12px;color:#9ca3af;margin-left:4px;">
-          ${sem===1?'1st':'2nd'} Semester subjects
+          ${sem==='1st'?'1st':'2nd'} Semester subjects
         </span>
       </div>`;
 
@@ -227,12 +230,12 @@ const StudentView = {
     if (!apiSubjects || !apiSubjects.length) {
       return `
         <div class="section-header">
-          <div class="section-header-left"><h2>My Subjects</h2><p>${sem === 1 ? '1st' : '2nd'} Semester</p></div>
+          <div class="section-header-left"><h2>My Subjects</h2><p>${sem === '1st' ? '1st' : '2nd'} Semester</p></div>
         </div>
         ${semesterTabs}
         <div class="empty-state" style="margin-top:40px">
           <div class="empty-state-icon">${lmsIcon('book')}</div>
-          <div class="empty-state-title">No Subjects for ${sem === 1 ? '1st' : '2nd'} Semester</div>
+          <div class="empty-state-title">No Subjects for ${sem === '1st' ? '1st' : '2nd'} Semester</div>
           <div class="empty-state-desc">You have no enrolled subjects for this semester. Try switching semesters above, or contact your admin.</div>
         </div>`;
     }
@@ -368,7 +371,7 @@ const StudentView = {
       <div class="section-header">
         <div class="section-header-left">
           <h2>My Subjects</h2>
-          <p>${apiSubjects.length} subject${apiSubjects.length !== 1 ? 's' : ''} · ${sem === 1 ? '1st' : '2nd'} Semester · click to expand</p>
+          <p>${apiSubjects.length} subject${apiSubjects.length !== 1 ? 's' : ''} · ${sem === '1st' ? '1st' : '2nd'} Semester · click to expand</p>
         </div>
         <div class="search-box"><span>${lmsIcon('search')}</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
       </div>
