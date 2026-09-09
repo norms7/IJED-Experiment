@@ -813,16 +813,43 @@ class LMSAdminAPI {
   async getStudentSubjects(semesterFilter = null) {
     const cacheKey = `student:mysubjects:${semesterFilter || 'all'}`;
     return this._cached(cacheKey, 60_000, async () => {
+      const studentId = await this._myStudentId();
       const data = this._throwIfError(
         await this.sb.from("student_subject_enrollments")
           .select("*, subjects(id, name, description, semester)")
-          .eq("student_id", await this._myStudentId())
+          .eq("student_id", studentId)
       );
+
+      // Enrich with real section/schedule/teacher info via the student's
+      // actual section assignment -- same reliable join
+      // getStudentWeeklySchedule() already uses, so class_name here is a
+      // real value instead of always falling back to a placeholder.
+      const { data: secRows } = await this.sb
+        .from('student_section_assignments').select('section_id').eq('student_id', studentId);
+      const sectionIds = (secRows || []).map(r => r.section_id);
+      const infoBySubject = {};
+      if (sectionIds.length) {
+        const { data: tcaRows } = await this.sb
+          .from('teacher_class_assignments')
+          .select('subject_id, schedule, sections(name), classes(name), teachers(users(first_name,last_name))')
+          .in('section_id', sectionIds);
+        (tcaRows || []).forEach(row => {
+          infoBySubject[row.subject_id] = {
+            class_name:   row.sections?.name || row.classes?.name || '',
+            schedule:     row.schedule || '',
+            teacher_name: row.teachers?.users ? `${row.teachers.users.first_name} ${row.teachers.users.last_name}` : '',
+          };
+        });
+      }
+
       const rows = data.map(row => ({
         ...row,
         subject_id:   row.subject_id,
         subject_name: row.subjects?.name || "",
         semester:     row.subjects?.semester ?? null,
+        class_name:   infoBySubject[row.subject_id]?.class_name || '',
+        schedule:     infoBySubject[row.subject_id]?.schedule || '',
+        teacher_name: infoBySubject[row.subject_id]?.teacher_name || '',
       }));
       if (semesterFilter) return rows.filter(r => r.semester === semesterFilter);
       return rows;
@@ -1006,9 +1033,9 @@ class LMSAdminAPI {
     return res.data;
   }
 
-  async getStudentDashboardStats() {
-    return this._cached("student:dashboard", 20_000, async () =>
-      this._throwIfError(await this.sb.rpc("get_student_dashboard_stats"))
+  async getStudentDashboardStats(semester = null) {
+    return this._cached(`student:dashboard:${semester || "all"}`, 20_000, async () =>
+      this._throwIfError(await this.sb.rpc("get_student_dashboard_stats", { p_semester: semester }))
     );
   }
 
