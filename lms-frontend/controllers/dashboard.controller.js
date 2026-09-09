@@ -213,11 +213,18 @@ const DashboardController = {
       area.innerHTML = Loader.skeleton("dashboard");
       Loader.init();
       try {
-        const [stats, subjects, activities] = await Promise.all([
-          api.getStudentDashboardStats(),
+        const currentSem = await api.getStudentCurrentSemester();
+        const [stats, allSubjects, activities] = await Promise.all([
+          api.getStudentDashboardStats(currentSem),
           api.getStudentSubjects(),
           api.getStudentActivities(),
         ]);
+        // "My Subjects" widget shows only the current semester's subjects,
+        // but recent-grade subject-name lookups below still use the full
+        // list -- otherwise a recent grade from the OTHER semester would
+        // show "?" instead of its real subject name.
+        const semSubjects = currentSem ? allSubjects.filter(s => s.semester === currentSem) : allSubjects;
+        const subjects = allSubjects;
         const submittedActivities = activities
           .filter((a) => a.submission != null)
           .sort((a, b) => {
@@ -250,8 +257,9 @@ const DashboardController = {
         area.innerHTML = StudentView.dashboard(
           user,
           stats,
-          subjects,
+          semSubjects,
           recentGrades,
+          currentSem,
         );
         this._attachSearch();
       } catch (err) {
