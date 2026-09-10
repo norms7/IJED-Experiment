@@ -13,25 +13,30 @@ const StudentView = {
    * @param {object} user  - current user session object
    * @param {object|null} stats - result from api.getStudentDashboardStats(), or null while loading
    * @param {Array}  subjects  - result from api.getStudentSubjects()
-   * @param {Array}  recentGrades - graded ActivitySubmissions (with _activity + _subject attached)
+   * @param {Array}  recentGrades - submitted ActivitySubmissions (with _activity + _subject attached)
    */
   dashboard(user, stats = null, subjects = [], recentGrades = [], currentSem = null) {
     const firstName = escHtml((user.full_name || user.name || 'Student').split(' ')[0]);
-    const semLabel  = currentSem === 1 ? '1st Semester' : currentSem === 2 ? '2nd Semester' : null;
+    const semValue  = String(currentSem || '').trim().toLowerCase();
+    const semLabel  = semValue === '1' || semValue === '1st' ? '1st Semester'
+      : semValue === '2' || semValue === '2nd' ? '2nd Semester' : null;
 
     /* ── Stat card values (show skeleton dashes while loading) ─────────── */
     const enrolledVal  = stats ? stats.enrolled_subjects : '—';
     const modulesVal   = stats ? `${stats.modules.done}/${stats.modules.total}` : '—/—';
-    const activitiesVal = stats ? `${stats.activities.done}/${stats.activities.total}` : '—/—';
-    const avgVal       = stats ? `${stats.average_score}%` : '—%';
+    const activitiesVal = stats ? `${stats.activities.submitted ?? stats.activities.done}/${stats.activities.total}` : '—/—';
+    const gradedCount   = stats ? (stats.activities.graded ?? stats.graded_activities ?? 0) : 0;
+    const pendingCount  = stats ? (stats.activities.pending ?? 0) : 0;
+    const avgVal       = stats && gradedCount ? `${stats.average_score}%` : stats ? '—' : '—%';
 
     /* Progress bar widths (capped 0–100) */
     const modPct  = stats && stats.modules.total   ? Math.min(100, Math.round(stats.modules.done   / stats.modules.total   * 100)) : 0;
-    const actPct  = stats && stats.activities.total ? Math.min(100, Math.round(stats.activities.done / stats.activities.total * 100)) : 0;
+    const actPct  = stats && stats.activities.total
+      ? Math.min(100, Math.round((stats.activities.submitted ?? stats.activities.done) / stats.activities.total * 100)) : 0;
 
     /* Average score colour */
     const avgNum  = stats ? stats.average_score : 0;
-    const avgColor = avgNum >= 90 ? '#22c55e' : avgNum >= 75 ? '#f59e0b' : '#ef4444';
+    const avgColor = !gradedCount ? 'var(--gray-400)' : avgNum >= 90 ? '#22c55e' : avgNum >= 75 ? '#f59e0b' : '#ef4444';
 
     /* ── Subject list ──────────────────────────────────────────────────── */
     const NAMED = {
@@ -68,7 +73,7 @@ const StudentView = {
                 <div style="width:36px;height:36px;border-radius:50%;border:2px solid #e5e7eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;color:#aaa;font-weight:700">?</div>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a1a2e">${escHtml(sub._activity || '?')}</div>
-                  <div style="font-size:11px;color:var(--gray-400);margin-top:1px">${escHtml(sub._subject || '?')}</div>
+                  <div style="font-size:11px;color:var(--gray-400);margin-top:1px">${escHtml(sub._subject || '?')} · Submitted</div>
                 </div>
                 <span class="badge badge-gray" style="font-size:10px;flex-shrink:0">Pending</span>
               </div>`;
@@ -131,7 +136,8 @@ const StudentView = {
             <div class="stat-icon" style="background:#fff0e6;color:#f59e0b;flex-shrink:0">${LMS_ICONS.clipboard}</div>
             <div style="flex:1">
               <div class="stat-value">${activitiesVal}</div>
-              <div class="stat-label">Activities Done</div>
+              <div class="stat-label">Activities Submitted</div>
+              ${stats ? `<div style="font-size:11px;color:var(--gray-400);margin-top:2px">${gradedCount} graded · ${pendingCount} pending</div>` : ''}
             </div>
           </div>
           <div style="width:100%;height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden">
@@ -144,7 +150,7 @@ const StudentView = {
           <div class="stat-icon" style="background:#e8f0fa;color:#3b82f6">${LMS_ICONS.chart}</div>
           <div>
             <div class="stat-value" style="color:${avgColor}">${avgVal}</div>
-            <div class="stat-label">Average Score</div>
+            <div class="stat-label">Average Score${stats && stats.graded_activities ? ` <span style="font-weight:400;opacity:.7">(${stats.graded_activities} graded)</span>` : ''}</div>
           </div>
         </div>
 
@@ -164,7 +170,7 @@ const StudentView = {
         <div class="card">
           <div class="card-header" style="border-bottom:1px solid var(--gray-100);padding-bottom:10px">
             <span class="card-title" style="display:flex;align-items:center;gap:7px">
-              <span style="font-size:16px">${lmsIcon('chart')}</span> Recent Grades
+              <span style="font-size:16px">${lmsIcon('chart')}</span> Recent Activity Results
               ${recentGrades.length ? `<span style="font-size:11px;font-weight:500;color:var(--gray-400);margin-left:2px">${Math.min(recentGrades.length,6)} latest</span>` : ''}
             </span>
           </div>
