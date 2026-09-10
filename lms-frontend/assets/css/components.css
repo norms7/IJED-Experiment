@@ -620,9 +620,36 @@ tbody tr:last-child td { border-bottom: none; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   margin-top: auto;
 }
-.module-card-meta { font-size: 12px; color: var(--gray-400); }
+.module-card-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--gray-400);
+}
+.module-card-footer > .flex {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.module-card-footer .btn {
+  flex: 0 0 auto;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+.module-card-footer .btn-danger {
+  width: 28px;
+  padding: 3px;
+}
+.module-card-footer .btn-danger .lms-inline-icon { margin-right: 0; }
 .module-card-meta .lms-inline-icon {
   font-size: 12px;
   margin-right: 2px;
