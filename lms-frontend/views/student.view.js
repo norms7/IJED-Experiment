@@ -302,6 +302,15 @@ const StudentView = {
           const typeLabel   = TYPE_MAP[a.activity_type] || a.activity_type || 'Activity';
           const statusColor = { open:'#2e6b3e', graded:'#1a4a8a', submitted:'#6a0dad', past_due:'#c00', not_open:'#888' }[a.status] || '#666';
           const statusLabel = a.status_label || a.status || '';
+          const submission  = a.submission || a.my_submission || null;
+          const score       = submission?.score != null
+            ? `${submission.score}/${submission.max_score ?? a.max_score ?? '?'}`
+            : submission ? 'Pending' : 'Not taken';
+          const action       = submission
+            ? `<button class="btn btn-outline btn-xs" onclick="StudentController.viewResult(${a.id})">View</button>`
+            : a.can_answer || a.is_past_due
+              ? `<button class="btn btn-primary btn-xs" onclick="StudentController.openActivity(${a.id})">${a.is_past_due ? 'Open' : 'Start'}</button>`
+              : '';
           const dueStr      = a.due_date
             ? new Date(a.due_date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})
             : '';
@@ -311,6 +320,8 @@ const StudentView = {
               <span class="acc-item-desc">${escHtml(typeLabel)}${dueStr ? ' · Due: ' + dueStr : ''}</span>
             </span>
             <span style="font-size:11px;font-weight:600;color:${statusColor};white-space:nowrap">${escHtml(statusLabel)}</span>
+            <span style="font-size:11px;color:var(--gray-500);white-space:nowrap">${escHtml(score)}</span>
+            ${action}
           </div>`;
         }).join('');
 
