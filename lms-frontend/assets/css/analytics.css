@@ -505,13 +505,23 @@ body.dark-mode .skeleton-chart    {
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .analytics-grid { grid-template-columns: 1fr; }
-  .analytics-module-progress-card { grid-column: 1; width: 100%; }
+  .analytics-module-progress-card { grid-column: 1; width: 100%; max-width: 100%; }
   .analytics-card-wide { grid-column: 1; }
   .analytics-header { flex-direction: column; }
   .analytics-tabs { overflow-x: auto; }
   .analytics-tab  { white-space: nowrap; }
-  .mod-subject-row { grid-template-columns: minmax(0, 1fr) 72px 36px 44px; }
-  .mod-subject-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .mod-subject-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "name name name"
+      "bar pct count";
+    column-gap: 8px;
+    row-gap: 5px;
+  }
+  .mod-subject-name { grid-area: name; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .mod-bar-wrap { grid-area: bar; width: 100%; min-width: 0; }
+  .mod-pct { grid-area: pct; }
+  .mod-count { grid-area: count; }
   .chart-wrapper { height: 220px; overflow: hidden; }
   .chart-wrapper-subject-performance { height: 280px; }
   .chart-wrapper canvas { display: block; max-width: 100% !important; }
@@ -519,7 +529,7 @@ body.dark-mode .skeleton-chart    {
   .peer-profile-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .improv-target-row { flex-direction: column; gap: 10px; }
   .mod-overall-bar-wrap { flex: 1; }
-  .analytics-module-progress-card .mod-subject-row { grid-template-columns: minmax(0, 1fr) 72px 36px 44px; }
+  .analytics-module-progress-card .mod-subject-row { grid-template-columns: minmax(0, 1fr) auto auto; }
 }
 
 @media (max-width: 480px) {
