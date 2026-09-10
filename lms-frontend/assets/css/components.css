@@ -81,6 +81,9 @@
 }
 .btn-icon:hover { background: var(--surface-hover); color: var(--maroon); }
 .btn-icon:focus-visible { outline: 2px solid var(--maroon-light); outline-offset: 2px; }
+.password-toggle-icon .password-eye-slash { display: none; }
+.is-visible .password-toggle-icon .password-eye { display: none; }
+.is-visible .password-toggle-icon .password-eye-slash { display: block; }
 /* NOTE: every .btn-icon in markup needs aria-label="<action>" — CSS can't add it.
    See the JS audit for a list of icon-only buttons still missing one. */
 
