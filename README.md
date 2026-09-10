@@ -4,504 +4,208 @@
 <p align="center">
   <img src="lms-frontend/assets/images/logo.png" alt="IJED Logo" width="120"/>
 </p>
-
 <p align="center">
-  A full-stack Learning Management System for <strong>Imelda Justice Education for Development (IJED)</strong>,<br>
-  built for <strong>Infant Jesus Learning Academy</strong>.
+  A browser-based Learning Management System for <strong>Imelda Justice Education for Development (IJED)</strong><br>
+  and <strong>Infant Jesus Learning Academy</strong>.
 </p>
-
 <p align="center">
-  <img src="https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi" alt="FastAPI"/>
-  <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python" alt="Python"/>
-  <img src="https://img.shields.io/badge/PostgreSQL-Async-336791?logo=postgresql" alt="PostgreSQL"/>
-  <img src="https://img.shields.io/badge/Frontend-HTML%2FCSS%2FJS-F7DF1E?logo=javascript" alt="Frontend"/>
-  <img src="https://img.shields.io/badge/Auth-JWT-000000?logo=jsonwebtokens" alt="JWT"/>
+  <img src="https://img.shields.io/badge/Frontend-Vanilla%20HTML%2FCSS%2FJS-F7DF1E?logo=javascript" alt="Vanilla JavaScript"/>
+  <img src="https://img.shields.io/badge/Backend-Supabase-3ECF8E?logo=supabase" alt="Supabase"/>
+  <img src="https://img.shields.io/badge/Database-PostgreSQL-336791?logo=postgresql" alt="PostgreSQL"/>
+  <img src="https://img.shields.io/badge/Analytics-Descriptive%20%2B%20Bayesian-6D597A" alt="Analytics"/>
 </p>
-
 <!-- markdownlint-enable MD033 -->
----
 
 ## Overview
 
-IJED LMS is a web-based Learning Management System designed for school administrators, teachers, and students. It provides role-based dashboards, user management, course modules, attendance tracking, activity submission with auto-grading, real-time notifications, and more — all backed by a modern async FastAPI API.
+IJED LMS provides separate workflows for administrators, teachers, and students. The current experiment is a Supabase-only implementation: the static frontend communicates directly with Supabase for authentication, database access, file storage, realtime notifications, and protected analytics computation.
 
----
+There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express server in the current stack.
 
 ## Features
 
-| Role | Capabilities |
-| ------ | ------------- |
-| **Admin** | Manage users, teachers, students, classes, sections, subjects, modules, activities; broadcast announcements |
-| **Teacher** | View assigned subjects & students, manage modules (PDF upload), create & grade activities, record attendance per session |
-| **Student** | Access published modules, submit activities, view grades, view own attendance summary, receive notifications, dashboard overview |
+### Administrator
 
-**Core highlights:**
+- Dashboard statistics and system overview
+- Manage users, teachers, students, classes, sections, subjects, modules, and activities
+- Manage teacher assignments and student subject enrollments
+- Publish announcements and manage notification delivery
+- Create user accounts through the protected `admin-create-user` Edge Function
 
-- Role-based access control (Admin / Teacher / Student)
-- JWT authentication with bcrypt password hashing
-- Full CRUD for users, teachers, students, classes, sections, subjects, modules, activities, and attendance sessions
-- Student attendance tracking — per-subject, per-term breakdown visible to both teacher and student
-- Activity engine — multiple choice, freeform, hybrid, and assignment types with auto-grading
-- PDF module uploads served via the backend
-- Real-time notifications via SSE (Server-Sent Events) with admin broadcast
-- Student dashboard with progress summary, upcoming activities, and module read tracking
-- Async PostgreSQL with SQLAlchemy 2.0 (Supabase-compatible)
-- Alembic database migrations
-- Responsive sidebar UI with dark mode support
-- Toast notifications, modal system, and live clock
-- MVC-patterned vanilla JS frontend
+### Teacher
 
----
+- View assigned subjects, classes, and students
+- Create, publish, edit, and delete learning modules
+- Upload PDF module files to Supabase Storage
+- Create and manage multiple-choice, freeform, hybrid, and assignment activities
+- Review submissions and manually grade activities when required
+- Track module reading progress
+- Create attendance sessions and record present, late, absent, or excused status
+- View attendance summaries and gradebook data
 
-## Tech Stack
+### Student
+
+- Role-based dashboard with progress, upcoming activities, and notifications
+- View enrolled subjects and published modules
+- Read modules and track reading progress
+- Submit activities and view grades and submission results
+- View subject and term attendance summaries
+- Use the calendar and notification inbox
+- Explore Performance Analytics with descriptive and Bayesian analysis
+
+## Performance Analytics
+
+Analytics are available in the student Performance Analytics area. Results are filtered by subject and term and cached in Supabase for faster repeat loads. Row Level Security (RLS) ensures that students receive their own records and aggregate comparisons only.
+
+### Descriptive analysis
+
+- **Grade progress:** chronological graded scores, percentages, activity names, and activity types
+- **Attendance calendar:** attendance status by date, subject, month, year, and term
+- **Score versus class average:** compares the student's results with an aggregate class result without exposing peer identities
+- **Module reading progress:** modules read, remaining modules, and completion percentage per subject and overall
+- **Subject radar:** average percentage and activity count for each enrolled subject
+
+The underlying academic measures use the following formulas:
+
+- Academic score = `(total earned points / total possible points) * 100`
+- Attendance score = `((present + late * 0.5) / total meetings) * 100`
+- Module score = `(modules read / total published modules) * 100`
+
+### Bayesian analysis
+
+- **Predicted final grade:** combines academic performance, attendance, and module completion using the school weighting of 75%, 15%, and 10%. Missing components have their available weights redistributed rather than being treated as zero.
+- **Estimated range:** reports a transparent uncertainty range that narrows as more graded activities are recorded.
+- **Probability of reaching a target grade:** uses a Beta-Binomial posterior instead of a fixed lookup table. The prior is centered on the class success rate at the selected target and has a strength of four pseudo-observations; the student's own successes and failures update that prior.
+- **Credible interval:** reports a 90% approximate credible interval for the probability of meeting the target.
+- **Comparison with class performance:** estimates the probability that the student's underlying success rate is above the class rate using the posterior distribution and a normal CDF approximation.
+- **Students Like You:** computes an engagement index and peer percentile from attendance and module completion inside a protected PostgreSQL RPC. Peer identities and raw peer scores are never sent to the browser.
+- **Performance rating:** classifies the weighted score as Excellent, Very Good, Good, Fair, Needs Improvement, or At Risk and explains the indicators that affect it.
+
+Analytics functions are defined in `lms-frontend/assets/js/analytics.engine.js` and the supporting secure RPCs are in `supabase-migration/03_functions.sql`.
+
+## Why the technology stack changed
+
+The original documentation described a FastAPI backend with SQLAlchemy, JWT authentication, Alembic migrations, and Server-Sent Events. The current implementation moved those responsibilities to Supabase for this experiment:
+
+| Previous approach | Current approach | Reason |
+| --- | --- | --- |
+| FastAPI application server | Supabase Postgres, RPCs, and Edge Functions | Removes a separate always-on API service and reduces deployment and maintenance overhead |
+| SQLAlchemy models and Alembic | Versioned SQL in `supabase-migration/` | Keeps schema, RLS policies, functions, triggers, and analytics calculations together with the database they control |
+| Application-managed JWT and password hashing | Supabase Auth | Provides managed authentication and links Auth users to LMS records through `users.auth_uid` |
+| Backend SSE endpoint | Supabase Realtime | Delivers notification updates directly from the database without maintaining open connections in a custom server |
+| Backend PDF handling | Supabase Storage | Provides hosted file storage and access policies for module files |
+| Server-side analytics service | Client analytics engine plus protected PostgreSQL RPCs | Keeps student-specific calculations responsive while moving cross-student aggregates behind RLS-aware database functions |
+
+This change does not mean that all computation moved into the browser. Any calculation that requires rows belonging to other students, such as class averages and engagement percentiles, remains inside `SECURITY DEFINER` RPCs and returns only the minimum aggregate data needed by the current student.
+
+## Current technology stack
 
 | Layer | Technology |
-| ------- | ----------- |
-| Backend Framework | FastAPI 0.111 |
-| Language | Python 3.12 |
-| ORM | SQLAlchemy 2.0 (async) |
-| Database | PostgreSQL (local or Supabase) |
-| Migrations | Alembic 1.13 |
-| Auth | JWT (`python-jose`) + bcrypt (`passlib`) |
-| Validation | Pydantic v2 |
-| Server | Uvicorn |
-| Frontend | Vanilla HTML / CSS / JavaScript (MVC pattern) |
+| --- | --- |
+| Frontend | Vanilla HTML, CSS, and JavaScript using an MVC-style organization |
+| Database | Supabase PostgreSQL |
+| Authentication | Supabase Auth |
+| Authorization | PostgreSQL Row Level Security policies |
+| Database logic | PostgreSQL functions and RPCs |
+| Realtime | Supabase Realtime subscriptions |
+| File storage | Supabase Storage (`module-files` bucket) |
+| Administrative server code | Supabase Edge Function (`admin-create-user`) |
+| Spreadsheet support | SheetJS via CDN |
+| Frontend hosting | Any static host or local Live Server |
 
----
-
-## Project Structure
+## Project structure
 
 ```text
-IJED/
-├── lms-admin-backend/                  # FastAPI backend
-│   ├── app/
-│   │   ├── main.py                     # App factory, CORS, SSE, error handlers
-│   │   ├── api/
-│   │   │   └── v1/
-│   │   │       ├── router.py           # Aggregates all routers
-│   │   │       └── endpoints/
-│   │   │           ├── auth.py                  # POST /auth/login
-│   │   │           ├── dashboard.py             # Admin dashboard stats
-│   │   │           ├── users.py                 # Admin user CRUD
-│   │   │           ├── teachers.py              # Admin teacher management
-│   │   │           ├── students.py              # Admin student management & enrollment
-│   │   │           ├── classes.py               # Admin classes, sections, subjects
-│   │   │           ├── modules.py               # Admin module & activity CRUD
-│   │   │           ├── teacher_portal.py        # Teacher self-service + student portal base
-│   │   │           ├── teacher_activities.py    # Teacher activity creation & grading
-│   │   │           ├── attendance.py            # Teacher attendance sessions & records
-│   │   │           ├── student_portal.py        # Student subjects, modules, attendance
-│   │   │           ├── student_activities.py    # Student activity listing & submission
-│   │   │           ├── student_dashboard.py     # Student dashboard & module read tracking
-│   │   │           └── notifications.py         # SSE stream, inbox, admin broadcast
-│   │   ├── core/
-│   │   │   ├── config.py               # Pydantic settings (reads .env)
-│   │   │   └── security.py             # JWT + bcrypt + auth dependency
-│   │   ├── db/
-│   │   │   └── session.py              # Async engine, session factory, Base
-│   │   ├── models/
-│   │   │   └── models.py               # All SQLAlchemy ORM models
-│   │   ├── schemas/
-│   │   │   └── schemas.py              # All Pydantic v2 request/response schemas
-│   │   └── services/                   # Business logic layer
-│   │       ├── auth_service.py
-│   │       ├── dashboard_service.py
-│   │       ├── user_service.py
-│   │       ├── teacher_service.py
-│   │       ├── student_service.py
-│   │       └── module_service.py
-│   ├── alembic/
-│   │   └── versions/
-│   │       └── 001_initial.py          # Full schema + roles seed
-│   ├── seed.py                         # Bootstrap script (users + sample data)
-│   ├── requirements.txt
-│   ├── alembic.ini
-│   └── .env.example
-│
-└── lms-frontend/                       # Vanilla JS frontend (MVC)
-    ├── index.html                      # Single-page app shell
-    ├── assets/
-    │   ├── css/
-    │   │   ├── main.css                # CSS variables, reset, base styles
-    │   │   ├── layout.css              # Sidebar, topbar, page layout
-    │   │   ├── components.css          # Cards, tables, modals, badges
-    │   │   └── notifications.css       # Notification bell & dropdown styles
-    │   ├── js/
-    │   │   ├── app.js                  # Entry point (bootstraps App.init)
-    │   │   └── lms-admin-api.js        # API client class (LMSAdminAPI)
-    │   └── images/
-    │       └── logo.png
-    ├── controllers/
-    │   ├── app.controller.js           # App bootstrap & routing
-    │   ├── auth.controller.js          # Login / logout
-    │   ├── admin.controller.js         # Admin section controllers
-    │   ├── teacher.controller.js       # Teacher portal controllers
-    │   ├── student.controller.js       # Student portal controllers (modules, attendance)
-    │   ├── attendance.controller.js    # Attendance session management
-    │   ├── dashboard.controller.js     # Role-based dashboard
-    │   ├── gradebook.controller.js     # Gradebook view
-    │   ├── calendar.controller.js      # Calendar view
-    │   └── notification.controller.js  # Notification bell & SSE listener
-    ├── models/
-    │   └── models.js                   # Local data models
-    ├── utils/
-    │   └── utils.js                    # Storage, Toast, Modal, Validate helpers
-    └── views/
-        ├── admin.view.js               # Admin HTML template renderers
-        ├── teacher.view.js             # Teacher HTML template renderers
-        ├── student.view.js             # Student HTML template renderers
-        └── calendar.view.js            # Calendar HTML template renderers
+Experiment/
+├── lms-frontend/
+│   ├── index.html                         # Static single-page application shell
+│   ├── assets/
+│   │   ├── css/                           # Layout, components, analytics, dark mode
+│   │   ├── images/                        # Branding assets
+│   │   └── js/
+│   │       ├── analytics.engine.js        # Descriptive and Bayesian calculations
+│   │       ├── lms-supabase-api.js        # Supabase data and Auth client
+│   │       └── lms-icons.js               # Shared icons
+│   ├── controllers/                       # Auth, role, dashboard, attendance, and analytics flows
+│   ├── models/                            # Local frontend models
+│   ├── utils/                             # Loading, storage, toast, modal, and validation helpers
+│   └── views/                             # Admin, teacher, student, calendar, and analytics renderers
+└── supabase-migration/
+    ├── 01_schema.sql                      # Tables, indexes, triggers, and storage definitions
+    ├── 02_rls_policies.sql                # Row Level Security and authorization helpers
+    ├── 03_functions.sql                   # RPCs, analytics functions, and auth trigger
+    ├── 04_sample_seed_data.sql             # Optional sample LMS data
+    ├── edge_functions/admin-create-user/   # Secure admin account creation
+    ├── FULL_SETUP_GUIDE.md
+    └── MIGRATION_GUIDE.md
 ```
 
----
-
-## Getting Started
+## Setup
 
 ### Prerequisites
 
-- Python 3.12+
-- PostgreSQL 14+ (or a free [Supabase](https://supabase.com) project)
-- A code editor (VS Code recommended)
+- A Supabase project
+- A modern browser
+- VS Code Live Server, Python's simple HTTP server, or another static file server
+- Supabase CLI only when deploying the Edge Function
 
----
+### 1. Create the database
 
-### 1. Clone the Repository
+Run these files in the Supabase SQL Editor, in order:
 
-```bash
-git clone https://github.com/your-username/IJED.git
-cd IJED
-```
+1. `supabase-migration/01_schema.sql`
+2. `supabase-migration/02_rls_policies.sql`
+3. `supabase-migration/03_functions.sql`
+4. `supabase-migration/04_sample_seed_data.sql` (optional)
 
----
+The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 
-### 2. Set Up the Backend
+### 2. Configure Supabase
 
-```bash
-cd lms-admin-backend
+Update the project URL and public anon key in `lms-frontend/assets/js/lms-supabase-api.js` if they are not already configured. The anon key is intended for browser use; database protection must come from the RLS policies. Never put the Supabase service-role key in frontend files.
 
-# Create and activate virtual environment
-python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
+Create a public Storage bucket named `module-files` and apply the teacher upload and file read policies described in the setup guide.
 
-# Install dependencies
-pip install -r requirements.txt
-```
+### 3. Deploy account creation
 
----
-
-### 3. Configure Environment Variables
+The admin user creation flow requires the service-role key and therefore runs as an Edge Function, never in the browser:
 
 ```bash
-cp .env.example .env
+supabase login
+supabase link --project-ref YOUR-PROJECT-REF
+supabase functions deploy admin-create-user
 ```
 
-Edit `.env` with your credentials:
+### 4. Run the frontend
 
-```env
-# Local PostgreSQL
-DATABASE_URL=postgresql+asyncpg://postgres:yourpassword@localhost:5432/lms_db
-
-# OR Supabase
-# DATABASE_URL=postgresql+asyncpg://postgres:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres
-
-# Generate a secure key: openssl rand -hex 32
-SECRET_KEY=your-secret-key-here
-
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=480
-
-# Space-separated list of allowed frontend origins
-CORS_ORIGINS=http://localhost:5500 http://127.0.0.1:5500
-```
-
----
-
-### 4. Run Database Migrations
+From the repository root, serve the static frontend. For example, with VS Code Live Server open `lms-frontend/index.html`, or run:
 
 ```bash
-# Create the database (skip if using Supabase)
-createdb lms_db
-
-# Apply all migrations — creates tables and seeds roles
-alembic upgrade head
+python -m http.server 5500 --directory lms-frontend
 ```
 
----
-
-### 5. Seed Sample Data
-
-```bash
-python seed.py
-```
-
-This creates the following default accounts:
-
-| Email | Password | Role |
-| ------- | ---------- | ------ |
-| `admin@lms.edu` | `Admin@1234` | admin |
-| `teacher@lms.edu` | `Teacher@1234` | teacher |
-| `student@lms.edu` | `Student@1234` | student |
-
----
-
-### 6. Start the Backend Server
-
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
-- **Health Check:** [http://localhost:8000/health](http://localhost:8000/health)
-
----
-
-### 7. Open the Frontend
-
-Open `lms-frontend/index.html` directly in your browser, or serve it with VS Code Live Server (port 5500).
-
-> Make sure `CORS_ORIGINS` in your `.env` includes your frontend's address.
-
----
-
-## API Reference
-
-### Authentication
-
-```http
-POST /auth/login
-Content-Type: application/json
-
-{
-  "email": "admin@lms.edu",
-  "password": "Admin@1234"
-}
-```
-
-**Response:**
-
-```json
-{
-  "access_token": "eyJhbGci...",
-  "token_type": "bearer",
-  "user_id": 1,
-  "role": "admin",
-  "full_name": "System Admin"
-}
-```
-
-Use the token on every subsequent request:
-
-```http
-Authorization: Bearer eyJhbGci...
-```
-
----
-
-### Endpoints Summary
-
-#### Admin Endpoints
-
-| Resource | Methods | Base Path |
-| ---------- | --------- | ----------- |
-| Dashboard Stats | GET | `/admin/dashboard/stats` |
-| Users | GET, POST, PUT, DELETE | `/admin/users` |
-| Teachers | GET, POST, PUT, DELETE | `/admin/teachers` |
-| Teacher Class Assignments | POST, PUT, DELETE | `/admin/teachers/assign-class` |
-| Students | GET, POST | `/admin/students` |
-| Student Subject Enrollments | POST, GET, DELETE | `/admin/students/{id}/enrollments` |
-| Classes | GET, POST | `/admin/classes` |
-| Sections | GET, POST, PUT, DELETE | `/admin/sections` |
-| Subjects | GET, POST | `/admin/subjects` |
-| Modules | GET, POST, PUT, DELETE | `/admin/modules` |
-| Activities | GET, POST, PUT, DELETE | `/admin/activities` |
-| Announcements (broadcast) | POST | `/notifications/announce` |
-
-#### Teacher Endpoints
-
-| Resource | Methods | Path |
-| ---------- | --------- | ------ |
-| My subjects | GET | `/teacher/me/subjects` |
-| My modules | GET, POST, DELETE | `/teacher/me/modules` |
-| PDF upload | POST | `/teacher/me/modules/upload` |
-| Class students | GET | `/teacher/me/class/{class_id}/students` |
-| Module read counts | GET | `/teacher/me/class/{class_id}/module-reads` |
-| My activities | GET, POST, PUT, DELETE | `/teacher/activities` |
-| Student submissions | GET | `/teacher/activities/{id}/submissions` |
-| Grade submission | POST | `/teacher/activities/grade` |
-| Attendance sections | GET | `/teacher/attendance/sections` |
-| Section students + summary | GET | `/teacher/attendance/sections/{class_id}/students` |
-| Attendance sessions | GET, POST | `/teacher/attendance/sessions` |
-| Attendance session detail | GET, PUT, DELETE | `/teacher/attendance/sessions/{session_id}` |
-
-#### Student Endpoints
-
-| Resource | Methods | Path |
-| ---------- | --------- | ------ |
-| Dashboard | GET | `/student/me/dashboard` |
-| My subjects | GET | `/student/me/subjects` |
-| My modules | GET | `/student/me/modules` |
-| My attendance summary | GET | `/student/me/attendance` |
-| My activities | GET | `/student/me/activities` |
-| Activity detail | GET | `/student/activities/{id}` |
-| Submit activity | POST | `/student/activities/{id}/submit` |
-| My submission result | GET | `/student/activities/{id}/my-submission` |
-| Mark module read | POST | `/student/me/module-read` |
-
-#### Notifications
-
-| Resource | Methods | Path |
-| ---------- | --------- | ------ |
-| SSE stream | GET | `/notifications/stream` |
-| My notifications | GET | `/notifications` |
-| Delete notification | DELETE | `/notifications/{id}` |
-| Admin broadcast | POST | `/notifications/announce` |
-
-Full interactive docs available at `/docs` when the server is running.
-
----
-
-## Database Schema
-
-```text
-roles ──< users ──< teachers ──< teacher_class_assignments >── classes
-                │                                                  │
-                │                                              subjects
-                │
-                └──< students ──< student_section_assignments >── sections >── classes
-                          │
-                          └──< student_subject_enrollments >── subjects
-
-classes ──< modules ──< activities ──< activity_questions ──< activity_question_choices
-                              │
-                              └──< activity_submissions ──< activity_answers
-
-attendance_sessions (class + subject + teacher + date)
-    └──< attendance_records (student + status per session)
-
-modules ──< student_module_reads (tracking per student)
-
-notifications (user inbox + SSE broadcast)
-```
-
----
-
-## Using the API Client (Frontend)
-
-The `lms-admin-api.js` file is a drop-in JavaScript class for interacting with the backend:
-
-```javascript
-const api = new LMSAdminAPI("http://localhost:8000");
-
-// Login
-await api.login("admin@lms.edu", "Admin@1234");
-
-// Fetch dashboard stats
-const stats = await api.getDashboardStats();
-
-// List users
-const users = await api.getUsers({ role: "teacher", is_active: true });
-
-// Create a module
-await api.createModule({
-  title: "Introduction to Algebra",
-  class_id: 1,
-  subject_id: 2,
-  is_published: true,
-});
-
-// Student: get attendance summary
-const attendance = await api.getMyAttendance();
-
-// Teacher: create an attendance session
-await api.createAttendanceSession({
-  class_id: 1,
-  subject_id: 2,
-  term: "1st",
-  session_date: "2025-01-15",
-  has_class: true,
-  records: [
-    { student_id: 3, status: "present" },
-    { student_id: 4, status: "absent" },
-  ],
-});
-```
-
----
-
-## Deployment
-
-### Backend (e.g., Render, Railway, Fly.io)
-
-1. Set all environment variables from `.env` in your platform's dashboard.
-2. Set the start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-3. Add your deployed frontend URL to `CORS_ORIGINS`.
-
-### Frontend (e.g., Vercel, Netlify, GitHub Pages)
-
-1. Update the `LMSAdminAPI` base URL in `assets/js/lms-admin-api.js` to your deployed backend URL.
-2. Deploy the `lms-frontend/` folder as a static site.
-
-### Database (Supabase)
-
-1. Create a project at [supabase.com](https://supabase.com).
-2. Copy the **Connection string (URI)** from **Settings → Database**.
-3. Replace `postgresql://` with `postgresql+asyncpg://` in your `DATABASE_URL`.
-4. Run `alembic upgrade head` — Alembic handles all table creation.
-
----
-
-## Development Notes
-
-- **Soft deletes** — Users are deactivated (`is_active=false`) and never hard-deleted.
-- **Async throughout** — All DB calls use `await`; the engine is configured for production concurrency.
-- **Global error handling** — `IntegrityError` returns a clean 409; all unhandled exceptions return 500 with a safe message.
-- **Migrations** — Always use `alembic revision --autogenerate -m "description"` for schema changes. Never edit tables manually.
-- **Attendance logic** — Only sessions where `has_class=True` count as meetings. Sessions where class was cancelled are stored but not counted in totals.
-- **Activity auto-grading** — Multiple choice questions are graded automatically on submission. Freeform, hybrid, and assignment types require manual teacher grading.
-- **SSE notifications** — The `/notifications/stream` endpoint holds an open connection per user. Broadcast via `POST /notifications/announce` (admin only) fans out to all connected clients.
-- **Frontend MVC** — `models.js` handles data, `views/*.view.js` renders HTML, `controllers/*.controller.js` wires logic, `utils.js` provides shared helpers.
-
----
-
-## Changelog
-
-### Bug Fixes
-
-**`app/api/v1/router.py` — Student attendance endpoint returning 404**
-
-The `GET /student/me/attendance` route was returning `404 Not Found` for all student accounts despite the endpoint being fully implemented in `student_portal.py`. The root cause was that `student_portal.py` was never imported or registered in the API router. The router was only including a `student_router` from `teacher_portal.py`, which did not expose the attendance route.
-
-**Fix:** Added the missing import and router registration to `router.py`:
-
-```python
-# Added import
-from app.api.v1.endpoints.student_portal import router as student_attendance_router
-
-# Added registration
-api_router.include_router(student_attendance_router)
-```
-
-This makes `GET /student/me/attendance` available and returns a per-subject, per-term attendance breakdown for the logged-in student.
-
----
-
-## Contributing
-
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Commit your changes: `git commit -m "feat: add your feature"`
-4. Push to your branch: `git push origin feature/your-feature-name`
-5. Open a Pull Request.
-
----
+Open `http://localhost:5500` and sign in with a Supabase Auth account linked to a row in the `users` table. For sample accounts and data, see [supabase-migration/SAMPLE_DATA_README.md](supabase-migration/SAMPLE_DATA_README.md).
+
+## Development notes
+
+- Run SQL migrations in the documented order and review RLS policies whenever a table or RPC changes.
+- Keep service-role credentials inside Edge Functions or Supabase-managed secrets.
+- Use protected RPCs for aggregates that require access to other students' rows.
+- Analytics cache entries expire after five minutes for descriptive results and ten minutes for Bayesian results.
+- Attendance treats present as 100%, late as 50%, and absent as 0%.
+- Past-due, unsubmitted activities count as zero earned points against their own maximum score; activities awaiting grading are not penalized.
+- The frontend has no package build step. Script order in `lms-frontend/index.html` is part of the runtime dependency order.
+
+## Further documentation
+
+- [Supabase migration guide](supabase-migration/MIGRATION_GUIDE.md)
+- [Full setup guide](supabase-migration/FULL_SETUP_GUIDE.md)
+- [Sample data guide](supabase-migration/SAMPLE_DATA_README.md)
 
 ## License
 
-This project is developed for **Infant Jesus Learning Academy** (Imelda Justice Education for Development). All rights reserved.
-
----
+This project is developed for **Infant Jesus Learning Academy** and **Imelda Justice Education for Development**. All rights reserved.
 
 <!-- markdownlint-disable MD033 -->
-<p align="center">Built with ❤️ for IJED · Infant Jesus Learning Academy</p>
+<p align="center">Built for IJED · Infant Jesus Learning Academy</p>
 <!-- markdownlint-enable MD033 -->
