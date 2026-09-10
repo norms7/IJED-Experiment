@@ -207,16 +207,10 @@
       if (params.is_active !== undefined) q = q.eq("is_active", params.is_active);
       const data = this._throwIfError(await q);
       // FIX: add full_name and normalize roles -> role for view compatibility
-      const studentRows = this._throwIfError(await this.sb.from("students").select("user_id, student_number"));
-      const teacherRows = this._throwIfError(await this.sb.from("teachers").select("user_id, employee_id"));
-      const studentMap = new Map(studentRows.map(row => [row.user_id, row.student_number]));
-      const teacherMap = new Map(teacherRows.map(row => [row.user_id, row.employee_id]));
       return data.map(u => ({
         ...u,
         full_name: `${u.first_name} ${u.last_name}`.trim(),
         role: u.roles,
-        student_number: studentMap.get(u.id) || null,
-        employee_id: teacherMap.get(u.id) || null,
       }));
     }
 
@@ -224,13 +218,7 @@
       const user = this._throwIfError(
         await this.sb.from("users").select("*, roles(name)").eq("id", id).single()
       );
-      const role = user.roles?.name;
-      if (role === "student") {
-        user.student_profile = this._throwIfError(await this.sb.from("students").select("*").eq("user_id", id).single());
-      } else if (role === "teacher") {
-        user.teacher_profile = this._throwIfError(await this.sb.from("teachers").select("*").eq("user_id", id).single());
-      }
-      return user;
+      return { ...user, role: user.roles };
     }
 
     async createUser({ email, password, first_name, last_name, role_id }) {
@@ -243,38 +231,17 @@
     }
 
     async updateUser(id, fields) {
-      const { password, ...profileFields } = fields;
-      if (password || profileFields.email) {
-        const { data, error } = await this.sb.functions.invoke("admin-update-user", { body: { user_id: id, password, email: profileFields.email || undefined } });
-        if (error) throw new Error(error.message || "Failed to update user password");
-        if (data?.error) throw new Error(data.error);
-      }
-      const result = this._throwIfError(await this.sb.from("users").update(profileFields).eq("id", id).select().single());
-      this.clearCache("users");
-      return result;
+      return this._throwIfError(await this.sb.from("users").update(fields).eq("id", id).select().single());
     }
 
     async deleteUser(id) {
-      const result = this._throwIfError(await this.sb.from("users").update({ is_active: false }).eq("id", id).select().single());
-      this.clearCache("users");
-      return result;
+      return this._throwIfError(await this.sb.from("users").delete().eq("id", id));
     }
 
     async getRecentUsers(limit = 10) {
       return this._throwIfError(
         await this.sb.from("users").select("*").order("created_at", { ascending: false }).limit(limit)
       );
-    }
-
-    async getAuditLogs(limit = 100) {
-      const { data, error } = await this.sb.from("audit_log")
-        .select("id, action, table_name, record_id, summary, created_at, users:actor_user_id(first_name, last_name)")
-        .order("created_at", { ascending: false }).limit(limit);
-      if (error) throw new Error(error.message);
-      return (data || []).map(log => ({
-        ...log,
-        actor_name: log.users ? `${log.users.first_name || ''} ${log.users.last_name || ''}`.trim() : 'System',
-      }));
     }
 
     // ── Teachers (admin) ──────────────────────────────────────────────────────
@@ -430,12 +397,6 @@
           .insert({ user_id, student_number, contact_number, guardian_name, guardian_contact })
           .select().single()
       );
-      this.clearCache("students");
-      return result;
-    }
-
-    async updateStudentProfile(studentId, fields) {
-      const result = this._throwIfError(await this.sb.from("students").update(fields).eq("id", studentId).select().single());
       this.clearCache("students");
       return result;
     }
