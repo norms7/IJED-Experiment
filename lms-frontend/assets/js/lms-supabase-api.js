@@ -266,6 +266,17 @@
       );
     }
 
+    async getAuditLogs(limit = 100) {
+      const { data, error } = await this.sb.from("audit_log")
+        .select("id, action, table_name, record_id, summary, created_at, users:actor_user_id(first_name, last_name)")
+        .order("created_at", { ascending: false }).limit(limit);
+      if (error) throw new Error(error.message);
+      return (data || []).map(log => ({
+        ...log,
+        actor_name: log.users ? `${log.users.first_name || ''} ${log.users.last_name || ''}`.trim() : 'System',
+      }));
+    }
+
     // ── Teachers (admin) ──────────────────────────────────────────────────────
 
     async getTeachers() {

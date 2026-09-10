@@ -54,6 +54,18 @@ const AdminController = {
     });
   },
 
+  async loadAuditLog() {
+    const pane = document.getElementById('um-pane-audit');
+    if (!pane) return;
+    pane.innerHTML = AdminView._auditPane(null);
+    try {
+      const logs = await api.getAuditLogs(100);
+      pane.innerHTML = AdminView._auditPane(logs);
+    } catch (err) {
+      pane.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.warning}</div><div class="empty-state-title">Could not load audit history</div><div class="empty-state-sub">${escHtml(err.message)}</div><button class="btn btn-primary mt-3" onclick="AdminController.loadAuditLog()">Retry</button></div>`;
+    }
+  },
+
   /* ── Add User ────────────────────────────────────────────── */
 
   async openAddUser(preRole = 'student') {

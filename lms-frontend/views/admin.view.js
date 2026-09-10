@@ -247,8 +247,6 @@ const AdminView = {
             <p id="um-stats" style="margin:4px 0 0;color:var(--gray-400);font-size:13px">Loading...</p>
           </div>
           <div class="um-header-actions">
-            <button class="btn btn-outline btn-sm" onclick="AdminController.exportCSV('all')">${ADMIN_ICONS.download} Export Students</button>
-            <button class="btn btn-outline btn-sm" onclick="AdminController.openImportStudents()">${ADMIN_ICONS.upload} Import Students</button>
             <button class="btn btn-primary" onclick="AdminController.openAddUser()">${ADMIN_ICONS.plus} Add User</button>
           </div>
         </div>
@@ -540,21 +538,12 @@ const AdminView = {
     `;
   },
 
-  /* ── Audit Log pane ──
-     NOTE: there is no real audit_log table or API yet — this was left over
-     from a pre-Supabase mock-data prototype that referenced `auditModel`/
-     `userModel` globals which no longer exist. That undefined reference was
-     crashing on every Manage Users page load (not just when viewing this
-     tab), because dashboard.controller.js renders every pane eagerly up
-     front. This now fails safely with a placeholder instead. Building a
-     real audit trail (new table + logging calls on create/update/delete/
-     import actions) is a separate feature to build when needed. */
-  _auditPane() {
-    return `<div class="empty-state">
-      <div class="empty-state-icon">${ADMIN_ICONS.audit}</div>
-      <div class="empty-state-title">Audit log isn't set up yet</div>
-      <div class="empty-state-sub">This needs a dedicated audit table and logging hooks on admin actions — ask to have it built when you're ready.</div>
-    </div>`;
+  /* ── Audit Log pane ── */
+  _auditPane(logs = null) {
+    if (logs === null) return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.loading}</div><div class="empty-state-title">Loading audit history…</div></div>`;
+    if (!logs.length) return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.audit}</div><div class="empty-state-title">No audit activity yet</div><div class="empty-state-sub">Administrative changes will appear here.</div></div>`;
+    const rows = logs.map(log => `<tr data-searchable><td class="text-sm">${fmtDate(log.created_at)}</td><td><span class="badge badge-maroon">${escHtml(log.action)}</span></td><td>${escHtml(log.table_name)}</td><td>${escHtml(log.actor_name || 'System')}</td><td class="text-sm">${escHtml(log.summary || `Record #${log.record_id || '—'}`)}</td></tr>`).join('');
+    return `<div class="um-toolbar"><div class="search-box"><span>${ADMIN_ICONS.search}</span><input type="text" id="audit-search" placeholder="Search audit history…" oninput="AdminController._filterTable(this.value,'audit-table-body')" /></div><button class="btn btn-outline btn-sm" onclick="AdminController.loadAuditLog()">${ADMIN_ICONS.audit} Refresh</button></div><div class="card table-card"><div class="table-wrap"><table class="data-table"><thead><tr><th>Time</th><th>Action</th><th>Area</th><th>Actor</th><th>Summary</th></tr></thead><tbody id="audit-table-body">${rows}</tbody></table></div></div>`;
   },
 
   /* ── Redirect helpers (for legacy nav items) ── */

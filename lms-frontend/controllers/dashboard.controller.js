@@ -572,7 +572,8 @@ const DashboardController = {
         document.getElementById("um-pane-transfer").innerHTML =
           AdminView._transferPane(sections);
         document.getElementById("um-pane-audit").innerHTML =
-          AdminView._auditPane();
+          AdminView._auditPane(null);
+        AdminController.loadAuditLog();
 
         const TAB_IDS = ["all", "teachers", "students", "sections", "transfer", "audit"];
         TAB_IDS.forEach((t) => {

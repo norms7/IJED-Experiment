@@ -96,6 +96,7 @@ exact order**, from `supabase-migration/` in your unzipped folder:
    profile image URLs, and the `profile-images` Storage bucket policies.
 6. `06_notifications_realtime.sql` — enables notification Realtime events and
    creates notifications for published activities and modules.
+7. `07_audit_log.sql` — creates the admin-only audit history table and logging triggers.
 
 Deploy both admin Edge Functions when account management is enabled:
 

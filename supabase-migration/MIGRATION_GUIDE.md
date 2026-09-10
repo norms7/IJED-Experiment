@@ -44,6 +44,8 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
    and the `profile-images` Storage bucket policies.
 6. `06_notifications_realtime.sql` — publishes notification changes through
    Supabase Realtime and creates notifications for published activities and modules.
+7. `07_audit_log.sql` — creates the admin-only audit history table and logs
+   administrative changes to users, profiles, assignments, sections, modules, and activities.
 
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside
