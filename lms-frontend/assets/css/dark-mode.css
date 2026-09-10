@@ -540,10 +540,3 @@ body.dark-mode .mod-remaining svg {
   height: 14px !important;
   vertical-align: -2px;
 }
-body.dark-mode .teacher-dashboard-row-meta { color: var(--dm-link) !important; }
-body.dark-mode .teacher-dashboard-row-meta.is-urgent { color: #ffb2bd !important; }
-body.dark-mode .teacher-dashboard-stat-icon--maroon { background: #4a2630 !important; color: #ff8fa3 !important; }
-body.dark-mode .teacher-dashboard-stat-icon--blue { background: #1b3555 !important; color: #b7d7ff !important; }
-body.dark-mode .teacher-dashboard-stat-icon--green { background: #173b28 !important; color: #9aefb7 !important; }
-body.dark-mode .teacher-dashboard-stat-icon--gold { background: #493915 !important; color: #ffe29a !important; }
-body.dark-mode .teacher-dashboard-stat-icon svg { color: currentColor !important; stroke: currentColor !important; }
