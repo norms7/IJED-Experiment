@@ -92,6 +92,8 @@ exact order**, from `supabase-migration/` in your unzipped folder:
 3. `03_functions.sql` → Run
 4. `04_sample_seed_data.sql` → Run (this is your test data — skip it if you
    already have real data to migrate instead)
+5. `05_profile_settings.sql` — adds persisted address/social details,
+   profile image URLs, and the `profile-images` Storage bucket policies.
 
 If any of them errors, stop and paste me the exact error — don't run the
 next file until the current one succeeds, since later files depend on

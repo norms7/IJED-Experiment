@@ -161,10 +161,10 @@ const App = {
   },
 
   applyProfileImage(user = DashboardController.currentUser || Storage.get('ijla_session')) {
-    const image = user?.id ? Storage.get(`ijed_profile_image_${user.id}`) : null;
+    const image = user?.avatar_url || (user?.id ? Storage.get(`ijed_profile_image_${user.id}`) : null);
     if (!image) return;
     const imageUrl = `url("${image}")`;
-    ['settings-image-preview', 'sb-avatar', 'topbar-avatar'].forEach((id) => {
+    ['settings-image-preview', 'profile-dd-avatar', 'sb-avatar', 'topbar-avatar'].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.style.backgroundImage = imageUrl;

@@ -992,34 +992,64 @@ const AdminController = {
   viewSectionSchedule(secId)  { /* legacy */ },
   clearAuditLog()             { /* legacy */ },
   saveSettings() {
-    const user = DashboardController.currentUser;
-    const name = document.getElementById('settings-name')?.value.trim() || '';
-    const personalEmail = document.getElementById('settings-personal-email')?.value.trim() || '';
-    const phoneNumber = document.getElementById('settings-phone')?.value.trim() || '';
-    const location = {
-      addressLine1: document.getElementById('settings-address-line1')?.value.trim() || '',
-      addressLine2: document.getElementById('settings-address-line2')?.value.trim() || '',
-      city: document.getElementById('settings-city')?.value.trim() || '',
-      state: document.getElementById('settings-state')?.value.trim() || '',
-      postalCode: document.getElementById('settings-postal-code')?.value.trim() || '',
-    };
-    if (!name) { Toast.show('Full name is required.', 'error'); return; }
-    if (personalEmail && !Validate.email(personalEmail)) return;
-    if (phoneNumber && !/^[0-9+()\-\s]{7,30}$/.test(phoneNumber)) {
+    const address = document.getElementById('settings-address')?.value.trim() || '';
+    const phone = document.getElementById('settings-phone')?.value.trim() || '';
+    const social = document.getElementById('settings-social')?.value.trim() || '';
+    if (phone && !/^[0-9+()\-\s]{7,30}$/.test(phone)) {
       Toast.show('Please enter a valid phone number.', 'error');
       return;
     }
-    user.name = name;
-    user.full_name = name;
-    Storage.set(`ijed_profile_contact_${user.id}`, { personalEmail, phoneNumber, ...location });
-    Storage.set('ijla_session', user);
-    Storage.set('lms_user', user);
-    document.getElementById('sb-username').textContent = name;
-    App.populateProfileDropdown(user);
-    Toast.show('Profile information saved on this device.', 'success');
+    const button = document.querySelector('.profile-settings-card .btn-primary');
+    if (button) button.disabled = true;
+    api.updateMyProfile({ address, phone, social }).then(profile => {
+      Toast.show('Contact details saved.', 'success');
+      DashboardController.currentUser.profile_details = profile.profile_details;
+      DashboardController.loadSection('settings');
+    }).catch(err => Toast.show(err.message || 'Could not save contact details.', 'error'))
+      .finally(() => { if (button) button.disabled = false; });
   },
-  changePassword() {
-    Toast.show('Password changes require backend access and are not available yet.', 'info');
+  async changePassword() {
+    const password = document.getElementById('settings-pw')?.value || '';
+    const confirmPassword = document.getElementById('settings-pw2')?.value || '';
+    if (password.length < 8 || !/\d/.test(password)) {
+      Toast.show('Password must be at least 8 characters and contain a number.', 'error');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Toast.show('Passwords do not match.', 'error');
+      return;
+    }
+    try {
+      await api.changeMyPassword(password);
+      document.getElementById('settings-pw').value = '';
+      document.getElementById('settings-pw2').value = '';
+      Toast.show('Password updated successfully.', 'success');
+    } catch (err) {
+      Toast.show(err.message || 'Could not update password.', 'error');
+    }
+  },
+  chooseProfilePicture() {
+    document.getElementById('settings-picture-input')?.click();
+  },
+  async uploadProfilePicture(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      Toast.show('Please choose an image file.', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      Toast.show('Profile pictures must be 5 MB or smaller.', 'error');
+      return;
+    }
+    try {
+      const avatarUrl = await api.uploadMyProfilePicture(file);
+      App.applyProfileImage({ ...DashboardController.currentUser, avatar_url: avatarUrl });
+      App.populateProfileDropdown({ ...DashboardController.currentUser, avatar_url: avatarUrl });
+      Toast.show('Profile picture updated.', 'success');
+    } catch (err) {
+      Toast.show(err.message || 'Could not upload profile picture.', 'error');
+    }
   },
   _filterBySection(secId)     { /* legacy */ },
 

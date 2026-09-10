@@ -195,6 +195,7 @@ Experiment/
     ├── 02_rls_policies.sql                # Row Level Security and authorization helpers
     ├── 03_functions.sql                   # RPCs, analytics functions, and auth trigger
     ├── 04_sample_seed_data.sql             # Optional sample LMS data
+    ├── 05_profile_settings.sql             # Profile details and avatar storage policies
     ├── edge_functions/admin-create-user/   # Secure admin account creation
     ├── FULL_SETUP_GUIDE.md
     └── MIGRATION_GUIDE.md
@@ -217,6 +218,7 @@ Run these files in the Supabase SQL Editor, in order:
 2. `supabase-migration/02_rls_policies.sql`
 3. `supabase-migration/03_functions.sql`
 4. `supabase-migration/04_sample_seed_data.sql` (optional)
+5. `supabase-migration/05_profile_settings.sql`
 
 The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 
@@ -225,6 +227,8 @@ The migration guide explains account linking, storage policies, and deployment d
 Update the project URL and public anon key in `lms-frontend/assets/js/lms-supabase-api.js` if they are not already configured. The anon key is intended for browser use; database protection must come from the RLS policies. Never put the Supabase service-role key in frontend files.
 
 Create a public Storage bucket named `module-files` and apply the teacher upload and file read policies described in the setup guide.
+
+The profile settings migration creates the `profile-images` bucket, stores address/social details, and adds the avatar URL used by student and teacher profile settings. Profile identity, role, section, year level, employment, and account status remain read-only.
 
 ### 3. Deploy account creation
 

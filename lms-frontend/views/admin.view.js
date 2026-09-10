@@ -548,91 +548,32 @@ const AdminView = {
     return this.manageUsers();
   },
 
-  settings(user) {
-    const isAdmin = user.role === 'admin';
-    const contact = Storage.get(`ijed_profile_contact_${user.id}`) || {};
-    const savedImage = Storage.get(`ijed_profile_image_${user.id}`);
-    const initials = (user.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-    const imageStyle = savedImage
-      ? `background-image:url("${savedImage}");background-size:cover;background-position:center;`
-      : 'background:linear-gradient(135deg,var(--maroon-light),var(--maroon-mid));';
+  settings(user, profile = null) {
+    const role = profile?.role || user.role || 'user';
+    const isStudent = role === 'student';
+    const isTeacher = role === 'teacher';
+    const details = profile?.profile_details || {};
+    const roleProfile = isStudent ? (profile?.student || {}) : (profile?.teacher || {});
+    const savedImage = profile?.avatar_url || user.avatar_url || Storage.get(`ijed_profile_image_${user.id}`);
+    const name = profile?.full_name || user.full_name || user.name || 'User';
+    const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const imageStyle = savedImage ? `background-image:url("${escHtml(savedImage)}");background-size:cover;background-position:center;` : 'background:linear-gradient(135deg,var(--maroon-light),var(--maroon-mid));';
+    const sections = (roleProfile.sections || []).map(section => `${section.name || '—'} (${section.classes?.name || '—'})`).join(', ') || 'Not assigned';
+    const subjects = isStudent ? (roleProfile.subjects || []).map(subject => subject.name).join(', ') || 'Not enrolled' : '';
+    const teacherAssignments = isTeacher ? ((roleProfile.assignments || []).map(assignment => `${assignment.subject_name || '—'} · ${assignment.section_name || assignment.class_name || '—'}`).join(', ') || 'Not assigned') : '';
+    const infoRows = isStudent ? `
+      <div class="profile-readonly-grid"><div><span>Student number</span><strong>${escHtml(roleProfile.student_number || 'Not set')}</strong></div><div><span>Year level</span><strong>${escHtml(roleProfile.sections?.[0]?.classes?.grade_level || 'Not assigned')}</strong></div><div><span>Section</span><strong>${escHtml(sections)}</strong></div><div><span>School year</span><strong>${escHtml(roleProfile.sections?.[0]?.classes?.school_year || 'Not assigned')}</strong></div><div><span>Subjects</span><strong>${escHtml(subjects)}</strong></div><div><span>Guardian</span><strong>${escHtml(roleProfile.guardian_name || 'Not set')}</strong></div><div><span>Status</span><strong>${profile?.is_active === false ? 'Inactive' : 'Active'}</strong></div></div>` : isTeacher ? `
+      <div class="profile-readonly-grid"><div><span>Employee ID</span><strong>${escHtml(roleProfile.employee_id || 'Not set')}</strong></div><div><span>Specialization</span><strong>${escHtml(roleProfile.specialization || 'Not set')}</strong></div><div><span>Teaching assignments</span><strong>${escHtml(teacherAssignments)}</strong></div><div><span>Status</span><strong>${profile?.is_active === false ? 'Inactive' : 'Active'}</strong></div></div>` : `
+      <div class="profile-readonly-grid"><div><span>Account role</span><strong>${escHtml(role)}</strong></div><div><span>Status</span><strong>${profile?.is_active === false ? 'Inactive' : 'Active'}</strong></div></div>`;
     return `
-      <div class="section-header">
-        <div class="section-header-left"><h2>Settings</h2><p>Manage your profile and account preferences</p></div>
-      </div>
-      <div class="settings-grid" style="display:grid;grid-template-columns:repeat(${isAdmin ? 3 : 4},minmax(0,1fr));align-items:start;gap:20px;max-width:none;">
-        <div class="card" style="order:1;">
-          <div class="card-header"><span class="card-title">Profile Information</span></div>
-          <div class="card-body">
-            <div class="form-group">
-              <label class="form-label">Profile Image</label>
-              <div style="display:flex;align-items:center;gap:12px;">
-                <div id="settings-image-preview" style="width:56px;height:56px;flex:0 0 56px;border-radius:50%;display:flex;align-items:center;justify-content:center;${imageStyle}color:#fff;font-weight:700;overflow:hidden;">${savedImage ? '' : escHtml(initials)}</div>
-                <button class="btn btn-outline btn-sm" type="button">Change Profile Picture</button>
-              </div>
-            </div>
-            <div class="form-group"><label class="form-label">Full Name</label>
-              <input class="form-control" id="settings-name" value="${escHtml(user.name)}" readonly /></div>
-            <div class="form-group"><label class="form-label">LMS Email Address</label>
-              <input class="form-control" type="email" id="settings-email" value="${escHtml(user.email)}" readonly /></div>
-            ${isAdmin ? '' : `<div class="form-group"><label class="form-label">Personal Email</label>
-              <input class="form-control" type="email" id="settings-personal-email" value="${escHtml(contact.personalEmail || '')}" placeholder="you@example.com" readonly /></div>
-            <div class="form-group"><label class="form-label">Phone Number</label>
-              <input class="form-control" type="tel" id="settings-phone" value="${escHtml(contact.phoneNumber || '')}" placeholder="e.g. 09XXXXXXXXX" maxlength="30" readonly /></div>`}
-          </div>
-        </div>
-        <div class="card" style="order:${isAdmin ? 3 : 4};grid-column:${isAdmin ? 3 : 4};grid-row:1;">
-          <div class="card-header"><span class="card-title">Change Password</span></div>
-          <div class="card-body">
-            <div class="form-group"><label class="form-label">New Password</label>
-              <input class="form-control" type="password" id="settings-pw" placeholder="Enter new password" /></div>
-            <div class="form-group"><label class="form-label">Confirm Password</label>
-              <input class="form-control" type="password" id="settings-pw2" placeholder="Confirm new password" /></div>
-            <button class="btn btn-primary" onclick="AdminController.changePassword()">Update Password</button>
-          </div>
-        </div>
-        ${isAdmin ? '' : `<div class="card" style="order:2;grid-column:2;grid-row:1;">
-          <div class="card-header"><span class="card-title">Location</span></div>
-          <div class="card-body">
-            <div class="form-group"><label class="form-label">Address Line 1</label>
-              <input class="form-control" id="settings-address-line1" value="${escHtml(contact.addressLine1 || '')}" readonly /></div>
-            <div class="form-group"><label class="form-label">Address Line 2</label>
-              <input class="form-control" id="settings-address-line2" value="${escHtml(contact.addressLine2 || '')}" readonly /></div>
-            <div class="form-group"><label class="form-label">City</label>
-              <input class="form-control" id="settings-city" value="${escHtml(contact.city || '')}" readonly /></div>
-            <div class="form-group"><label class="form-label">State/Province</label>
-              <input class="form-control" id="settings-state" value="${escHtml(contact.state || '')}" readonly /></div>
-            <div class="form-group"><label class="form-label">Zip/Postal Code</label>
-              <input class="form-control" id="settings-postal-code" value="${escHtml(contact.postalCode || '')}" readonly /></div>
-          </div>
-        </div>`}
-        <div class="settings-side-stack" style="display:flex;flex-direction:column;gap:20px;min-width:0;grid-column:${isAdmin ? 2 : 3};grid-row:1;">
-        <div class="card">
-          <div class="card-header"><span class="card-title">Notifications</span></div>
-          <div class="card-body">
-            <label style="display:flex;align-items:center;gap:10px;margin-top:18px;cursor:pointer;">
-              <input type="checkbox" checked style="accent-color:var(--maroon);" />
-              <span style="font-size:13px;">Audio Notifications</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer;">
-              <input type="checkbox" checked style="accent-color:var(--maroon);" />
-              <span style="font-size:13px;">Remind me about deadlines</span>
-            </label>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><span class="card-title">Appearance</span></div>
-          <div class="card-body">
-            <div class="form-group"><label class="form-label" for="settings-theme">Default Theme</label>
-              <select class="form-control" id="settings-theme" onchange="DarkMode.setTheme(this.value)">
-                <option value="system" ${DarkMode.getTheme() === 'system' ? 'selected' : ''}>System default</option>
-                <option value="light" ${DarkMode.getTheme() === 'light' ? 'selected' : ''}>Light</option>
-                <option value="dark" ${DarkMode.getTheme() === 'dark' ? 'selected' : ''}>Dark</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        </div>
+      <div class="section-header"><div class="section-header-left"><h2>Profile Settings</h2><p>Your account details and contact preferences</p></div></div>
+      <div class="profile-settings-layout">
+        <section class="card profile-settings-card profile-settings-identity"><div class="card-header"><span class="card-title">Profile information</span><span class="profile-readonly-label">Read only</span></div><div class="card-body">
+          <div class="profile-settings-summary"><div id="settings-image-preview" class="profile-settings-avatar" style="${imageStyle}">${savedImage ? '' : escHtml(initials)}</div><div><h3>${escHtml(name)}</h3><p>${escHtml((role || '').replace(/^./, letter => letter.toUpperCase()))} · ${escHtml(profile?.email || user.email || '—')}</p><button class="btn btn-outline btn-sm" type="button" onclick="AdminController.chooseProfilePicture()">${lmsIcon('upload')} Change picture</button><input id="settings-picture-input" type="file" accept="image/png,image/jpeg,image/webp" hidden onchange="AdminController.uploadProfilePicture(this)" /></div></div>
+          <div class="profile-readonly-fields"><div class="form-group"><label class="form-label">Full name</label><input class="form-control" value="${escHtml(name)}" readonly /></div><div class="form-group"><label class="form-label">LMS email</label><input class="form-control" value="${escHtml(profile?.email || user.email || '')}" readonly /></div></div>${infoRows}
+        </div></section>
+        <section class="card profile-settings-card"><div class="card-header"><span class="card-title">Contact preferences</span><span class="profile-editable-label">Editable</span></div><div class="card-body"><div class="form-group"><label class="form-label" for="settings-address">Address</label><textarea class="form-control" id="settings-address" rows="3" placeholder="Your current address">${escHtml(details.address || '')}</textarea></div><div class="form-group"><label class="form-label" for="settings-phone">Number</label><input class="form-control" type="tel" id="settings-phone" value="${escHtml(roleProfile.contact_number || details.phone || '')}" placeholder="09XXXXXXXXX" maxlength="30" /></div><div class="form-group"><label class="form-label" for="settings-social">Social</label><input class="form-control" id="settings-social" value="${escHtml(details.social || '')}" placeholder="Facebook, Messenger, or other handle" /></div><button class="btn btn-primary" onclick="AdminController.saveSettings()">${lmsIcon('save')} Save contact details</button></div></section>
+        <section class="card profile-settings-card"><div class="card-header"><span class="card-title">Change password</span><span class="profile-editable-label">Editable</span></div><div class="card-body"><p class="profile-settings-help">Choose a strong password with at least 8 characters and one number.</p><div class="form-group"><label class="form-label" for="settings-pw">New password</label><input class="form-control" type="password" id="settings-pw" autocomplete="new-password" /></div><div class="form-group"><label class="form-label" for="settings-pw2">Confirm password</label><input class="form-control" type="password" id="settings-pw2" autocomplete="new-password" /></div><button class="btn btn-primary" onclick="AdminController.changePassword()">${lmsIcon('save')} Update password</button></div></section>
       </div>`;
   },
 };

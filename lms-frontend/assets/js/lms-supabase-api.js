@@ -30,7 +30,7 @@
       // legitimately no row, so we can now tell the two cases apart.
       const { data: profile, error } = await this.sb
         .from("users")
-        .select("id, email, first_name, last_name, role_id, is_active, roles(name)")
+        .select("id, email, first_name, last_name, role_id, is_active, avatar_url, profile_details, roles(name)")
         .eq("auth_uid", session.user.id)
         .maybeSingle();
 
@@ -59,6 +59,8 @@
         full_name: `${profile.first_name} ${profile.last_name}`,
         name: `${profile.first_name} ${profile.last_name}`,
         email: profile.email,
+        avatar_url: profile.avatar_url || null,
+        profile_details: profile.profile_details || {},
         _token: session.access_token,
       };
       localStorage.setItem("lms_user", JSON.stringify(userPayload));
@@ -124,6 +126,70 @@
     }
 
     isLoggedIn() { return !!this.getCurrentUser(); }
+
+    async getMyProfile() {
+      return this._cached("profile:me", 30_000, async () => {
+        const user = this.getCurrentUser();
+        const profile = this._throwIfError(await this.sb.from("users")
+          .select("id, email, first_name, last_name, is_active, created_at, updated_at, avatar_url, profile_details, roles(name)")
+          .eq("id", user.id).single());
+        const result = {
+          ...profile,
+          role: profile.roles?.name || user.role,
+          full_name: `${profile.first_name} ${profile.last_name}`.trim(),
+          profile_details: profile.profile_details || {},
+        };
+        if (result.role === "student") {
+          const student = this._throwIfError(await this.sb.from("students").select("id, student_number, contact_number, guardian_name, guardian_contact").eq("user_id", user.id).single());
+          const assignments = this._throwIfError(await this.sb.from("student_section_assignments").select("sections(id, name, classes(name, grade_level, school_year))").eq("student_id", student.id));
+          const enrollments = this._throwIfError(await this.sb.from("student_subject_enrollments").select("subjects(name, semester)").eq("student_id", student.id));
+          result.student = { ...student, sections: assignments.map(row => row.sections).filter(Boolean), subjects: enrollments.map(row => row.subjects).filter(Boolean) };
+        } else if (result.role === "teacher") {
+          const teacher = this._throwIfError(await this.sb.from("teachers").select("id, employee_id, specialization, contact_number").eq("user_id", user.id).single());
+          result.teacher = { ...teacher, assignments: await this.getMySubjects() };
+        }
+        return result;
+      });
+    }
+
+    async updateMyProfile({ address = "", phone = "", social = "" }) {
+      const user = this.getCurrentUser();
+      const current = await this.getMyProfile();
+      const details = { ...(current.profile_details || {}), address, social, phone };
+      this._throwIfError(await this.sb.from("users").update({ profile_details: details }).eq("id", user.id));
+      if (current.role === "student") {
+        this._throwIfError(await this.sb.from("students").update({ contact_number: phone || null }).eq("user_id", user.id));
+      } else if (current.role === "teacher") {
+        this._throwIfError(await this.sb.from("teachers").update({ contact_number: phone || null }).eq("user_id", user.id));
+      }
+      this.clearCache("profile:me");
+      return this.getMyProfile();
+    }
+
+    async changeMyPassword(password) {
+      const { error } = await this.sb.auth.updateUser({ password });
+      if (error) throw new Error(error.message || "Could not update password");
+    }
+
+    async uploadMyProfilePicture(file) {
+      const user = this.getCurrentUser();
+      const { data: authData } = await this.sb.auth.getUser();
+      const authUserId = authData?.user?.id;
+      if (!authUserId) throw new Error("Your session has expired. Please sign in again.");
+      const extension = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${authUserId}/${Date.now()}.${extension}`;
+      const { error } = await this.sb.storage.from("profile-images").upload(path, file, { upsert: true, contentType: file.type || "image/jpeg" });
+      if (error) throw new Error(error.message);
+      const { data } = this.sb.storage.from("profile-images").getPublicUrl(path);
+      const avatarUrl = data.publicUrl;
+      this._throwIfError(await this.sb.from("users").update({ avatar_url: avatarUrl }).eq("id", user.id));
+      const session = { ...user, avatar_url: avatarUrl };
+      localStorage.setItem("lms_user", JSON.stringify(session));
+      localStorage.setItem("ijla_session", JSON.stringify(session));
+      this._session = session;
+      this.clearCache("profile:me");
+      return avatarUrl;
+    }
 
     // ── Dashboard (admin) ─────────────────────────────────────────────────────
 

@@ -39,6 +39,8 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
    `create_attendance_session`, `get_dashboard_stats`,
    `get_student_dashboard_stats`, `mark_module_read`, the
    `analytics_cache_get/set` pair, and the `on_auth_user_created` trigger).
+4. `05_profile_settings.sql` — adds persisted contact details, avatar URLs,
+   and the `profile-images` Storage bucket policies.
 
 If you already have data in these tables from the old Render setup, **skip
 straight to Phase 2** — your existing rows are untouched by `create table

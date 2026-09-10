@@ -112,7 +112,7 @@ const DashboardController = {
       if (role === "teacher") return TeacherView.dashboard(user, null);
       if (role === "student") return StudentView.dashboard(user, null, [], []);
     }
-    if (id === "settings") return AdminView.settings(user);
+    if (id === "settings") return AdminView.settings(user, null);
     if (id === "help") return AdminView.help(user);
     if (role === "admin") {
       if (id === "manage-users") return AdminView.manageUsers();
@@ -144,6 +144,22 @@ const DashboardController = {
     const role = this.currentUser.role;
     const user = this.currentUser;
     const area = document.getElementById("content-area");
+
+    if (sectionId === "settings") {
+      Loader.start();
+      try {
+        const profile = await api.getMyProfile();
+        area.innerHTML = AdminView.settings(user, profile);
+        App.applyProfileImage({ ...user, avatar_url: profile.avatar_url });
+      } catch (err) {
+        console.error("Failed to load profile settings:", err);
+        Toast.show("Could not load your profile settings.", "error");
+        area.innerHTML = AdminView.settings(user, user);
+      } finally {
+        Loader.done();
+      }
+      return;
+    }
 
     // ── Admin Dashboard ─────────────────────────────────────────────────
     if (sectionId === "dashboard" && role === "admin") {

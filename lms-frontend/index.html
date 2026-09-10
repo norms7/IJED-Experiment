@@ -388,6 +388,9 @@
               </div>
             </div>
             <div class="profile-dropdown-divider"></div>
+            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu(); DashboardController.loadSection('settings')">
+              <svg class="profile-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 20a7 7 0 0 1 14 0M18 4v4M16 6h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Profile Settings
+            </button>
             <button class="profile-dropdown-item" onclick="App.toggleProfileMenu(); DarkMode.toggle()">
               <svg class="profile-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg> Toggle Dark Mode
             </button>
