@@ -223,7 +223,14 @@ const DashboardController = {
         // but recent-grade subject-name lookups below still use the full
         // list -- otherwise a recent grade from the OTHER semester would
         // show "?" instead of its real subject name.
-        const semSubjects = currentSem ? allSubjects.filter(s => s.semester === currentSem) : allSubjects;
+        const normalizeSemester = (value) => {
+          const normalized = String(value || "").trim().toLowerCase();
+          return normalized === "1" || normalized === "1st" ? "1st"
+            : normalized === "2" || normalized === "2nd" ? "2nd" : normalized;
+        };
+        const semSubjects = currentSem
+          ? allSubjects.filter(s => normalizeSemester(s.semester) === normalizeSemester(currentSem))
+          : allSubjects;
         const subjects = allSubjects;
         const submittedActivities = activities
           .filter((a) => a.submission != null)
@@ -236,24 +243,19 @@ const DashboardController = {
               : 0;
             return db_ - da;
           });
-        const seenSubjects = new Set();
-        const recentGrades = [];
-        for (const a of submittedActivities) {
-          if (!seenSubjects.has(a.subject_id)) {
-            seenSubjects.add(a.subject_id);
-            const subjectName = a.subject_id
-              ? (subjects.find((s) => s.subject_id === a.subject_id) || {})
-                  .subject_name || "?"
-              : "?";
-            recentGrades.push({
-              score: a.submission.is_graded ? a.submission.score : null,
-              max_score: a.submission.max_score,
-              is_graded: a.submission.is_graded,
-              _activity: a.title,
-              _subject: subjectName,
-            });
-          }
-        }
+        const recentGrades = submittedActivities.slice(0, 6).map((a) => {
+          const subjectName = a.subject_id
+            ? (subjects.find((s) => s.subject_id === a.subject_id) || {}).subject_name || "?"
+            : "?";
+          return {
+            score: a.submission.is_graded ? a.submission.score : null,
+            max_score: a.submission.max_score,
+            is_graded: a.submission.is_graded,
+            submitted_at: a.submission.submitted_at,
+            _activity: a.title,
+            _subject: subjectName,
+          };
+        });
         area.innerHTML = StudentView.dashboard(
           user,
           stats,
