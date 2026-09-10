@@ -16,61 +16,55 @@ const TEACHER_SUBJECT_STYLES = {
 
 const TeacherView = {
 
-  dashboard(user, subjects = null) {
+  dashboard(user, subjects = null, dashboardData = {}) {
     if (!subjects) {
-      return `
-        <div class="welcome-banner">
-          <div class="welcome-text">
-            <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! ${lmsIcon('school')}</div>
-            <div class="welcome-sub">Loading your subjects…</div>
-          </div>
-          <div class="welcome-emoji">${LMS_ICONS.bookOpen}</div>
-        </div>
-        <div class="stat-grid mb-4">
-          <div class="stat-card"><div class="stat-icon" style="background:rgba(139,26,46,0.08)">${LMS_ICONS.bookOpen}</div><div><div class="stat-value">—</div><div class="stat-label">My Subjects</div></div></div>
-        </div>
-        <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading…</div></div>`;
+      return `<div class="teacher-dashboard-loading"><div class="teacher-dashboard-hero"><div><p>Teacher workspace</p><h1>Loading your teaching day…</h1></div>${LMS_ICONS.school}</div><div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading dashboard data…</div></div>`;
     }
-    if (subjects.length === 0) {
-      return `
-        <div class="welcome-banner">
-          <div class="welcome-text">
-            <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! ${lmsIcon('school')}</div>
-            <div class="welcome-sub">No subjects assigned yet. Contact your administrator.</div>
-          </div>
-          <div class="welcome-emoji">${LMS_ICONS.bookOpen}</div>
-        </div>
-        <div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.book}</div><div class="empty-state-title">No subjects assigned</div></div>`;
-    }
-    const cards = subjects.map(sub => `
-      <div class="teacher-subject-card">
-        <div class="teacher-subject-header">
-          <span class="teacher-subject-name">${escHtml(sub.subject_name)}</span>
-          <span class="badge badge-maroon">${escHtml(sub.section_name)}</span>
-        </div>
-        <div class="teacher-subject-details">
-          <div>${lmsIcon('school')} ${escHtml(sub.grade_level)}</div>
-          <div>${lmsIcon('clock')} ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
-        </div>
-        <div class="teacher-subject-actions">
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.section_id}, '${escHtml(sub.subject_name)}')">${lmsIcon('users')} View Students</button>
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.subject_id}, ${sub.class_id})">${lmsIcon('upload')} Upload Material</button>
-          <button class="btn btn-xs btn-primary" onclick="DashboardController.loadSection('modules')">${lmsIcon('clipboard')} Manage Activities</button>
-        </div>
-      </div>
-    `).join('');
-    return `
-      <div class="welcome-banner">
-        <div class="welcome-text">
-          <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! ${lmsIcon('school')}</div>
-          <div class="welcome-sub">Your assigned subjects & sections</div>
-        </div>
-        <div class="welcome-emoji">${LMS_ICONS.clipboard}</div>
-      </div>
-      <div class="stat-grid teacher-dashboard-stat-grid mb-4">
-        <div class="stat-card"><div class="stat-icon" style="background:rgba(139,26,46,0.08)">${LMS_ICONS.bookOpen}</div><div><div class="stat-value">${subjects.length}</div><div class="stat-label">Assigned Subjects</div></div></div>
-      </div>
-      <div class="teacher-subjects-grid">${cards}</div>`;
+
+    const firstName = escHtml((user.full_name || user.name || 'Teacher').split(' ')[0]);
+    const modules = Array.isArray(dashboardData.modules) ? dashboardData.modules : [];
+    const activities = Array.isArray(dashboardData.activities) ? dashboardData.activities : [];
+    const students = Array.isArray(dashboardData.students) ? dashboardData.students : [];
+    const now = new Date();
+    const todayLabel = now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+    const todaySubjects = subjects.filter(subject => {
+      const days = typeof _parseScheduleDays === 'function' ? _parseScheduleDays(subject.schedule) : [];
+      return days.includes(now.getDay());
+    });
+    const publishedModules = modules.filter(module => module.is_published).length;
+    const publishedActivities = activities.filter(activity => activity.is_published).length;
+    const pendingGrades = activities.reduce((count, activity) => count + Number(activity.pending_submission_count || 0), 0);
+    const dueActivities = activities
+      .filter(activity => activity.due_date && activity.is_published)
+      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+      .slice(0, 5);
+    const formatDate = value => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+    const scheduleHTML = todaySubjects.length
+      ? todaySubjects.map(subject => `<div class="teacher-dashboard-list-row"><div class="teacher-dashboard-row-icon teacher-dashboard-row-icon--blue">${LMS_ICONS.clock}</div><div class="teacher-dashboard-row-main"><strong>${escHtml(subject.subject_name || 'Class')}</strong><span>${escHtml(subject.section_name || subject.class_name || 'Assigned section')}</span></div><div class="teacher-dashboard-row-meta">${escHtml(subject.schedule || 'Time not set')}<small>${escHtml(subject.grade_level || 'Today')}</small></div></div>`).join('')
+      : `<div class="teacher-dashboard-empty"><span>${LMS_ICONS.clock}</span><div><strong>No classes scheduled today</strong><p>Use the time to prepare materials or review submissions.</p></div></div>`;
+    const dueHTML = dueActivities.length
+      ? dueActivities.map(activity => {
+          const due = new Date(activity.due_date);
+          const isPast = due < now;
+          return `<div class="teacher-dashboard-list-row"><div class="teacher-dashboard-row-icon ${isPast ? 'teacher-dashboard-row-icon--red' : 'teacher-dashboard-row-icon--gold'}">${LMS_ICONS.calendar}</div><div class="teacher-dashboard-row-main"><strong>${escHtml(activity.title || 'Untitled activity')}</strong><span>${escHtml(activity._subject_name || 'Unknown subject')} · ${Number(activity.submission_count || 0)} submitted</span></div><div class="teacher-dashboard-row-meta ${isPast ? 'is-urgent' : ''}">${formatDate(activity.due_date)}<small>${isPast ? 'Past due' : 'Due date'}</small></div></div>`;
+        }).join('')
+      : `<div class="teacher-dashboard-empty"><span>${LMS_ICONS.calendar}</span><div><strong>No published deadlines</strong><p>Published activities with due dates will appear here.</p></div></div>`;
+    const subjectHTML = subjects.length
+      ? subjects.map((subject, index) => {
+          const style = TEACHER_SUBJECT_STYLES[subject.subject_name] || { color: ['#7b1830', '#39717a', '#9a6a12', '#76506a'][index % 4], icon: LMS_ICONS.bookOpen };
+          const subjectModules = modules.filter(module => module.subject_id === subject.subject_id);
+          const subjectActivities = activities.filter(activity => activity.subject_id === subject.subject_id);
+          return `<article class="teacher-dashboard-subject"><div class="teacher-dashboard-subject-icon" style="--teacher-accent:${style.color}">${style.icon}</div><div class="teacher-dashboard-subject-main"><strong>${escHtml(subject.subject_name || 'Untitled subject')}</strong><span>${escHtml(subject.section_name || subject.class_name || 'Assigned section')} · ${escHtml(subject.schedule || 'No schedule')}</span><div class="teacher-dashboard-subject-meta"><span>${subjectModules.length} module${subjectModules.length === 1 ? '' : 's'}</span><span>${subjectActivities.length} activit${subjectActivities.length === 1 ? 'y' : 'ies'}</span></div></div><button class="btn btn-xs btn-outline" onclick="DashboardController.loadSection('activities')">Open activities</button></article>`;
+        }).join('')
+      : `<div class="teacher-dashboard-empty"><span>${LMS_ICONS.bookOpen}</span><div><strong>No subjects assigned</strong><p>Contact your administrator to get teaching assignments.</p></div></div>`;
+
+    return `<section class="teacher-dashboard-hero"><div><p class="teacher-dashboard-kicker">${todayLabel} · Teacher workspace</p><h1>Good day, ${firstName}.</h1><p>Stay ahead of your classes, resources, deadlines, and grading workload.</p></div><div class="teacher-dashboard-hero-mark">${LMS_ICONS.school}</div><div class="teacher-dashboard-hero-actions"><button class="btn btn-primary btn-sm" onclick="DashboardController.loadSection('activities')">${LMS_ICONS.plus} Create activity</button><button class="btn btn-outline btn-sm" onclick="DashboardController.loadSection('attendance')">${LMS_ICONS.clipboard} Take attendance</button></div></section>
+
+      <div class="teacher-dashboard-stat-grid"><div class="teacher-dashboard-stat"><span class="teacher-dashboard-stat-icon teacher-dashboard-stat-icon--maroon">${LMS_ICONS.bookOpen}</span><div><strong>${subjects.length}</strong><span>Assigned subjects</span></div></div><div class="teacher-dashboard-stat"><span class="teacher-dashboard-stat-icon teacher-dashboard-stat-icon--blue">${LMS_ICONS.users}</span><div><strong>${students.length}</strong><span>Students reached</span></div></div><div class="teacher-dashboard-stat"><span class="teacher-dashboard-stat-icon teacher-dashboard-stat-icon--green">${publishedModules}/${modules.length}</span><div><strong>${publishedModules}</strong><span>Published modules</span></div></div><div class="teacher-dashboard-stat"><span class="teacher-dashboard-stat-icon teacher-dashboard-stat-icon--gold">${pendingGrades}</span><div><strong>${pendingGrades}</strong><span>Need grading</span></div></div></div>
+
+      <div class="teacher-dashboard-focus-grid"><section class="card teacher-dashboard-focus-card teacher-dashboard-focus-card--schedule"><div class="teacher-dashboard-card-heading"><div><span class="teacher-dashboard-eyebrow">Your timetable</span><h2>Schedule for today</h2></div><span class="teacher-dashboard-heading-icon">${LMS_ICONS.clock}</span></div><div class="teacher-dashboard-list">${scheduleHTML}</div><button class="teacher-dashboard-text-link" onclick="DashboardController.loadSection('calendar')">Open calendar <span>→</span></button></section><section class="card teacher-dashboard-focus-card teacher-dashboard-focus-card--due"><div class="teacher-dashboard-card-heading"><div><span class="teacher-dashboard-eyebrow">Planning view</span><h2>Activity deadlines</h2></div><span class="teacher-dashboard-heading-icon">${LMS_ICONS.calendar}</span></div><div class="teacher-dashboard-list">${dueHTML}</div><button class="teacher-dashboard-text-link" onclick="DashboardController.loadSection('activities')">Manage activities <span>→</span></button></section></div>
+
+      <section class="card teacher-dashboard-subjects-card"><div class="teacher-dashboard-card-heading"><div><span class="teacher-dashboard-eyebrow">Teaching load</span><h2>My subjects and sections</h2></div><button class="btn btn-outline btn-sm" onclick="DashboardController.loadSection('my-subjects')">View details</button></div><div class="teacher-dashboard-subject-list">${subjectHTML}</div></section>`;
   },
 
   mySubjects(user, subjects = null) {
@@ -115,12 +109,10 @@ const TeacherView = {
     }
 
     const SUBJECT_STYLES = TEACHER_SUBJECT_STYLES;
-    const API_BASE = 'https://ijed-hcj-1.onrender.com';
-
     const cards = apiModules.map(m => {
       const style   = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: LMS_ICONS.book };
       const hasFile = !!m.file_url;
-      const resolvedUrl = m.file_url && m.file_url.startsWith('http') ? m.file_url : `${API_BASE}${m.file_url}`;
+      const resolvedUrl = m.file_url;
       const fileBtn = hasFile
         ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener">${lmsIcon('fileOpen')} Open PDF</a>`
         : `<span class="btn btn-xs btn-outline" style="opacity:.5;cursor:default">No file</span>`;
@@ -237,7 +229,7 @@ const TeacherView = {
                 <span>${lmsIcon('chart')} ${qCount} question${qCount !== 1 ? 's' : ''} · ${maxPts} pts</span>
                 <span>${lmsIcon('calendar')} ${dueLabel}</span>
                 <span>${startLabel ? `${lmsIcon('clock')} ${startLabel}` : '—'}</span>
-                <span>${lmsIcon('inbox')} ${a.submission_count ?? 0} submitted</span>
+                <span>${lmsIcon('inbox')} ${a.submission_count ?? 0} submitted${a.pending_submission_count ? ` · ${a.pending_submission_count} pending grade` : ''}</span>
               </div>
             </div>
             <div class="teacher-activity-actions">
@@ -389,27 +381,40 @@ const TeacherView = {
 
           let totalEarned = 0, totalPossible = 0;
           stuSubs.forEach(({ act, sub }) => {
-            if (sub.is_graded && sub.score != null && act.max_score) {
+            const isApplicable = !act.due_date || new Date(act.due_date) <= new Date();
+            if (!isApplicable) return;
+            if (sub.is_graded && sub.score != null && (sub.max_score || act.max_score) > 0) {
               totalEarned   += sub.score;
-              totalPossible += act.max_score;
+              totalPossible += sub.max_score || act.max_score;
+            } else if (sub && !sub.is_graded) {
+              return;
             }
+          });
+          activities.forEach(act => {
+            const sub = act._submissions?.find(s => s.student_id === studentId);
+            const isApplicable = !act.due_date || new Date(act.due_date) <= new Date();
+            if (!sub && isApplicable && act.max_score > 0) totalPossible += act.max_score;
           });
           const activityPct   = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
           const readCount     = stu._modulesRead ?? 0;
           const attPresent    = stu._attPresent  ?? 0;
           const attLate       = stu._attLate     ?? 0;
           const stuAttTotal   = stu._attTotal    ?? 0;
-          const modulePct     = totalModules > 0 ? Math.round((readCount / totalModules) * 100) : 0;
+          const modulePct     = totalModules > 0 ? Math.round((readCount / totalModules) * 100) : null;
           // Objective §2: Attendance Score = (Present + Late×0.5) / Total × 100
           const attendancePct = stuAttTotal  > 0 ? Math.round(((attPresent + attLate * 0.5) / stuAttTotal) * 100) : null;
 
           let overallPct = null;
-          if (activityPct !== null || attendancePct !== null) {
-            overallPct = Math.round(
-              (activityPct   ?? 0) * WEIGHT_ACTIVITIES +
-              (attendancePct ?? 0) * WEIGHT_ATTENDANCE +
-               modulePct           * WEIGHT_MODULES
-            );
+          const components = [
+            { value: activityPct, weight: WEIGHT_ACTIVITIES },
+            { value: attendancePct, weight: WEIGHT_ATTENDANCE },
+            { value: modulePct, weight: WEIGHT_MODULES },
+          ].filter(component => component.value !== null);
+          const weightTotal = components.reduce((sum, component) => sum + component.weight, 0);
+          if (weightTotal) {
+            overallPct = Math.round(components.reduce(
+              (sum, component) => sum + component.value * (component.weight / weightTotal), 0
+            ));
           }
 
           const finalGrade = overallPct !== null ? TeacherView._toPhGrade(overallPct) : '—';

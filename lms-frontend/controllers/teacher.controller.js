@@ -79,9 +79,6 @@ const TeacherController = {
     }
   },
 
-  openEditModule(id) { /* TODO */ },
-  updateModule(id)   { /* TODO */ },
-
   async deleteModule(id) {
     if (!confirm('Delete this module? This cannot be undone.')) return;
     try {
@@ -141,6 +138,7 @@ const TeacherController = {
 
   /** Questions array held in memory while the modal is open */
   _questions: [],
+  _editingActivityId: null,
 
   _gradingBadge(mode) {
     return mode === 'auto'
@@ -150,8 +148,9 @@ const TeacherController = {
 
   // ── Create Activity Modal ─────────────────────────────────
 
-  async openAddActivity(presetSubjectId = null) {
+  async openAddActivity(presetSubjectId = null, existingActivity = null) {
     this._questions = [];
+    this._editingActivityId = existingActivity?.id || null;
     let subjectOpts = '<option value="">Loading...</option>';
     let moduleMap   = {};
 
@@ -162,7 +161,7 @@ const TeacherController = {
       ]);
       if (!subjects.length) subjectOpts = '<option value="">No subjects assigned</option>';
       else subjectOpts = subjects.map(s =>
-        `<option value="${s.subject_id}" ${s.subject_id === presetSubjectId ? 'selected' : ''}>${escHtml(s.subject_name)} — ${escHtml(s.class_name)}</option>`
+        `<option value="${s.subject_id}" ${s.subject_id === (existingActivity?.subject_id || presetSubjectId) ? 'selected' : ''}>${escHtml(s.subject_name)} — ${escHtml(s.class_name)}</option>`
       ).join('');
       modules.forEach(m => {
         if (!moduleMap[m.subject_id]) moduleMap[m.subject_id] = [];
@@ -173,16 +172,19 @@ const TeacherController = {
       subjectOpts = '<option value="">Failed to load subjects</option>';
     }
 
-    const typeOpts   = this._ACTIVITY_TYPES.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
-    const formatOpts = this._FORMAT_TYPES.map(f =>   `<option value="${f.value}">${f.label}</option>`).join('');
+    const typeOpts   = this._ACTIVITY_TYPES.map(t => `<option value="${t.value}" ${t.value === existingActivity?.activity_type ? 'selected' : ''}>${t.label}</option>`).join('');
+    const formatOpts = this._FORMAT_TYPES.map(f => `<option value="${f.value}" ${f.value === existingActivity?.format_type ? 'selected' : ''}>${f.label}</option>`).join('');
+    const toLocalInput = value => value ? new Date(value).toISOString().slice(0, 16) : '';
+    const selectedTerm = existingActivity?.term || '';
+    const termOptions = ['1st', '2nd', '3rd', '4th'].map(term => `<option value="${term}" ${term === selectedTerm ? 'selected' : ''}>${term} Term</option>`).join('');
 
-    Modal.show('Create Activity', `
+    Modal.show(existingActivity ? 'Edit Activity' : 'Create Activity', `
       <div style="max-height:70vh;overflow-y:auto;padding-right:4px">
 
         <div class="form-row">
           <div class="form-group" style="flex:2">
             <label>Activity Title *</label>
-            <input class="form-control" id="act-title" placeholder="e.g. Quiz 1 – Fractions" />
+            <input class="form-control" id="act-title" value="${escHtml(existingActivity?.title || '')}" placeholder="e.g. Quiz 1 – Fractions" />
           </div>
           <div class="form-group" style="flex:1">
             <label>Subject *</label>
@@ -194,11 +196,7 @@ const TeacherController = {
           <div class="form-group">
             <label>Term *</label>
             <select class="form-control" id="act-term" onchange="TeacherController._onTermChange(this.value)">
-              <option value="">— Select term —</option>
-              <option value="1st">1st Term</option>
-              <option value="2nd">2nd Term</option>
-              <option value="3rd">3rd Term</option>
-              <option value="4th">4th Term</option>
+              <option value="">— Select term —</option>${termOptions}
             </select>
           </div>
           <div class="form-group">
@@ -212,9 +210,9 @@ const TeacherController = {
             <label>Activity Type</label>
             <select class="form-control" id="act-type" onchange="TeacherController._onTypeChange(this.value)">${typeOpts}</select>
           </div>
-          <div class="form-group" id="act-custom-wrap" style="display:none">
+          <div class="form-group" id="act-custom-wrap" style="display:${existingActivity?.activity_type === 'other' ? '' : 'none'}">
             <label>Specify Type</label>
-            <input class="form-control" id="act-type-custom" placeholder="e.g. Performance Task" />
+            <input class="form-control" id="act-type-custom" value="${escHtml(existingActivity?.activity_type_custom || '')}" placeholder="e.g. Performance Task" />
           </div>
         </div>
 
@@ -227,17 +225,17 @@ const TeacherController = {
         <div class="form-row">
           <div class="form-group">
             <label>Start Date / Time</label>
-            <input class="form-control" id="act-start" type="datetime-local" />
+            <input class="form-control" id="act-start" type="datetime-local" value="${toLocalInput(existingActivity?.start_date)}" />
           </div>
           <div class="form-group">
             <label>Due Date / Time</label>
-            <input class="form-control" id="act-due" type="datetime-local" />
+            <input class="form-control" id="act-due" type="datetime-local" value="${toLocalInput(existingActivity?.due_date)}" />
           </div>
         </div>
 
         <div class="form-group">
           <label>Instructions to Students</label>
-          <textarea class="form-control" id="act-instructions" rows="3" placeholder="Write any special instructions, reminders, or rules for this activity…"></textarea>
+          <textarea class="form-control" id="act-instructions" rows="3" placeholder="Write any special instructions, reminders, or rules for this activity…">${escHtml(existingActivity?.instructions || '')}</textarea>
         </div>
 
         <div id="act-questions-section">
@@ -252,12 +250,27 @@ const TeacherController = {
 
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
-      <button class="btn btn-primary" onclick="TeacherController.saveActivity()">${lmsIcon('save')} Save Activity</button>`
+      <button class="btn btn-primary" onclick="TeacherController.saveActivity()">${lmsIcon('save')} ${existingActivity ? 'Update Activity' : 'Save Activity'}</button>`
     );
 
     setTimeout(() => {
       const subjectSel = document.getElementById('act-subject');
       if (subjectSel && subjectSel.value) this._onSubjectChange(subjectSel.value);
+      if (existingActivity?.module_id) {
+        const moduleSel = document.getElementById('act-module');
+        if (moduleSel) moduleSel.value = String(existingActivity.module_id);
+      }
+      if (existingActivity?.activity_questions) {
+        this._questions = existingActivity.activity_questions.map((question, index) => ({
+          id: `q${question.id || index}`,
+          type: question.question_type || 'multiple_choice',
+          text: question.question_text || '',
+          points: question.points || 1,
+          correct: question.correct_answer || null,
+          choices: (question.activity_question_choices || []).map((choice, choiceIndex) => ({ id: `c${choice.id || choiceIndex}`, text: choice.choice_text || '' })),
+        }));
+        this._renderQuestions();
+      }
       this._onFormatChange(document.getElementById('act-format')?.value || 'multiple_choice');
     }, 80);
   },
@@ -520,9 +533,15 @@ const TeacherController = {
     const btn = document.querySelector('#modal-container .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
-      await api.createTeacherActivity(payload);
+      const wasEditing = Boolean(this._editingActivityId);
+      if (wasEditing) {
+        await api.updateTeacherActivity(this._editingActivityId, payload);
+      } else {
+        await api.createTeacherActivity(payload);
+      }
+      this._editingActivityId = null;
       Modal.close();
-      Toast.show('Activity created successfully!', 'success');
+      Toast.show(wasEditing ? 'Activity updated successfully!' : 'Activity created successfully!', 'success');
       DashboardController.loadSection('activities');
     } catch (err) {
       if (btn) { btn.disabled = false; btn.innerHTML = `${lmsIcon('save')} Save Activity`; }
@@ -925,8 +944,15 @@ const TeacherController = {
     }
   },
 
-  // ── Legacy stubs ──────────────────────────────────────────
-  openEditActivity(id) { /* TODO */ },
-  updateActivity(id)   { /* TODO */ },
+  // ── Edit Activity ────────────────────────────────────────
+  async openEditActivity(id) {
+    try {
+      const activity = await api.getTeacherActivity(id);
+      await this.openAddActivity(activity.subject_id, activity);
+    } catch (err) {
+      Toast.show(err.message || 'Failed to load activity for editing.', 'error');
+    }
+  },
+  updateActivity(id)   { return this.openEditActivity(id); },
   saveGrades(actId)    { /* legacy */ },
 };

@@ -177,12 +177,28 @@ const DashboardController = {
       area.innerHTML = Loader.skeleton("dashboard");
       Loader.init();
       try {
-        const subjects = await api.getMySubjects();
-        area.innerHTML = TeacherView.dashboard(user, subjects);
+        const [subjects, modules, activities] = await Promise.all([
+          api.getMySubjects(),
+          api.getMyModules(),
+          api.getTeacherActivities(),
+        ]);
+        const sectionIds = [...new Set((subjects || []).map(subject => subject.section_id).filter(Boolean))];
+        const studentGroups = await Promise.all(
+          sectionIds.map(sectionId => api.getSectionStudents(sectionId).catch(() => [])),
+        );
+        const students = [...new Map(studentGroups.flat().map(student => [student.id, student])).values()];
+        const subjectMap = Object.fromEntries((subjects || []).map(subject => [subject.subject_id, subject.subject_name]));
+        const teacherData = {
+          modules: (modules || []).map(module => ({ ...module, _subject_name: subjectMap[module.subject_id] || "Unknown" })),
+          activities: (activities || []).map(activity => ({ ...activity, _subject_name: subjectMap[activity.subject_id] || "Unknown" })),
+          students,
+        };
+        area.innerHTML = TeacherView.dashboard(user, subjects, teacherData);
         this._attachSearch();
       } catch (err) {
         console.error("Failed to load teacher subjects:", err);
         Toast.show("Could not load dashboard data.", "error");
+        area.innerHTML = TeacherView.dashboard(user, [], { modules: [], activities: [], students: [] });
       } finally {
         Loader.done();
       }

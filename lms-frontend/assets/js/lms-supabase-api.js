@@ -719,11 +719,23 @@
 
     async getTeacherActivities({ module_id, subject_id, term } = {}) {
       return this._cached(`teacher:activities:${module_id || ""}:${subject_id || ""}:${term || ""}`, 60_000, async () => {
-        let q = this.sb.from("activities").select("*").eq("teacher_id", await this._myTeacherId());
+        let q = this.sb.from("activities")
+          .select("*, activity_questions(id, points), activity_submissions(id, is_graded, score)")
+          .eq("teacher_id", await this._myTeacherId());
         if (module_id) q = q.eq("module_id", module_id);
         if (subject_id) q = q.eq("subject_id", subject_id);
         if (term) q = q.eq("term", term);
-        return this._throwIfError(await q);
+        const rows = this._throwIfError(await q);
+        return rows.map(activity => {
+          const questions = activity.activity_questions || [];
+          const submissions = activity.activity_submissions || [];
+          return {
+            ...activity,
+            questions,
+            submission_count: submissions.length,
+            pending_submission_count: submissions.filter(submission => !submission.is_graded).length,
+          };
+        });
       });
     }
 
@@ -757,13 +769,14 @@
           }
         }
       }
-      this.clearCache("teacher:activit");
+      this.clearCache("teacher:activities");
+      this.clearCache(`teacher:activity:${id}`);
       return result;
     }
 
     async deleteTeacherActivity(id) {
       const result = this._throwIfError(await this.sb.from("activities").delete().eq("id", id));
-      this.clearCache("teacher:activit");
+      this.clearCache("teacher:activities");
       return result;
     }
 
