@@ -810,6 +810,13 @@ class LMSAdminAPI {
 
   // ── Student Portal ────────────────────────────────────────────────────────
 
+  _normalizeSemester(value) {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === '1' || normalized === '1st' || normalized === 'first' || normalized === '1st semester') return '1st';
+    if (normalized === '2' || normalized === '2nd' || normalized === 'second' || normalized === '2nd semester') return '2nd';
+    return normalized;
+  }
+
   async getStudentSubjects(semesterFilter = null) {
     const cacheKey = `student:mysubjects:${semesterFilter || 'all'}`;
     return this._cached(cacheKey, 60_000, async () => {
@@ -851,7 +858,10 @@ class LMSAdminAPI {
         schedule:     infoBySubject[row.subject_id]?.schedule || '',
         teacher_name: infoBySubject[row.subject_id]?.teacher_name || '',
       }));
-      if (semesterFilter) return rows.filter(r => r.semester === semesterFilter);
+      if (semesterFilter) {
+        const expectedSemester = this._normalizeSemester(semesterFilter);
+        return rows.filter(r => this._normalizeSemester(r.semester) === expectedSemester);
+      }
       return rows;
     });
   }
@@ -891,17 +901,19 @@ class LMSAdminAPI {
     });
   }
 
-  // Returns the "current" semester: the highest semester the student is enrolled in.
   // Used to set the default tab in the My Subjects view.
   async getStudentCurrentSemester() {
     const all = await this.getStudentSubjects();
-    const semesters = [...new Set(all.map(r => r.semester).filter(Boolean))];
+    const semesters = [...new Set(
+      all.map(r => this._normalizeSemester(r.semester)).filter(Boolean)
+    )];
     // FIX: previously picked whichever semester sorted highest — so a
     // student enrolled in both 1st and 2nd semester subjects (the normal
     // case for a full school-year enrollment) landed on 2nd Semester by
     // default. Always prefer 1st when the student has any enrollment there.
     if (semesters.includes('1st')) return '1st';
-    return semesters.sort()[0] || '1st';
+    if (semesters.includes('2nd')) return '2nd';
+    return semesters[0] || '1st';
   }
 
   async getStudentModules(subject_id = null) {

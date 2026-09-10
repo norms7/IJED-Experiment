@@ -225,8 +225,8 @@ const DashboardController = {
         // show "?" instead of its real subject name.
         const normalizeSemester = (value) => {
           const normalized = String(value || "").trim().toLowerCase();
-          return normalized === "1" || normalized === "1st" ? "1st"
-            : normalized === "2" || normalized === "2nd" ? "2nd" : normalized;
+          return ["1", "1st", "first", "1st semester"].includes(normalized) ? "1st"
+            : ["2", "2nd", "second", "2nd semester"].includes(normalized) ? "2nd" : normalized;
         };
         const semSubjects = currentSem
           ? allSubjects.filter(s => normalizeSemester(s.semester) === normalizeSemester(currentSem))
