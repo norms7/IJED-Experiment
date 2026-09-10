@@ -198,6 +198,7 @@ Experiment/
     ├── 05_profile_settings.sql             # Profile details and avatar storage policies
     ├── 06_notifications_realtime.sql       # Notification triggers and Realtime publication
     ├── edge_functions/admin-create-user/   # Secure admin account creation
+    ├── edge_functions/admin-update-user/   # Secure admin email/password updates
     ├── FULL_SETUP_GUIDE.md
     └── MIGRATION_GUIDE.md
 ```
