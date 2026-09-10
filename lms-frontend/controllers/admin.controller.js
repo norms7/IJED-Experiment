@@ -516,6 +516,7 @@ const AdminController = {
     try {
       const user   = await api.getUser(id);
       const role   = user.role.name;
+      window._editUserRole = role;
       let teacherProfile = null;
       let subjects = [], classes = [], sections = [], existingAssignments = [];
 
@@ -555,7 +556,8 @@ const AdminController = {
       }
 
       if (role === 'student') {
-        extraFields = `<hr><h4>Student Details</h4><div class="form-row"><div class="form-group"><label>LRN</label><input class="form-control" id="e-lrn" value="${escHtml(user.student_number || '')}" /></div><div class="form-group"><label>Guardian Name</label><input class="form-control" id="e-guardian" value="${escHtml(user.guardian_name || '')}" /></div></div><div class="form-row"><div class="form-group"><label>Grade Level</label><input class="form-control" id="e-grade" value="${escHtml(user.grade_level || '')}" /></div><div class="form-group"><label>Section</label><input class="form-control" id="e-section" value="${escHtml(user.section_name || '')}" /></div></div>`;
+        const studentProfile = user.student_profile || {};
+        extraFields = `<hr><h4>Student Details</h4><div class="form-row"><div class="form-group"><label>LRN</label><input class="form-control" id="e-lrn" value="${escHtml(studentProfile.student_number || '')}" /></div><div class="form-group"><label>Guardian Name</label><input class="form-control" id="e-guardian" value="${escHtml(studentProfile.guardian_name || '')}" /></div></div><div class="form-row"><div class="form-group"><label>Guardian Contact</label><input class="form-control" id="e-guardian-contact" value="${escHtml(studentProfile.guardian_contact || '')}" /></div><div class="form-group"><label>Contact Number</label><input class="form-control" id="e-contact" value="${escHtml(studentProfile.contact_number || '')}" /></div></div>`;
       }
 
       Modal.show(`Edit User — ${escHtml(user.first_name)} ${escHtml(user.last_name)}`, `
@@ -682,7 +684,16 @@ const AdminController = {
         delete window._editTeacherId;
         delete window._editTeacherOriginalAssignmentIds;
       }
+      if (window._editUserRole === 'student' && user.student_profile) {
+        await api.updateStudentProfile(user.student_profile.id, {
+          student_number: document.getElementById('e-lrn')?.value.trim() || null,
+          guardian_name: document.getElementById('e-guardian')?.value.trim() || null,
+          guardian_contact: document.getElementById('e-guardian-contact')?.value.trim() || null,
+          contact_number: document.getElementById('e-contact')?.value.trim() || null,
+        });
+      }
       Modal.close();
+      delete window._editUserRole;
       Toast.show('✅ User updated successfully!', 'success');
       DashboardController.loadSection(DashboardController.currentSection);
     } catch (err) {

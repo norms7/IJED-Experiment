@@ -97,6 +97,16 @@ body.dark-mode .profile-subject-list { color: var(--dm-text) !important; }
 body.dark-mode .profile-settings-summary p,
 body.dark-mode .profile-readonly-grid span,
 body.dark-mode .profile-settings-help { color: var(--dm-text-muted) !important; }
+body.dark-mode .admin-dashboard-pulse { background:var(--dm-border) !important; }
+body.dark-mode .admin-dashboard-pulse > div,
+body.dark-mode .admin-dashboard-coverage > div { background:var(--dm-surface) !important; }
+body.dark-mode .admin-dashboard-pulse strong,
+body.dark-mode .admin-dashboard-coverage strong,
+body.dark-mode .admin-dashboard-notifications strong { color:var(--dm-text) !important; }
+body.dark-mode .admin-dashboard-pulse span,
+body.dark-mode .admin-dashboard-coverage span,
+body.dark-mode .admin-dashboard-notifications small { color:var(--dm-text-muted) !important; }
+body.dark-mode .admin-dashboard-notifications > div { border-color:var(--dm-border) !important; }
 body.dark-mode .student-dashboard-focus-card,
 body.dark-mode .student-dashboard-info-card {
   background: var(--dm-surface) !important;

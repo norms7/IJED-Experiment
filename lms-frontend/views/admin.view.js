@@ -108,7 +108,7 @@ const AdminView = {
   },
 
   /** Main admin dashboard – expects stats object from API */
-  dashboard(user, stats = null) {
+  dashboard(user, stats = null, overview = {}) {
     if (!stats) {
       return `
         <div class="welcome-banner">
@@ -134,6 +134,16 @@ const AdminView = {
     const modules     = stats.total_modules   || 0;
     const activities  = stats.total_activities || 0;
     const recentUsers = stats.recent_users    || [];
+    const usersList = overview.users || [];
+    const teacherList = overview.teachers || [];
+    const studentList = overview.students || [];
+    const sectionList = overview.sections || [];
+    const subjectList = overview.subjects || [];
+    const notifications = overview.notifications || [];
+    const activeUsers = usersList.filter(item => item.is_active).length;
+    const inactiveUsers = usersList.length - activeUsers;
+    const unassignedStudents = studentList.filter(item => !(item.section_assignments || []).length).length;
+    const recentRows = usersList.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 6);
 
     return `
       <div class="welcome-banner">
@@ -152,16 +162,16 @@ const AdminView = {
         ${this._statCard(ADMIN_ICONS.activity, 'rgba(245,158,11,0.12)', activities,  'Activities')}
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap;">
+      <div class="admin-dashboard-grid">
         <div class="card" style="order:1;">
-          <div class="card-header"><span class="card-title">Recent Users</span></div>
+          <div class="card-header"><span class="card-title">Recent Users</span><button class="btn btn-ghost btn-sm" onclick="DashboardController.loadSection('manage-users')">Manage all →</button></div>
           <div class="table-wrap">
             <table class="data-table">
               <thead><tr><th>Name</th><th>Role</th><th>Joined</th></tr></thead>
               <tbody>
-                ${recentUsers.map(u => `
+                ${(recentRows.length ? recentRows : recentUsers).map(u => `
                   <tr>
-                    <td><strong>${escHtml(u.full_name)}</strong></td>
+                    <td><strong>${escHtml(u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Unnamed user')}</strong></td>
                     <td><span class="badge badge-maroon">${escHtml(u.role?.name || u.role)}</span></td>
                     <td class="text-sm text-muted">${fmtDate(u.created_at)}</td>
                   </tr>
@@ -171,16 +181,25 @@ const AdminView = {
           </div>
         </div>
 
-        <div class="card" style="order:4;">
+        <div class="card admin-dashboard-activity-card" style="order:4;">
+          <div class="card-header"><span class="card-title">System pulse</span></div>
+          <div class="card-body admin-dashboard-pulse">
+            <div><strong>${activeUsers || totalUsers}</strong><span>active accounts</span></div><div><strong>${inactiveUsers}</strong><span>inactive accounts</span></div><div><strong>${unassignedStudents}</strong><span>students without section</span></div><div><strong>${sectionList.length}</strong><span>active sections</span></div>
+          </div>
           <div class="card-header"><span class="card-title">Quick Actions</span></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
             <button class="btn btn-primary w-full" style="justify-content:center" onclick="AdminController.openAddUser()">${ADMIN_ICONS.plus} Add New User</button>
-            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-teachers')">${ADMIN_ICONS.teacher} Manage Teachers</button>
-            <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-students')">${ADMIN_ICONS.student} Manage Students</button>
+            <button class="btn btn-outline w-full" style="justify-content:center" onclick="AdminController._pendingTab='teachers';DashboardController.loadSection('manage-users')">${ADMIN_ICONS.teacher} Manage Teachers</button>
+            <button class="btn btn-outline w-full" style="justify-content:center" onclick="AdminController._pendingTab='students';DashboardController.loadSection('manage-users')">${ADMIN_ICONS.student} Manage Students</button>
             <button class="btn btn-outline w-full" style="justify-content:center" onclick="DashboardController.loadSection('manage-users')">${ADMIN_ICONS.users} All Users</button>
             <button class="btn btn-outline w-full" style="justify-content:center;border-color:var(--maroon);color:var(--maroon)" onclick="AdminController.openAnnouncement()">${ADMIN_ICONS.megaphone} Send Announcement</button>
           </div>
         </div>
+      </div>
+
+      <div class="admin-dashboard-lower-grid">
+        <div class="card"><div class="card-header"><span class="card-title">Administrative coverage</span></div><div class="card-body admin-dashboard-coverage"><div><span>Teachers</span><strong>${teacherList.length || teachers}</strong></div><div><span>Students</span><strong>${studentList.length || students}</strong></div><div><span>Subjects</span><strong>${subjectList.length}</strong></div><div><span>Sections</span><strong>${sectionList.length}</strong></div></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">Recent notifications</span><button class="btn btn-ghost btn-sm" onclick="document.getElementById('notif-bell-btn')?.click()">Open inbox →</button></div><div class="card-body admin-dashboard-notifications">${notifications.length ? notifications.slice(0, 4).map(n => `<div><span class="admin-notification-dot${n.is_read ? '' : ' is-unread'}"></span><p><strong>${escHtml(n.title || 'Notification')}</strong><small>${escHtml(n.message || '')}</small></p></div>`).join('') : '<p class="text-muted">No recent notifications.</p>'}</div></div>
       </div>
 
       <!-- Announcement Modal -->

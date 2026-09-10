@@ -45,6 +45,11 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 6. `06_notifications_realtime.sql` — publishes notification changes through
    Supabase Realtime and creates notifications for published activities and modules.
 
+Copy both files from `edge_functions/` into the canonical CLI paths under
+`supabase/functions/`, then deploy `admin-update-user` alongside
+`admin-create-user` so administrators can update Auth email addresses and
+passwords without exposing the service role key.
+
 If you already have data in these tables from the old Render setup, **skip
 straight to Phase 2** — your existing rows are untouched by `create table
 if not exists`.

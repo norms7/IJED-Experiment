@@ -168,8 +168,11 @@ const DashboardController = {
       area.innerHTML = Loader.skeleton("dashboard");
       Loader.init();
       try {
-        const stats = await api.getDashboardStats();
-        area.innerHTML = AdminView.dashboard(user, stats);
+        const [stats, users, teachers, students, sections, subjects, notifications] = await Promise.all([
+          api.getDashboardStats(), api.getUsers(), api.getTeachers(), api.getStudents(),
+          api.getSections(), api.getSubjects(), api.getNotifications(8),
+        ]);
+        area.innerHTML = AdminView.dashboard(user, stats, { users, teachers, students, sections, subjects, notifications });
         this._attachSearch();
       } catch (err) {
         console.error("Failed to load dashboard stats:", err);
@@ -181,7 +184,7 @@ const DashboardController = {
           total_modules: 0,
           total_activities: 0,
           recent_users: [],
-        });
+        }, { users: [], teachers: [], students: [], sections: [], subjects: [], notifications: [] });
       } finally {
         Loader.done();
       }

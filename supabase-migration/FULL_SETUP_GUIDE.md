@@ -97,6 +97,17 @@ exact order**, from `supabase-migration/` in your unzipped folder:
 6. `06_notifications_realtime.sql` — enables notification Realtime events and
    creates notifications for published activities and modules.
 
+Deploy both admin Edge Functions when account management is enabled:
+
+```bash
+# Run from the project that contains supabase/functions.
+# Copy the delivery files into these canonical Supabase CLI paths first:
+# supabase/functions/admin-create-user/index.ts
+# supabase/functions/admin-update-user/index.ts
+supabase functions deploy admin-create-user
+supabase functions deploy admin-update-user
+```
+
 If any of them errors, stop and paste me the exact error — don't run the
 next file until the current one succeeds, since later files depend on
 earlier ones (functions reference tables, seed data references functions/triggers).
