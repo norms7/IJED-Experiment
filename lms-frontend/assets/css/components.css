@@ -459,6 +459,9 @@ tbody tr:last-child td { border-bottom: none; }
 .profile-readonly-grid span, .profile-readonly-grid strong { display:block; }
 .profile-readonly-grid span { color:var(--text-muted); font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
 .profile-readonly-grid strong { color:var(--text-primary); font-size:12px; line-height:1.45; margin-top:4px; overflow-wrap:anywhere; }
+.profile-subject-list { margin:5px 0 0; padding-left:16px; color:var(--text-primary); font-size:12px; line-height:1.45; }
+.profile-subject-list li { overflow-wrap:anywhere; }
+.profile-detail-empty { color:var(--text-muted); font-weight:500; }
 .profile-settings-help { color:var(--text-muted); font-size:12px; line-height:1.5; margin-bottom:14px; }
 @media (max-width:760px) { .profile-settings-layout { grid-template-columns:1fr; } .profile-settings-identity { grid-row:auto; } }
 .stat-card {
