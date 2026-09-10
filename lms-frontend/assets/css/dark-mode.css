@@ -64,6 +64,34 @@ body.dark-mode .student-dashboard-stat-grid > .stat-card {
   background: var(--dm-surface) !important;
   border-color: var(--dm-border) !important;
 }
+body.dark-mode .student-dashboard-focus-card,
+body.dark-mode .student-dashboard-info-card {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .student-dashboard-card-heading h2,
+body.dark-mode .student-dashboard-row-main strong,
+body.dark-mode .student-dashboard-notice strong {
+  color: var(--dm-text) !important;
+}
+body.dark-mode .student-dashboard-row-main span,
+body.dark-mode .student-dashboard-row-meta small,
+body.dark-mode .student-dashboard-attendance-score span,
+body.dark-mode .student-dashboard-notice p,
+body.dark-mode .student-dashboard-empty p {
+  color: var(--dm-text-muted) !important;
+}
+body.dark-mode .student-dashboard-list-row,
+body.dark-mode .student-dashboard-notice {
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .student-dashboard-heading-icon,
+body.dark-mode .student-dashboard-empty > span {
+  background: var(--dm-surface-soft) !important;
+  color: var(--dm-link) !important;
+}
+body.dark-mode .student-dashboard-progress { background: var(--dm-border) !important; }
+body.dark-mode .student-dashboard-text-link { color: var(--dm-link) !important; }
 body.dark-mode .semester-tab {
   color: var(--dm-link) !important;
   border-color: var(--dm-link) !important;

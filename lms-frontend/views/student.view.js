@@ -15,7 +15,7 @@ const StudentView = {
    * @param {Array}  subjects  - result from api.getStudentSubjects()
    * @param {Array}  recentGrades - submitted ActivitySubmissions (with _activity + _subject attached)
    */
-  dashboard(user, stats = null, subjects = [], recentGrades = [], currentSem = null) {
+  dashboard(user, stats = null, subjects = [], recentGrades = [], currentSem = null, dashboardData = {}) {
     const firstName = escHtml((user.full_name || user.name || 'Student').split(' ')[0]);
     const semValue  = String(currentSem || '').trim().toLowerCase();
     const semLabel  = semValue === '1' || semValue === '1st' ? '1st Semester'
@@ -37,6 +37,52 @@ const StudentView = {
     /* Average score colour */
     const avgNum  = stats ? stats.average_score : 0;
     const avgColor = !gradedCount ? 'var(--gray-400)' : avgNum >= 90 ? '#22c55e' : avgNum >= 75 ? '#f59e0b' : '#ef4444';
+
+    const schedule = Array.isArray(dashboardData.schedule) ? dashboardData.schedule : [];
+    const dueActivities = Array.isArray(dashboardData.dueActivities) ? dashboardData.dueActivities : [];
+    const notifications = Array.isArray(dashboardData.notifications) ? dashboardData.notifications : [];
+    const attendance = Array.isArray(dashboardData.attendance) ? dashboardData.attendance : [];
+    const now = new Date();
+    const todayLabel = now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+    const todayDow = now.getDay();
+    const todaySchedule = schedule.filter(item => {
+      const days = typeof _parseScheduleDays === 'function' ? _parseScheduleDays(item.schedule) : [];
+      return days.includes(todayDow);
+    });
+    const formatDue = value => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+    const dueHTML = dueActivities.length
+      ? dueActivities.map(activity => {
+          const due = new Date(activity.due_date);
+          const overdueSoon = due.getTime() - now.getTime() < 48 * 60 * 60 * 1000;
+          return `<div class="student-dashboard-list-row">
+            <div class="student-dashboard-row-icon student-dashboard-row-icon--gold">${LMS_ICONS.clipboard}</div>
+            <div class="student-dashboard-row-main"><strong>${escHtml(activity.title || 'Untitled activity')}</strong><span>${escHtml(activity.activity_type || 'Activity')} · ${escHtml(activity.term || 'Current term')}</span></div>
+            <div class="student-dashboard-row-meta ${overdueSoon ? 'is-urgent' : ''}">${formatDue(activity.due_date)}<small>${overdueSoon ? 'Due soon' : 'Due date'}</small></div>
+          </div>`;
+        }).join('')
+      : `<div class="student-dashboard-empty"><span>${LMS_ICONS.clipboard}</span><div><strong>No dues</strong><p>You have no upcoming activity due dates.</p></div></div>`;
+    const scheduleHTML = todaySchedule.length
+      ? todaySchedule.map(item => `<div class="student-dashboard-list-row">
+          <div class="student-dashboard-row-icon student-dashboard-row-icon--blue">${LMS_ICONS.calendar}</div>
+          <div class="student-dashboard-row-main"><strong>${escHtml(item.subject_name || 'Class')}</strong><span>${escHtml(item.teacher_name || item.section_name || 'Scheduled class')}</span></div>
+          <div class="student-dashboard-row-meta">${escHtml(item.schedule || 'Time not set')}<small>${escHtml(item.section_name || 'Today')}</small></div>
+        </div>`).join('')
+      : `<div class="student-dashboard-empty"><span>${LMS_ICONS.calendar}</span><div><strong>No schedule for today</strong><p>Enjoy the open time or use it to review a module.</p></div></div>`;
+    const attendanceTotals = attendance.reduce((total, subject) => {
+      const values = subject.totals || {};
+      return {
+        present: total.present + Number(values.present || 0),
+        late: total.late + Number(values.late || 0),
+        absent: total.absent + Number(values.absent || 0),
+        total: total.total + Number(values.total || 0),
+      };
+    }, { present: 0, late: 0, absent: 0, total: 0 });
+    const attendancePct = attendanceTotals.total
+      ? Math.round(((attendanceTotals.present + attendanceTotals.late * 0.5) / attendanceTotals.total) * 100)
+      : null;
+    const notificationHTML = notifications.length
+      ? notifications.slice(0, 3).map(note => `<div class="student-dashboard-notice"><span class="student-dashboard-notice-dot${note.is_read ? '' : ' is-unread'}"></span><div><strong>${escHtml(note.title || 'Notification')}</strong><p>${escHtml(note.message || note.body || 'New update available.')}</p></div></div>`).join('')
+      : `<div class="student-dashboard-empty"><span>${LMS_ICONS.bell}</span><div><strong>No new notifications</strong><p>You are all caught up.</p></div></div>`;
 
     /* ── Subject list ──────────────────────────────────────────────────── */
     const NAMED = {
@@ -97,12 +143,30 @@ const StudentView = {
       : `<p class="text-muted text-sm" style="padding:12px 0">No activity submissions yet</p>`;
 
     return `
-      <div class="welcome-banner">
-        <div class="welcome-text">
-          <div class="welcome-title">Hi, ${firstName}!</div>
-          <div class="welcome-sub">Keep learning — every step forward counts!</div>
+      <section class="student-dashboard-hero">
+        <div>
+          <p class="student-dashboard-kicker">${todayLabel}</p>
+          <h1>Good day, ${firstName}.</h1>
+          <p>Here is your learning pulse: what needs attention, what is scheduled, and how you are progressing.</p>
         </div>
-        <div class="welcome-emoji">${LMS_ICONS.graduation}</div>
+        <div class="student-dashboard-hero-mark">${LMS_ICONS.graduation}</div>
+        <div class="student-dashboard-hero-actions">
+          <button class="btn btn-primary btn-sm" onclick="DashboardController.loadSection('activities')">${LMS_ICONS.clipboard} View activities</button>
+          <button class="btn btn-outline btn-sm" onclick="DashboardController.loadSection('performance-analytics')">${LMS_ICONS.chart} Open analytics</button>
+        </div>
+      </section>
+
+      <div class="student-dashboard-focus-grid">
+        <section class="card student-dashboard-focus-card student-dashboard-focus-card--due">
+          <div class="student-dashboard-card-heading"><div><span class="student-dashboard-eyebrow">Action list</span><h2>Due dates</h2></div><span class="student-dashboard-heading-icon">${LMS_ICONS.clipboard}</span></div>
+          <div class="student-dashboard-list">${dueHTML}</div>
+          <button class="student-dashboard-text-link" onclick="DashboardController.loadSection('activities')">See all activities <span>→</span></button>
+        </section>
+        <section class="card student-dashboard-focus-card student-dashboard-focus-card--schedule">
+          <div class="student-dashboard-card-heading"><div><span class="student-dashboard-eyebrow">Your timetable</span><h2>Schedule for today</h2></div><span class="student-dashboard-heading-icon">${LMS_ICONS.calendar}</span></div>
+          <div class="student-dashboard-list">${scheduleHTML}</div>
+          <button class="student-dashboard-text-link" onclick="DashboardController.loadSection('calendar')">Open calendar <span>→</span></button>
+        </section>
       </div>
 
       <div class="stat-grid student-dashboard-stat-grid mb-4">
@@ -154,6 +218,20 @@ const StudentView = {
           </div>
         </div>
 
+      </div>
+
+      <div class="student-dashboard-information-grid">
+        <section class="card student-dashboard-info-card">
+          <div class="student-dashboard-card-heading"><div><span class="student-dashboard-eyebrow">Attendance health</span><h2>Showing up matters</h2></div><span class="student-dashboard-heading-icon">${LMS_ICONS.clipboard}</span></div>
+          <div class="student-dashboard-attendance-score"><strong>${attendancePct === null ? '—' : `${attendancePct}%`}</strong><span>${attendanceTotals.total ? `${attendanceTotals.present} present · ${attendanceTotals.late} late · ${attendanceTotals.absent} absent` : 'No attendance recorded yet'}</span></div>
+          ${attendancePct === null ? '' : `<div class="student-dashboard-progress"><span style="width:${Math.min(100, attendancePct)}%"></span></div>`}
+          <button class="student-dashboard-text-link" onclick="DashboardController.loadSection('attendance')">Review attendance <span>→</span></button>
+        </section>
+        <section class="card student-dashboard-info-card">
+          <div class="student-dashboard-card-heading"><div><span class="student-dashboard-eyebrow">Updates</span><h2>Latest notifications</h2></div><span class="student-dashboard-heading-icon">${LMS_ICONS.bell}</span></div>
+          <div class="student-dashboard-notices">${notificationHTML}</div>
+          <button class="student-dashboard-text-link" onclick="document.getElementById('notif-bell-btn')?.click()">Open notifications <span>→</span></button>
+        </section>
       </div>
 
       <div class="dashboard-panels">

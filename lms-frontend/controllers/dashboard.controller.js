@@ -214,10 +214,13 @@ const DashboardController = {
       Loader.init();
       try {
         const currentSem = await api.getStudentCurrentSemester();
-        const [stats, allSubjects, activities] = await Promise.all([
+        const [stats, allSubjects, activities, scheduleResult, attendanceResult, notificationsResult] = await Promise.all([
           api.getStudentDashboardStats(currentSem),
           api.getStudentSubjects(),
           api.getStudentActivities(),
+          api.getStudentWeeklySchedule().catch(() => []),
+          api.getMyAttendance().catch(() => []),
+          api.getNotifications(5).catch(() => []),
         ]);
         // "My Subjects" widget shows only the current semester's subjects,
         // but recent-grade subject-name lookups below still use the full
@@ -256,12 +259,22 @@ const DashboardController = {
             _subject: subjectName,
           };
         });
+        const dashboardData = {
+          schedule: Array.isArray(scheduleResult) ? scheduleResult : [],
+          attendance: Array.isArray(attendanceResult) ? attendanceResult : [],
+          notifications: Array.isArray(notificationsResult) ? notificationsResult : [],
+          dueActivities: activities
+            .filter((a) => a.due_date && !a.already_submitted && a.status !== "past_due")
+            .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+            .slice(0, 5),
+        };
         area.innerHTML = StudentView.dashboard(
           user,
           stats,
           semSubjects,
           recentGrades,
           currentSem,
+          dashboardData,
         );
         this._attachSearch();
       } catch (err) {
@@ -277,6 +290,8 @@ const DashboardController = {
           },
           [],
           [],
+          [],
+          { schedule: [], attendance: [], notifications: [], dueActivities: [] },
         );
       } finally {
         Loader.done();
