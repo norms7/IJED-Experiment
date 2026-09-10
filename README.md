@@ -71,6 +71,16 @@ The underlying academic measures use the following formulas:
 - Attendance score = `((present + late * 0.5) / total meetings) * 100`
 - Module score = `(modules read / total published modules) * 100`
 
+The calculation process is:
+
+1. Only published activities that are due, or have no due date, are included.
+2. Graded submissions contribute their actual earned and maximum points.
+3. Past-due activities with no submission contribute `0 / max_score`; submissions waiting for grading are excluded until graded.
+4. Published modules and recorded attendance are filtered to the selected subject and term.
+5. The resulting component percentages are displayed in the descriptive cards and reused by the Bayesian calculations.
+
+For class comparisons, the browser does not read other students' raw rows. Supabase RPCs calculate the class aggregate inside PostgreSQL and return only the requesting student's result and permitted summary statistics.
+
 ### Bayesian analysis
 
 - **Predicted final grade:** combines academic performance, attendance, and module completion using the school weighting of 75%, 15%, and 10%. Missing components have their available weights redistributed rather than being treated as zero.
@@ -80,6 +90,56 @@ The underlying academic measures use the following formulas:
 - **Comparison with class performance:** estimates the probability that the student's underlying success rate is above the class rate using the posterior distribution and a normal CDF approximation.
 - **Students Like You:** computes an engagement index and peer percentile from attendance and module completion inside a protected PostgreSQL RPC. Peer identities and raw peer scores are never sent to the browser.
 - **Performance rating:** classifies the weighted score as Excellent, Very Good, Good, Fair, Needs Improvement, or At Risk and explains the indicators that affect it.
+
+#### Bayesian computation
+
+The Bayesian target model answers: "Given the available evidence, how likely is this student to reach the selected target percentage on a future activity?"
+
+1. A graded activity is marked a **success** when `score / max_score * 100 >= target_grade`; otherwise it is a failure.
+2. The class success rate at that same target supplies an empirical prior. If `peer_successes` and `peer_failures` are the class evidence, then:
+
+  ```text
+  class_rate = peer_successes / (peer_successes + peer_failures)
+  alpha0 = class_rate * 4
+  beta0  = (1 - class_rate) * 4
+  ```
+
+  When no class evidence exists, the prior defaults to a neutral 50/50 split. The value `4` is the prior strength, or four pseudo-observations.
+
+3. The student's own results update the prior. With `student_successes = s` and `student_failures = f`, the posterior is:
+
+  ```text
+  theta | data ~ Beta(alpha0 + s, beta0 + f)
+  ```
+
+4. The reported probability is the posterior mean, which is also the Beta-Binomial posterior-predictive probability of success on the next activity:
+
+  ```text
+  probability = (alpha0 + s) / (alpha0 + beta0 + s + f)
+  ```
+
+5. The posterior standard deviation is calculated from:
+
+  ```text
+  variance = (alpha * beta) / ((alpha + beta)^2 * (alpha + beta + 1))
+  sd = sqrt(variance)
+  ```
+
+  The UI reports an approximate 90% credible interval using `mean +/- 1.645 * sd`, clipped to the range 0% to 100%. As the student's evidence grows, the posterior normally becomes narrower.
+
+6. To compare the student with the class context, the implementation calculates a z-score from the posterior mean and the class rate, then applies the standard normal CDF. This produces `above_class_average_probability` without exposing individual classmates.
+
+The final-grade prediction is a separate weighted estimate using the shared component scores:
+
+```text
+predicted_grade = 0.75 * academic_score
+           + 0.15 * attendance_score
+           + 0.10 * module_score
+```
+
+Only components with available data are included, and their weights are normalized to the weights that remain. Its displayed estimate range is the transparent heuristic `predicted_grade +/- max(2, 15 / sqrt(n))`, where `n` is the number of applicable graded activities.
+
+The performance rating uses the same 75/15/10 component weighting and six rating bands: 90+ Excellent, 85-89 Very Good, 80-84 Good, 75-79 Fair, 70-74 Needs Improvement, and below 70 At Risk.
 
 Analytics functions are defined in `lms-frontend/assets/js/analytics.engine.js` and the supporting secure RPCs are in `supabase-migration/03_functions.sql`.
 
