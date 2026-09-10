@@ -181,8 +181,8 @@ const StudentView = {
         </div>
 
         <!-- Modules progress -->
-        <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:8px">
-          <div style="display:flex;align-items:center;gap:12px;width:100%">
+        <div class="stat-card student-dashboard-progress-stat" style="flex-direction:column;align-items:flex-start;gap:8px">
+          <div style="display:flex;align-items:flex-start;gap:12px;width:100%">
             <div class="stat-icon" style="background:#e6f4ea;color:#22c55e;flex-shrink:0">${LMS_ICONS.file}</div>
             <div style="flex:1">
               <div class="stat-value">${modulesVal}</div>
@@ -195,8 +195,8 @@ const StudentView = {
         </div>
 
         <!-- Activities progress -->
-        <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:8px">
-          <div style="display:flex;align-items:center;gap:12px;width:100%">
+        <div class="stat-card student-dashboard-progress-stat" style="flex-direction:column;align-items:flex-start;gap:8px">
+          <div style="display:flex;align-items:flex-start;gap:12px;width:100%">
             <div class="stat-icon" style="background:#fff0e6;color:#f59e0b;flex-shrink:0">${LMS_ICONS.clipboard}</div>
             <div style="flex:1">
               <div class="stat-value">${activitiesVal}</div>

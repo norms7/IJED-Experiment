@@ -136,7 +136,7 @@ const App = {
   },
 
   /** Populate profile dropdown with user info */
-  populateProfileDropdown(session) {
+  populateProfileDropdown(session = {}) {
     const name  = session.full_name || session.name || 'User';
     const role  = (session.role || '').charAt(0).toUpperCase() + (session.role || '').slice(1);
     const email = session.email || '—';
@@ -162,15 +162,18 @@ const App = {
 
   applyProfileImage(user = DashboardController.currentUser || Storage.get('ijla_session')) {
     const image = user?.avatar_url || (user?.id ? Storage.get(`ijed_profile_image_${user.id}`) : null);
-    if (!image) return;
-    const imageUrl = `url("${image}")`;
     ['settings-image-preview', 'profile-dd-avatar', 'sb-avatar', 'topbar-avatar'].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.style.backgroundImage = imageUrl;
-      el.style.backgroundSize = 'cover';
-      el.style.backgroundPosition = 'center';
+      el.querySelector('.profile-avatar-image')?.remove();
+      el.style.setProperty('background-image', 'none', 'important');
+      if (!image) return;
       el.textContent = '';
+      const imageEl = document.createElement('img');
+      imageEl.className = 'profile-avatar-image';
+      imageEl.src = image;
+      imageEl.alt = '';
+      el.appendChild(imageEl);
     });
   },
 

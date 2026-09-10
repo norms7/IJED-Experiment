@@ -81,6 +81,9 @@
 }
 .btn-icon:hover { background: var(--surface-hover); color: var(--maroon); }
 .btn-icon:focus-visible { outline: 2px solid var(--maroon-light); outline-offset: 2px; }
+.password-toggle-icon .password-eye-slash { display: none; }
+.is-visible .password-toggle-icon .password-eye { display: none; }
+.is-visible .password-toggle-icon .password-eye-slash { display: block; }
 /* NOTE: every .btn-icon in markup needs aria-label="<action>" — CSS can't add it.
    See the JS audit for a list of icon-only buttons still missing one. */
 
@@ -290,6 +293,15 @@ tbody tr:last-child td { border-bottom: none; }
   grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
   gap: clamp(10px, 2vw, 16px);
 }
+.student-dashboard-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.student-dashboard-stat-grid > .stat-card {
+  min-width: 0;
+  min-height: 88px;
+  padding: 14px 16px;
+}
+.student-dashboard-progress-stat { justify-content: space-between; }
 .stat-grid.teacher-dashboard-stat-grid { grid-template-columns: minmax(0, 1fr) !important; }
 
 /* ── Student dashboard ─────────────────────────────────────── */
@@ -377,6 +389,14 @@ tbody tr:last-child td { border-bottom: none; }
   .student-dashboard-focus-card, .student-dashboard-info-card { padding: 16px; }
 }
 
+@media (max-width: 900px) {
+  .student-dashboard-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 380px) {
+  .student-dashboard-stat-grid { grid-template-columns: 1fr; }
+}
+
 /* ── Teacher dashboard ────────────────────────────────────── */
 .teacher-dashboard-hero { position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px 24px; align-items:center; padding:28px 30px; margin-bottom:20px; color:#fff; background:linear-gradient(115deg,#173b4a 0%,#256579 56%,#b16a32 100%); border-radius:var(--radius-lg); overflow:hidden; box-shadow:0 10px 28px rgba(23,59,74,.18); }
 .teacher-dashboard-hero::after { content:''; position:absolute; width:240px; height:240px; right:8%; top:-150px; border:1px solid rgba(255,255,255,.14); border-radius:50%; box-shadow:0 0 0 34px rgba(255,255,255,.04),0 0 0 68px rgba(255,255,255,.025); }
@@ -394,6 +414,7 @@ tbody tr:last-child td { border-bottom: none; }
 .teacher-dashboard-stat strong { color:var(--text-primary); font-size:24px; line-height:1.1; }
 .teacher-dashboard-stat div span { color:var(--text-muted); font-size:11px; margin-top:4px; }
 .teacher-dashboard-stat-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:11px; flex-shrink:0; font-size:13px; font-weight:800; }
+.teacher-dashboard-stat .teacher-dashboard-stat-icon { display:grid; place-items:center; line-height:1; }
 .teacher-dashboard-stat-icon svg { width:21px; height:21px; }
 .teacher-dashboard-stat-icon--maroon { color:var(--maroon); background:var(--rose-tint); }
 .teacher-dashboard-stat-icon--blue { color:var(--blue); background:var(--blue-light); }
@@ -624,9 +645,36 @@ tbody tr:last-child td { border-bottom: none; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   margin-top: auto;
 }
-.module-card-meta { font-size: 12px; color: var(--gray-400); }
+.module-card-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--gray-400);
+}
+.module-card-footer > .flex {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.module-card-footer .btn {
+  flex: 0 0 auto;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+.module-card-footer .btn-danger {
+  width: 28px;
+  padding: 3px;
+}
+.module-card-footer .btn-danger .lms-inline-icon { margin-right: 0; }
 .module-card-meta .lms-inline-icon {
   font-size: 12px;
   margin-right: 2px;

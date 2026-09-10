@@ -59,6 +59,7 @@ const DashboardController = {
     document.getElementById("sb-username").textContent = displayName;
     document.getElementById("sb-role").textContent = user.role;
     document.getElementById("topbar-avatar").textContent = initials;
+    App.populateProfileDropdown(user);
     App.applyProfileImage(user);
     this.buildNav(user.role);
     this.loadSection("dashboard");
