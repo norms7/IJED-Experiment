@@ -165,10 +165,15 @@ const App = {
     ['settings-image-preview', 'profile-dd-avatar', 'sb-avatar', 'topbar-avatar'].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.style.backgroundImage = image ? `url("${image}")` : '';
-      el.style.backgroundSize = 'cover';
-      el.style.backgroundPosition = 'center';
-      if (image) el.textContent = '';
+      el.querySelector('.profile-avatar-image')?.remove();
+      el.style.setProperty('background-image', 'none', 'important');
+      if (!image) return;
+      el.textContent = '';
+      const imageEl = document.createElement('img');
+      imageEl.className = 'profile-avatar-image';
+      imageEl.src = image;
+      imageEl.alt = '';
+      el.appendChild(imageEl);
     });
   },
 
