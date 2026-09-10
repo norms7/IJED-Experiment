@@ -411,6 +411,7 @@ tbody tr:last-child td { border-bottom: none; }
 .teacher-dashboard-stat strong { color:var(--text-primary); font-size:24px; line-height:1.1; }
 .teacher-dashboard-stat div span { color:var(--text-muted); font-size:11px; margin-top:4px; }
 .teacher-dashboard-stat-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:11px; flex-shrink:0; font-size:13px; font-weight:800; }
+.teacher-dashboard-stat .teacher-dashboard-stat-icon { display:grid; place-items:center; line-height:1; }
 .teacher-dashboard-stat-icon svg { width:21px; height:21px; }
 .teacher-dashboard-stat-icon--maroon { color:var(--maroon); background:var(--rose-tint); }
 .teacher-dashboard-stat-icon--blue { color:var(--blue); background:var(--blue-light); }
