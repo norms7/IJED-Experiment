@@ -1155,15 +1155,19 @@
     // ── Notifications ─────────────────────────────────────────────────────────
 
     async getNotifications(limit = 20, offset = 0, unreadOnly = false) {
+      const user = this.getCurrentUser();
+      if (!user?.id) return [];
       let q = this.sb.from("notifications").select("*")
+        .eq("target_user_id", user.id)
         .order("created_at", { ascending: false }).range(offset, offset + limit - 1);
       if (unreadOnly) q = q.eq("is_read", false);
       return this._throwIfError(await q);
     }
 
     async markNotificationRead(notifId) {
+      const user = this.getCurrentUser();
       return this._throwIfError(
-        await this.sb.from("notifications").update({ is_read: true }).eq("id", notifId).select().single()
+        await this.sb.from("notifications").update({ is_read: true }).eq("id", notifId).eq("target_user_id", user.id).select().single()
       );
     }
 
@@ -1190,7 +1194,10 @@
         target_user_id: uid, actor_user_id: me.id, notification_type: "announcement",
         title, message,
       }));
-      if (rows.length) await this.sb.from("notifications").insert(rows);
+      if (rows.length) {
+        const { error } = await this.sb.from("notifications").insert(rows);
+        if (error) throw new Error(error.message);
+      }
       // FIX: return sent_to count for admin.controller.js
       return { message: `Announcement sent to ${rows.length} user(s).`, sent_to: rows.length };
     }

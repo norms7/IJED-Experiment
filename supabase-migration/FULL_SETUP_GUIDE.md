@@ -94,6 +94,8 @@ exact order**, from `supabase-migration/` in your unzipped folder:
    already have real data to migrate instead)
 5. `05_profile_settings.sql` — adds persisted address/social details,
    profile image URLs, and the `profile-images` Storage bucket policies.
+6. `06_notifications_realtime.sql` — enables notification Realtime events and
+   creates notifications for published activities and modules.
 
 If any of them errors, stop and paste me the exact error — don't run the
 next file until the current one succeeds, since later files depend on

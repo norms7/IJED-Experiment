@@ -13,6 +13,8 @@ const NotificationController = {
   _notifications: [],
   _initialized: false,
   _knownIds: new Set(), // dedup
+  _outsideClickBound: false,
+  _reconnectTimer: null,
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   init(force = false) {
@@ -52,6 +54,18 @@ const NotificationController = {
     const darkBtn = topbarRight.querySelector("#dark-mode-toggle");
     if (darkBtn) darkBtn.insertAdjacentHTML("beforebegin", bellHTML);
     else topbarRight.insertAdjacentHTML("afterbegin", bellHTML);
+    if (!this._outsideClickBound) {
+      document.addEventListener("click", (event) => {
+        const wrapper = document.getElementById("notif-wrapper");
+        if (wrapper && !wrapper.contains(event.target)) {
+          document.getElementById("notif-dropdown")?.classList.remove("open");
+        }
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") document.getElementById("notif-dropdown")?.classList.remove("open");
+      });
+      this._outsideClickBound = true;
+    }
   },
 
   // ── Supabase Realtime subscription ────────────────────────────────────────
@@ -78,11 +92,18 @@ const NotificationController = {
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           console.log("Notification Realtime connected");
-        } else if (status === "CHANNEL_ERROR") {
-          // Try to resubscribe after a delay
-          setTimeout(() => this._subscribeRealtime(), 3000);
+        } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+          this._scheduleReconnect();
         }
       });
+  },
+
+  _scheduleReconnect() {
+    if (this._reconnectTimer || !this._initialized) return;
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null;
+      this._subscribeRealtime();
+    }, 3000);
   },
 
   // ── Add notification with dedup ───────────────────────────────────────────
@@ -236,6 +257,10 @@ const NotificationController = {
     if (this._pollingInterval) {
       clearInterval(this._pollingInterval);
       this._pollingInterval = null;
+    }
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
     }
     this._notifications = [];
     this._unreadCount = 0;

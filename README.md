@@ -196,6 +196,7 @@ Experiment/
     ├── 03_functions.sql                   # RPCs, analytics functions, and auth trigger
     ├── 04_sample_seed_data.sql             # Optional sample LMS data
     ├── 05_profile_settings.sql             # Profile details and avatar storage policies
+    ├── 06_notifications_realtime.sql       # Notification triggers and Realtime publication
     ├── edge_functions/admin-create-user/   # Secure admin account creation
     ├── FULL_SETUP_GUIDE.md
     └── MIGRATION_GUIDE.md
@@ -219,6 +220,7 @@ Run these files in the Supabase SQL Editor, in order:
 3. `supabase-migration/03_functions.sql`
 4. `supabase-migration/04_sample_seed_data.sql` (optional)
 5. `supabase-migration/05_profile_settings.sql`
+6. `supabase-migration/06_notifications_realtime.sql`
 
 The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 
