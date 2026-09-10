@@ -50,6 +50,10 @@ const AuthController = {
     localStorage.removeItem('lms_token');
     localStorage.removeItem('lms_user');
     localStorage.removeItem('ijla_session');
+
+    DashboardController.currentUser = null;
+    App.populateProfileDropdown();
+    App.applyProfileImage(null);
     
     App.showPage('landing');
     Toast.show('You have been signed out.', 'info');
