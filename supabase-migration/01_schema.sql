@@ -142,6 +142,7 @@ create table if not exists activities (
     activity_type_custom  varchar(100),
     format_type           varchar(30) not null default 'multiple_choice',
     grading_mode          varchar(20) not null default 'auto',
+    term                  varchar(20),
     module_id             integer not null references modules(id),
     subject_id            integer references subjects(id),
     teacher_id            integer references teachers(id),
