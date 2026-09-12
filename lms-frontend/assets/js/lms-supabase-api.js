@@ -1307,39 +1307,39 @@
 
     // ── Analytics ─────────────────────────────────────────────────────────────
 
-    async getDescriptiveAnalytics(subjectId = null, term = null) {
+    async getDescriptiveAnalytics(subjectId = null, term = null, semester = null) {
       const studentId = await this._myStudentId();
       const [grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar] = await Promise.all([
-        AnalyticsEngine.getGradeProgress(this.sb, studentId, subjectId, term),
-        AnalyticsEngine.getAttendanceCalendar(this.sb, studentId, subjectId, null, null, term),
-        AnalyticsEngine.getScoreVsClassAverage(this.sb, studentId, subjectId, term),
-        AnalyticsEngine.getModuleReadingProgress(this.sb, studentId, subjectId, term),
-        AnalyticsEngine.getSubjectRadar(this.sb, studentId, term),
+        AnalyticsEngine.getGradeProgress(this.sb, studentId, subjectId, term, semester),
+        AnalyticsEngine.getAttendanceCalendar(this.sb, studentId, subjectId, null, null, term, semester),
+        AnalyticsEngine.getScoreVsClassAverage(this.sb, studentId, subjectId, term, semester),
+        AnalyticsEngine.getModuleReadingProgress(this.sb, studentId, subjectId, term, semester),
+        AnalyticsEngine.getSubjectRadar(this.sb, studentId, term, semester),
       ]);
       return { grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar };
     }
 
-    async getBayesianAnalytics(targetGrade = 90, subjectId = null, term = null) {
+    async getBayesianAnalytics(targetGrade = 90, subjectId = null, term = null, semester = null) {
       const studentId = await this._myStudentId();
       const [predicted_grade, improvement_probability, students_like_you, risk_assessment] = await Promise.all([
-        AnalyticsEngine.getPredictedFinalGrade(this.sb, studentId, subjectId, term),
-        AnalyticsEngine.getImprovementProbability(this.sb, studentId, targetGrade, subjectId, term),
-        AnalyticsEngine.getStudentsLikeYou(this.sb, studentId, subjectId, term),
-        AnalyticsEngine.getRiskAssessment(this.sb, studentId, subjectId, term),
+        AnalyticsEngine.getPredictedFinalGrade(this.sb, studentId, subjectId, term, semester),
+        AnalyticsEngine.getImprovementProbability(this.sb, studentId, targetGrade, subjectId, term, semester),
+        AnalyticsEngine.getStudentsLikeYou(this.sb, studentId, subjectId, term, semester),
+        AnalyticsEngine.getRiskAssessment(this.sb, studentId, subjectId, term, semester),
       ]);
       return { predicted_grade, improvement_probability, students_like_you, risk_assessment };
     }
 
-    async getPredictedGrade(subjectId = null, term = null) {
-      return AnalyticsEngine.getPredictedFinalGrade(this.sb, await this._myStudentId(), subjectId, term);
+    async getPredictedGrade(subjectId = null, term = null, semester = null) {
+      return AnalyticsEngine.getPredictedFinalGrade(this.sb, await this._myStudentId(), subjectId, term, semester);
     }
 
-    async getImprovementProbability(targetGrade = 90, subjectId = null, term = null) {
-      return AnalyticsEngine.getImprovementProbability(this.sb, await this._myStudentId(), targetGrade, subjectId, term);
+    async getImprovementProbability(targetGrade = 90, subjectId = null, term = null, semester = null) {
+      return AnalyticsEngine.getImprovementProbability(this.sb, await this._myStudentId(), targetGrade, subjectId, term, semester);
     }
 
-    async getRiskAssessment(subjectId = null, term = null) {
-      return AnalyticsEngine.getRiskAssessment(this.sb, await this._myStudentId(), subjectId, term);
+    async getRiskAssessment(subjectId = null, term = null, semester = null) {
+      return AnalyticsEngine.getRiskAssessment(this.sb, await this._myStudentId(), subjectId, term, semester);
     }
   }
 
