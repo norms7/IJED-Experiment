@@ -21,10 +21,20 @@ const BAYESIAN_TTL_SECONDS = 600;    // 10 minutes — same as Python
 const AnalyticsEngine = (() => {
 
   // ── cache wrapper (mirrors cache_or_compute) ──────────────────────────────
-  async function cacheOrCompute(sb, cacheKey, ttlSeconds, computeFn) {
+  // CRITICAL: every cache key passed in by callers below was previously
+  // built only from filter values (subject/term/semester) with no student_id
+  // component at all — e.g. "descriptive.grade_progress.subject_all.term_all"
+  // was IDENTICAL for every student viewing "All Subjects/All Terms". That
+  // meant whichever student's request populated the cache first would have
+  // their own grades/attendance/predictions served to every other student
+  // who happened to pick the same filters, until the TTL expired. Scoping
+  // every key by studentId here — once, centrally — closes that for every
+  // caller without needing to edit each individual cache key string.
+  async function cacheOrCompute(sb, studentId, cacheKey, ttlSeconds, computeFn) {
+    const scopedKey = `student_${studentId}.${cacheKey}`;
     try {
       const { data: cached } = await sb.rpc("analytics_cache_get", {
-        p_cache_key: cacheKey, p_ttl_seconds: ttlSeconds,
+        p_cache_key: scopedKey, p_ttl_seconds: ttlSeconds,
       });
       if (cached !== null && cached !== undefined) return cached;
     } catch (_) { /* cache miss/unreachable — fall through to fresh compute */ }
@@ -32,7 +42,7 @@ const AnalyticsEngine = (() => {
     const fresh = await computeFn();
 
     try {
-      await sb.rpc("analytics_cache_set", { p_cache_key: cacheKey, p_payload: fresh });
+      await sb.rpc("analytics_cache_set", { p_cache_key: scopedKey, p_payload: fresh });
     } catch (_) { /* best-effort — never block the response on a cache write */ }
 
     return fresh;
@@ -98,7 +108,7 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   async function getGradeProgress(sb, studentId, subjectId = null, term = null, semester = null) {
     const cacheKey = `descriptive.grade_progress.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
-    return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { data: [], enrolled_subject_ids: [] };
 
@@ -136,7 +146,7 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null, term = null, semester = null) {
     const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}.term_${term || "all"}.semester_${semester || "all"}`;
-    return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       // A specific subject was chosen — single call, untouched, no merge needed.
       if (subjectId) {
         const { data, error } = await sb.rpc('get_student_attendance_calendar', {
@@ -198,7 +208,7 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   async function getScoreVsClassAverage(sb, studentId, subjectId = null, term = null, semester = null) {
     const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
-    return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { data: [] };
       const { data, error } = await sb.rpc("get_score_vs_class_average", {
@@ -216,7 +226,7 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   async function getModuleReadingProgress(sb, studentId, subjectId = null, term = null, semester = null) {
     const cacheKey = `descriptive.module_progress.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
-    return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { subjects: [], totals: { read: 0, total: 0, pct: 0 } };
       const filterIds = subjectId ? [subjectId] : subjectIds;
@@ -271,7 +281,7 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   async function getSubjectRadar(sb, studentId, term = null, semester = '1st') {
     const cacheKey = `descriptive.subject_radar.term_${term || "all"}.semester_${semester || "all"}`;
-    return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { axes: [] };
 
@@ -331,7 +341,7 @@ const AnalyticsEngine = (() => {
 
   async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null, semester = null) {
     const cacheKey = `predicted_grade.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
-    return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) return emptyPrediction();
 
@@ -396,7 +406,7 @@ const AnalyticsEngine = (() => {
 
   async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null, term = null, semester = null) {
     const cacheKey = `improvement_prob.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}.target_${Math.trunc(targetGrade)}`;
-    return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term, semester);
       const predicted = prediction.predicted_grade;
       if (predicted === null) {
@@ -491,7 +501,7 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   async function getStudentsLikeYou(sb, studentId, subjectId = null, term = null, semester = null) {
     const cacheKey = `bayesian.students_like_you.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
-    return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { percentile: null, message: "Not enough data yet." };
 
@@ -659,7 +669,7 @@ const AnalyticsEngine = (() => {
 
   async function getRiskAssessment(sb, studentId, subjectId = null, term = null, semester = null) {
     const cacheKey = `performance.rating.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
-    return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+    return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) {
         return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
