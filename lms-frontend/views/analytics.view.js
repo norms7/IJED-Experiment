@@ -31,7 +31,7 @@ const AnalyticsView = {
 
   // ── Shell: the two-sub-tab wrapper ───────────────────────────────────────
 
-  shell(subjectOptions = []) {
+  shell(subjectOptions = [], currentSemester = '1st') {
     const opts = subjectOptions.map(s =>
       `<option value="${s.subject_id}">${escHtml(s.subject_name)}</option>`
     ).join('');
@@ -43,6 +43,10 @@ const AnalyticsView = {
           <p class="analytics-sub">Understand your academic journey with data-driven insights.</p>
         </div>
         <div class="analytics-filters">
+          <select id="analytics-semester-filter" class="analytics-select" onchange="AnalyticsController.onSemesterChange(this.value)">
+            <option value="1st" ${currentSemester === '1st' ? 'selected' : ''}>1st Semester</option>
+            <option value="2nd" ${currentSemester === '2nd' ? 'selected' : ''}>2nd Semester</option>
+          </select>
           <select id="analytics-term-filter" class="analytics-select" onchange="AnalyticsController.onTermChange(this.value)">
             <option value="">All Terms</option>
             <option value="1st">1st Term</option>
