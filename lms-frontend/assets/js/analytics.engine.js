@@ -269,23 +269,20 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 5. DESCRIPTIVE — Subject Radar
   // ══════════════════════════════════════════════════════════════════════
-  async function getSubjectRadar(sb, studentId, term = null, semester = 1) {
+  async function getSubjectRadar(sb, studentId, term = null, semester = '1st') {
     const cacheKey = `descriptive.subject_radar.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
+      const subjectIds = await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { axes: [] };
 
       const { data: subjects } = await sb
-        .from("subjects").select("id, name, semester").in("id", subjectIds);
-      const subjectRows = (subjects || []).filter(subject => {
-        if (!semester) return true;
-        const value = String(subject.semester || "").trim().toLowerCase();
-        const expected = String(semester).trim().toLowerCase();
-        return value === expected
-          || value === `${expected} semester`
-          || (expected === "1" && value === "1st")
-          || (expected === "2" && value === "2nd");
-      });
+        .from("subjects").select("id, name").in("id", subjectIds);
+      // resolveSubjectIds already scoped subjectIds to this semester, so no
+      // further semester filtering is needed here (the previous inline
+      // comparison duplicated that logic incompletely — it didn't recognize
+      // a bare "1"/"2" the way the shared normalizeSemester() does, which
+      // silently filtered out every subject when that's how the DB stores it).
+      const subjectRows = subjects || [];
       const visibleSubjectIds = subjectRows.map(subject => subject.id);
       if (!visibleSubjectIds.length) return { axes: [] };
 
