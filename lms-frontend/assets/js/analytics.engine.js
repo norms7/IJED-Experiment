@@ -99,6 +99,10 @@ const AnalyticsEngine = (() => {
         if (!act || !enrolledSet.has(act.subject_id)) continue;
         if (subjectId && act.subject_id !== subjectId) continue;
         if (term && act.term !== term) continue;
+        // Defensive: a graded row should always have a submitted_at, but if
+        // one ever doesn't (bad data, manual grade with no timestamp), skip
+        // it rather than crash the whole chart on a null .slice() call.
+        if (!sub.submitted_at) continue;
         const pct = sub.max_score > 0 ? Math.round((sub.score / sub.max_score) * 1000) / 10 : null;
         data.push({
           date: sub.submitted_at.slice(0, 10),
