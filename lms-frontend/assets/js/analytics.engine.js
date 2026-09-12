@@ -39,13 +39,29 @@ const AnalyticsEngine = (() => {
   }
 
   // ── _resolve_subject_ids ───────────────────────────────────────────────────
-  async function resolveSubjectIds(sb, studentId) {
+  // Optional `semester` param scopes the result to only that semester's
+  // subjects. Centralized here so every descriptive/Bayesian function below
+  // gets consistent semester filtering instead of each reimplementing it
+  // (previously only getSubjectRadar did this — every other function pulled
+  // every enrolled subject across BOTH semesters regardless of the UI's
+  // semester selection).
+  function normalizeSemester(v) {
+    const s = String(v || "").trim().toLowerCase();
+    if (["1", "1st", "first", "1st semester"].includes(s)) return "1st";
+    if (["2", "2nd", "second", "2nd semester"].includes(s)) return "2nd";
+    return s || null;
+  }
+
+  async function resolveSubjectIds(sb, studentId, semester = null) {
     const { data, error } = await sb
       .from("student_subject_enrollments")
-      .select("subject_id")
+      .select("subject_id, subjects(semester)")
       .eq("student_id", studentId);
     if (error) throw new Error(error.message);
-    return (data || []).map(r => r.subject_id);
+    const expected = semester ? normalizeSemester(semester) : null;
+    return (data || [])
+      .filter(r => !expected || normalizeSemester(r.subjects?.semester) === expected)
+      .map(r => r.subject_id);
   }
 
   // ── Bayesian helpers ─────────────────────────────────────────────────────
@@ -80,10 +96,10 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 1. DESCRIPTIVE — Grade Progress
   // ══════════════════════════════════════════════════════════════════════
-  async function getGradeProgress(sb, studentId, subjectId = null, term = null) {
-    const cacheKey = `descriptive.grade_progress.subject_${subjectId || "all"}.term_${term || "all"}`;
+  async function getGradeProgress(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `descriptive.grade_progress.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
+      const subjectIds = await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { data: [], enrolled_subject_ids: [] };
 
       const { data: subs, error } = await sb
@@ -118,18 +134,54 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 2. DESCRIPTIVE — Attendance Calendar
   // ══════════════════════════════════════════════════════════════════════
-  async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null, term = null) {
-    const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}.term_${term || "all"}`;
+  async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null, term = null, semester = null) {
+    const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
-      const { data, error } = await sb.rpc('get_student_attendance_calendar', {
-        p_student_id: studentId,
-        p_subject_id: subjectId,
-        p_year: year,
-        p_month: month,
-        p_term: term
-      });
-      if (error) throw new Error(error.message);
-      return data;
+      // A specific subject was chosen — single call, untouched, no merge needed.
+      if (subjectId) {
+        const { data, error } = await sb.rpc('get_student_attendance_calendar', {
+          p_student_id: studentId, p_subject_id: subjectId, p_year: year, p_month: month, p_term: term
+        });
+        if (error) throw new Error(error.message);
+        return data;
+      }
+
+      // "All Subjects": the RPC only accepts one p_subject_id at a time (no
+      // list param, unlike get_score_vs_class_average etc.), so semester
+      // scoping has to happen client-side — call it once per subject in the
+      // current semester and merge the results, rather than the previous
+      // behavior of passing subjectId=null and pulling every subject the
+      // student has ever been enrolled in, across both semesters.
+      const subjectIds = await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { calendar: {}, summary: { present: 0, absent: 0, late: 0, excused: 0 } };
+
+      const results = await Promise.all(subjectIds.map(sid =>
+        sb.rpc('get_student_attendance_calendar', {
+          p_student_id: studentId, p_subject_id: sid, p_year: year, p_month: month, p_term: term
+        }).then(r => { if (r.error) throw new Error(r.error.message); return r.data; })
+      ));
+
+      // Merge day-by-day statuses: if the student had different subjects
+      // with different statuses on the same date, show whichever is most
+      // worth flagging (an absence anywhere that day outranks a present).
+      const STATUS_PRIORITY = ['absent', 'late', 'excused', 'present', 'no_class'];
+      const calendar = {};
+      const summary = { present: 0, absent: 0, late: 0, excused: 0 };
+      for (const result of results) {
+        for (const [date, status] of Object.entries(result?.calendar || {})) {
+          const existing = calendar[date];
+          if (!existing || STATUS_PRIORITY.indexOf(status) < STATUS_PRIORITY.indexOf(existing)) {
+            calendar[date] = status;
+          }
+        }
+      }
+      // Recompute summary counts from the merged (deduplicated-by-date)
+      // calendar rather than summing each subject's summary, which would
+      // double-count a student's attendance rate across their subjects.
+      for (const status of Object.values(calendar)) {
+        if (status in summary) summary[status] += 1;
+      }
+      return { calendar, summary };
     });
   }
 
@@ -144,12 +196,14 @@ const AnalyticsEngine = (() => {
   //    (class_size was always 1). Same bug class, same fix pattern, as
   //    "Students Like You" (§8).
   // ══════════════════════════════════════════════════════════════════════
-  async function getScoreVsClassAverage(sb, studentId, subjectId = null, term = null) {
-    const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}.term_${term || "all"}`;
+  async function getScoreVsClassAverage(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+      const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { data: [] };
       const { data, error } = await sb.rpc("get_score_vs_class_average", {
         p_student_id: studentId,
-        p_subject_ids: subjectId ? [subjectId] : null,
+        p_subject_ids: subjectIds,
         p_term: term,
       });
       if (error) throw new Error(error.message);
@@ -160,10 +214,10 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   // 4. DESCRIPTIVE — Module Reading Progress
   // ══════════════════════════════════════════════════════════════════════
-  async function getModuleReadingProgress(sb, studentId, subjectId = null, term = null) {
-    const cacheKey = `descriptive.module_progress.v2.subject_${subjectId || "all"}.term_${term || "all"}`;
+  async function getModuleReadingProgress(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `descriptive.module_progress.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
-      const subjectIds = await resolveSubjectIds(sb, studentId);
+      const subjectIds = await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { subjects: [], totals: { read: 0, total: 0, pct: 0 } };
       const filterIds = subjectId ? [subjectId] : subjectIds;
 
@@ -278,10 +332,10 @@ const AnalyticsEngine = (() => {
     return { predicted_grade: null, range_low: null, range_high: null, confidence: "n/a", n_observations: 0, current_avg: null, supporting_factors: [] };
   }
 
-  async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null) {
-    const cacheKey = `predicted_grade.subject_${subjectId || "all"}.term_${term || "all"}`;
+  async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `predicted_grade.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const perf = await computePerformanceComponents(sb, studentId, subjectId, term);
+      const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) return emptyPrediction();
 
       const { academicPct, attendancePct, modulePct, countedActivities, factors } = perf;
@@ -343,18 +397,23 @@ const AnalyticsEngine = (() => {
   // ══════════════════════════════════════════════════════════════════════
   const PRIOR_STRENGTH = 4; // effective sample size of the class-wide prior
 
-  async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null, term = null) {
-    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.term_${term || "all"}.target_${Math.trunc(targetGrade)}`;
+  async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null, term = null, semester = null) {
+    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}.target_${Math.trunc(targetGrade)}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term);
+      const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term, semester);
       const predicted = prediction.predicted_grade;
       if (predicted === null) {
         return { probability: null, target_grade: targetGrade, predicted_grade: null, n_observations: 0, recommendation: null };
       }
 
+      const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) {
+        return { probability: null, target_grade: targetGrade, predicted_grade: predicted, n_observations: 0, recommendation: null };
+      }
+
       const { data: evidence, error } = await sb.rpc("get_beta_binomial_evidence", {
         p_student_id: studentId,
-        p_subject_ids: subjectId ? [subjectId] : null,
+        p_subject_ids: subjectIds,
         p_target_pct: targetGrade,
         p_term: term,
       });
@@ -433,12 +492,15 @@ const AnalyticsEngine = (() => {
   //    client, preserving the spec's "Never expose student identities"
   //    requirement.
   // ══════════════════════════════════════════════════════════════════════
-  async function getStudentsLikeYou(sb, studentId, subjectId = null, term = null) {
-    const cacheKey = `bayesian.students_like_you.subject_${subjectId || "all"}.term_${term || "all"}`;
+  async function getStudentsLikeYou(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `bayesian.students_like_you.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+      const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { percentile: null, message: "Not enough data yet." };
+
       const { data, error } = await sb.rpc("get_engagement_percentile", {
         p_student_id: studentId,
-        p_subject_ids: subjectId ? [subjectId] : null,
+        p_subject_ids: subjectIds,
         p_term: term,
       });
       if (error) throw new Error(error.message);
@@ -482,8 +544,8 @@ const AnalyticsEngine = (() => {
   // weights differ, exactly as the spec defines two separate formulas that
   // share the same three inputs.
   // ══════════════════════════════════════════════════════════════════════
-  async function computePerformanceComponents(sb, studentId, subjectId = null, term = null) {
-    const allSubjectIds = await resolveSubjectIds(sb, studentId);
+  async function computePerformanceComponents(sb, studentId, subjectId = null, term = null, semester = null) {
+    const allSubjectIds = await resolveSubjectIds(sb, studentId, semester);
     if (!allSubjectIds.length) return null;
     const subjectIds = subjectId ? allSubjectIds.filter(id => id === subjectId) : allSubjectIds;
     if (!subjectIds.length) return null;
@@ -598,10 +660,10 @@ const AnalyticsEngine = (() => {
     return { rating: "At Risk", color: "at_risk", emoji: "🔴" };
   }
 
-  async function getRiskAssessment(sb, studentId, subjectId = null, term = null) {
-    const cacheKey = `performance.rating.subject_${subjectId || "all"}.term_${term || "all"}`;
+  async function getRiskAssessment(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `performance.rating.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
-      const perf = await computePerformanceComponents(sb, studentId, subjectId, term);
+      const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) {
         return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
       }
