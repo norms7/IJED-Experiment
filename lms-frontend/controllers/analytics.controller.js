@@ -23,6 +23,7 @@ const AnalyticsController = {
   // ── State ─────────────────────────────────────────────────────────────────
 
   _currentTab:     'descriptive',   // 'descriptive' | 'bayesian'
+  _currentSemester: null,           // '1st' | '2nd' — resolved on first load, defaults to 1st
   _currentSubject: null,            // null = All subjects
   _currentTerm:    null,            // null = All terms; else '1st'/'2nd'/'3rd'/'4th'
   _targetGrade:    90,              // For improvement probability
@@ -60,14 +61,25 @@ const AnalyticsController = {
     this._bayesData = null;
 
     try {
-      // Fetch subjects for the filter dropdown
-      this._subjects = await api.getStudentSubjects();
+      // Resolve the default semester once per session — reuses the same
+      // "prefer 1st" logic as My Subjects, so behavior stays consistent
+      // across the app. Preserved across re-entries into this section so
+      // a user's manual selection isn't reset every time they navigate away
+      // and back, but always starts at 1st Semester on first load.
+      if (this._currentSemester === null) {
+        this._currentSemester = await api.getStudentCurrentSemester();
+      }
+
+      // Fetch subjects for the filter dropdown — scoped to the current
+      // semester only, so 1st and 2nd semester subjects are never mixed
+      // together in the same dropdown/analytics run.
+      this._subjects = await api.getStudentSubjects(this._currentSemester);
     } catch (_) {
       this._subjects = [];
     }
 
     // Render shell (tabs + filter)
-    area.innerHTML = AnalyticsView.shell(this._subjects);
+    area.innerHTML = AnalyticsView.shell(this._subjects, this._currentSemester);
 
     // Load the default tab
     await this._loadDescriptive();
@@ -92,7 +104,7 @@ const AnalyticsController = {
   async _prefetchBayesian() {
     if (this._bayesData) return; // already have it somehow
     try {
-      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm);
+      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester);
     } catch (_) {
       this._bayesData = null; // let the normal click-triggered load retry
     }
@@ -116,6 +128,40 @@ const AnalyticsController = {
 
     if (tab === 'descriptive') await this._loadDescriptive();
     if (tab === 'bayesian')    await this._loadBayesian();
+  },
+
+  // ── Public: semester filter ───────────────────────────────────────────────
+
+  async onSemesterChange(val) {
+    this._currentSemester = val || '1st';
+    // Previous subject selection may not belong to the new semester at all
+    // — reset to "All Subjects" for that semester rather than carrying over
+    // a stale subject_id that no longer matches anything in the dropdown.
+    this._currentSubject = null;
+
+    try {
+      this._subjects = await api.getStudentSubjects(this._currentSemester);
+    } catch (_) {
+      this._subjects = [];
+    }
+
+    // Refresh just the subject dropdown's options in place — a full shell
+    // re-render would also reset the term filter and active tab, which
+    // switching semesters shouldn't do.
+    const subjectSelect = document.getElementById('analytics-subject-filter');
+    if (subjectSelect) {
+      const opts = this._subjects.map(s =>
+        `<option value="${s.subject_id}">${escHtml(s.subject_name)}</option>`
+      ).join('');
+      subjectSelect.innerHTML = `<option value="">All Subjects</option>${opts}`;
+    }
+
+    this._descData  = null;
+    this._bayesData = null;
+    this._destroyAllCharts();
+
+    if (this._currentTab === 'descriptive') await this._loadDescriptive();
+    else                                     await this._loadBayesian();
   },
 
   // ── Public: subject filter ────────────────────────────────────────────────
@@ -175,7 +221,7 @@ const AnalyticsController = {
     panel.innerHTML = AnalyticsView.descriptiveSkeleton();
 
     try {
-      this._descData = await api.getDescriptiveAnalytics(this._currentSubject, this._currentTerm);
+      this._descData = await api.getDescriptiveAnalytics(this._currentSubject, this._currentTerm, this._currentSemester);
       if (!panel.isConnected) return;  // user navigated away
       panel.innerHTML = AnalyticsView.descriptivePanel(this._descData);
       await this._renderDescriptiveCharts(this._descData);
@@ -199,7 +245,7 @@ const AnalyticsController = {
     panel.innerHTML = AnalyticsView.bayesianSkeleton();
 
     try {
-      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm);
+      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester);
       if (!panel.isConnected) return;
       panel.innerHTML = AnalyticsView.bayesianPanel(this._bayesData);
     } catch (err) {
