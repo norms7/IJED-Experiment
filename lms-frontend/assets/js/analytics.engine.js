@@ -15,8 +15,8 @@
  *   <script defer src="assets/js/lms-supabase-api.js"></script>
  */
 
-const DESCRIPTIVE_TTL_SECONDS = 300; // 5 minutes — same as Python
-const BAYESIAN_TTL_SECONDS = 600;    // 10 minutes — same as Python
+const DESCRIPTIVE_TTL_SECONDS = 30;  // was 300 (5 min) — shortened while actively testing/demoing so changes show up fast; bump back up once this is running for real classes at scale
+const BAYESIAN_TTL_SECONDS = 60;     // was 600 (10 min) — same reasoning; Bayesian calcs are heavier so it keeps a slightly longer window
 
 const AnalyticsEngine = (() => {
 
