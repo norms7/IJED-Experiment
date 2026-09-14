@@ -911,18 +911,29 @@
         // actual section assignment -- same reliable join
         // getStudentWeeklySchedule() already uses, so class_name here is a
         // real value instead of always falling back to a placeholder.
+        //
+        // FIX: teacher_class_assignments has no section_id column at all
+        // (only teacher_id/class_id/subject_id) and no direct relationship
+        // to `sections`, so the previous .in('section_id', ...) filter and
+        // sections(name) embed both silently failed every time, leaving
+        // every subject's class/schedule/teacher info blank. The real path
+        // is: student_section_assignments.section_id -> sections.class_id
+        // -> teacher_class_assignments.class_id.
         const { data: secRows } = await this.sb
-          .from('student_section_assignments').select('section_id').eq('student_id', studentId);
-        const sectionIds = (secRows || []).map(r => r.section_id);
+          .from('student_section_assignments').select('sections(id, name, class_id)').eq('student_id', studentId);
+        const mySections = (secRows || []).map(r => r.sections).filter(Boolean);
+        const classIds = [...new Set(mySections.map(s => s.class_id))];
+        const sectionNameByClassId = {};
+        for (const s of mySections) sectionNameByClassId[s.class_id] = s.name;
         const infoBySubject = {};
-        if (sectionIds.length) {
+        if (classIds.length) {
           const { data: tcaRows } = await this.sb
             .from('teacher_class_assignments')
-            .select('subject_id, schedule, sections(name), classes(name), teachers(users(first_name,last_name))')
-            .in('section_id', sectionIds);
+            .select('subject_id, schedule, class_id, classes(name), teachers(users(first_name,last_name))')
+            .in('class_id', classIds);
           (tcaRows || []).forEach(row => {
             infoBySubject[row.subject_id] = {
-              class_name:   row.sections?.name || row.classes?.name || '',
+              class_name:   sectionNameByClassId[row.class_id] || row.classes?.name || '',
               schedule:     row.schedule || '',
               teacher_name: row.teachers?.users ? `${row.teachers.users.first_name} ${row.teachers.users.last_name}` : '',
             };
@@ -953,10 +964,21 @@
     async getStudentWeeklySchedule() {
       return this._cached('student:weeklyschedule', 60_000, async () => {
         const studentId = await this._myStudentId();
+        // FIX: teacher_class_assignments has no section_id column and no
+        // direct relationship to `sections` — the previous query filtered
+        // and embedded on a relationship that doesn't exist, which silently
+        // returned nothing every time (the caller wraps this in .catch(()
+        // => []), so the failure was invisible — "No schedule for today"
+        // showed even when real schedule data existed). Correct path:
+        // student_section_assignments.section_id -> sections.class_id ->
+        // teacher_class_assignments.class_id.
         const { data: secRows } = await this.sb
-          .from('student_section_assignments').select('section_id').eq('student_id', studentId);
-        const sectionIds = (secRows || []).map(r => r.section_id);
-        if (!sectionIds.length) return [];
+          .from('student_section_assignments').select('sections(id, name, class_id)').eq('student_id', studentId);
+        const mySections = (secRows || []).map(r => r.sections).filter(Boolean);
+        const classIds = [...new Set(mySections.map(s => s.class_id))];
+        if (!classIds.length) return [];
+        const sectionNameByClassId = {};
+        for (const s of mySections) sectionNameByClassId[s.class_id] = s.name;
 
         const { data: enrollRows } = await this.sb
           .from('student_subject_enrollments').select('subject_id').eq('student_id', studentId);
@@ -965,15 +987,15 @@
 
         const data = this._throwIfError(
           await this.sb.from('teacher_class_assignments')
-            .select('*, subjects(id,name), classes(id,name,grade_level), sections(id,name), teachers(id, users(first_name,last_name))')
-            .in('section_id', sectionIds)
+            .select('*, subjects(id,name), classes(id,name,grade_level), teachers(id, users(first_name,last_name))')
+            .in('class_id', classIds)
             .in('subject_id', subjectIds)
         );
         return data.map(row => ({
           subject_id:   row.subject_id,
           subject_name: row.subjects?.name || '',
-          section_id:   row.section_id,
-          section_name: row.sections?.name || row.classes?.name || '',
+          section_id:   null,
+          section_name: sectionNameByClassId[row.class_id] || row.classes?.name || '',
           grade_level:  row.classes?.grade_level || '',
           schedule:     row.schedule,
           teacher_name: row.teachers?.users ? `${row.teachers.users.first_name} ${row.teachers.users.last_name}` : '',
