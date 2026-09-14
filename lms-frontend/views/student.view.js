@@ -53,11 +53,14 @@ const StudentView = {
     const dueHTML = dueActivities.length
       ? dueActivities.map(activity => {
           const due = new Date(activity.due_date);
-          const overdueSoon = due.getTime() - now.getTime() < 48 * 60 * 60 * 1000;
+          const msLeft = due.getTime() - now.getTime();
+          const isOverdue = msLeft < 0;
+          const overdueSoon = !isOverdue && msLeft < 48 * 60 * 60 * 1000;
+          const metaLabel = isOverdue ? 'Overdue' : overdueSoon ? 'Due soon' : 'Due date';
           return `<div class="student-dashboard-list-row">
             <div class="student-dashboard-row-icon student-dashboard-row-icon--gold">${LMS_ICONS.clipboard}</div>
             <div class="student-dashboard-row-main"><strong>${escHtml(activity.title || 'Untitled activity')}</strong><span>${escHtml(activity.activity_type || 'Activity')} · ${escHtml(activity.term || 'Current term')}</span></div>
-            <div class="student-dashboard-row-meta ${overdueSoon ? 'is-urgent' : ''}">${formatDue(activity.due_date)}<small>${overdueSoon ? 'Due soon' : 'Due date'}</small></div>
+            <div class="student-dashboard-row-meta ${(isOverdue || overdueSoon) ? 'is-urgent' : ''}">${formatDue(activity.due_date)}<small>${metaLabel}</small></div>
           </div>`;
         }).join('')
       : `<div class="student-dashboard-empty"><span>${LMS_ICONS.clipboard}</span><div><strong>No dues</strong><p>You have no upcoming activity due dates.</p></div></div>`;
