@@ -300,7 +300,13 @@ const DashboardController = {
           attendance: Array.isArray(attendanceResult) ? attendanceResult : [],
           notifications: Array.isArray(notificationsResult) ? notificationsResult : [],
           dueActivities: activities
-            .filter((a) => a.due_date && !a.already_submitted && a.status !== "past_due")
+            // FIX: previously excluded status === "past_due", meaning any
+            // activity a student never submitted before its due date simply
+            // vanished from the reminder list instead of continuing to flag
+            // it. Now shows both "open" (due soon) and "past_due" (overdue,
+            // still not done) — only "not_open" (not available yet) and
+            // already-submitted/graded activities are excluded.
+            .filter((a) => a.due_date && !a.already_submitted && a.status !== "not_open")
             .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
             .slice(0, 5),
         };
