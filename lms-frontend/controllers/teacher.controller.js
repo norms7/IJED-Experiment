@@ -928,10 +928,13 @@ const TeacherController = {
   },
 
   async submitManualGrade(activityId, submissionId) {
-    const score   = parseInt(document.getElementById('mg-score')?.value);
+    const scoreInput = document.getElementById('mg-score');
+    const score   = parseInt(scoreInput?.value);
+    const maxScore = scoreInput?.max !== '' ? Number(scoreInput?.max) : null;
     const grade   = document.getElementById('mg-grade')?.value   || null;
     const remarks = document.getElementById('mg-remarks')?.value.trim() || null;
     if (isNaN(score) || score < 0) { Toast.show('Please enter a valid score.', 'error'); return; }
+    if (maxScore !== null && score > maxScore) { Toast.show(`Score can't exceed ${maxScore}.`, 'error'); return; }
     const btn = document.querySelector('#modal-container .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
