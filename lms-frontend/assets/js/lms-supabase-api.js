@@ -640,6 +640,7 @@
           subject_id: row.subject_id,
           subject_name: row.subjects?.name || "",
           subject_description: row.subjects?.description || "",
+          subject_semester: row.subjects?.semester ?? null,
           class_id: row.class_id,
           class_name: row.classes?.name || "",
           grade_level: row.classes?.grade_level || "",
