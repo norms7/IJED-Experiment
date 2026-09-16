@@ -662,6 +662,52 @@ tbody tr:last-child td { border-bottom: none; }
   gap: 4px;
   flex: 0 0 auto;
 }
+
+/* ── Module Grouping (Subject > Semester > Term) ─────────────── */
+.module-subject-group { margin-bottom: 32px; }
+.module-subject-group:last-child { margin-bottom: 0; }
+.module-subject-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--border);
+}
+.module-subject-heading .module-subject-icon { width: 18px; height: 18px; }
+.module-semester-group { margin-bottom: 18px; }
+.module-semester-group:last-child { margin-bottom: 0; }
+.module-semester-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--gray-400);
+  margin: 0 0 10px 4px;
+}
+.module-term-group { margin-bottom: 16px; }
+.module-term-group:last-child { margin-bottom: 0; }
+.module-term-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--maroon);
+  background: var(--maroon-light, #fbeef0);
+  border-radius: 999px;
+  padding: 4px 12px;
+  margin: 0 0 10px 4px;
+}
+.module-term-count {
+  background: var(--maroon);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 1px 7px;
+}
 .module-card-footer .btn {
   flex: 0 0 auto;
   height: 24px;
