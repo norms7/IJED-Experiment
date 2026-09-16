@@ -109,18 +109,18 @@ const TeacherView = {
     }
 
     const SUBJECT_STYLES = TEACHER_SUBJECT_STYLES;
-    const cards = apiModules.map(m => {
-      const style   = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: LMS_ICONS.book };
+    const TERM_ORDER = { '1st': 1, '2nd': 2, '3rd': 3, '4th': 4 };
+    const termLabel = (t) => t ? `${t} Term` : 'No Term Set';
+    const semesterLabel = (s) => s === 1 || s === '1' ? '1st Semester' : s === 2 || s === '2' ? '2nd Semester' : 'No Semester Set';
+
+    const card = (m) => {
       const hasFile = !!m.file_url;
-      const resolvedUrl = m.file_url;
       const fileBtn = hasFile
-        ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener">${lmsIcon('fileOpen')} Open PDF</a>`
+        ? `<a class="btn btn-xs btn-primary" href="${escHtml(m.file_url)}" target="_blank" rel="noopener">${lmsIcon('fileOpen')} Open PDF</a>`
         : `<span class="btn btn-xs btn-outline" style="opacity:.5;cursor:default">No file</span>`;
-      const termLabel = m.term ? `${m.term} Term` : '';
-      const meta = [termLabel, m.file_name ? `${lmsIcon('attachment')} ${escHtml(m.file_name)}` : ''].filter(Boolean).join(' · ');
+      const meta = m.file_name ? `${lmsIcon('attachment')} ${escHtml(m.file_name)}` : '';
       return `<div class="module-card" data-searchable>
         <div class="module-card-header">
-          <div class="module-card-subject" style="color:${style.color}"><span class="module-subject-icon">${style.icon}</span>${escHtml(m._subject_name || 'Unknown')}</div>
           <div class="module-card-title">${escHtml(m.title)}</div>
           <div class="module-card-desc">${escHtml(m.description || '')}</div>
         </div>
@@ -129,15 +129,55 @@ const TeacherView = {
           <div class="flex gap-1">${fileBtn}<button class="btn btn-xs btn-danger" onclick="TeacherController.deleteModule(${m.id})">${lmsIcon('trash')}</button></div>
         </div>
       </div>`;
+    };
+
+    // ── Group: subject_name -> semester -> term -> [modules] ──
+    const bySubject = {};
+    apiModules.forEach(m => {
+      const subj = m._subject_name || 'Unknown';
+      bySubject[subj] = bySubject[subj] || {};
+      const sem = semesterLabel(m._semester);
+      bySubject[subj][sem] = bySubject[subj][sem] || {};
+      const term = m.term || null;
+      bySubject[subj][sem][term] = bySubject[subj][sem][term] || [];
+      bySubject[subj][sem][term].push(m);
+    });
+
+    const subjectNames = Object.keys(bySubject).sort();
+    const groupsHTML = subjectNames.map(subj => {
+      const style = SUBJECT_STYLES[subj] || { color: 'var(--maroon)', icon: LMS_ICONS.book };
+      const semesterKeys = Object.keys(bySubject[subj]).sort(); // "1st Semester" < "2nd Semester" < "No Semester Set" alphabetically works here
+      const semestersHTML = semesterKeys.map(sem => {
+        const termKeys = Object.keys(bySubject[subj][sem]).sort((a, b) => {
+          const av = a === 'null' ? 99 : (TERM_ORDER[a] || 98);
+          const bv = b === 'null' ? 99 : (TERM_ORDER[b] || 98);
+          return av - bv;
+        });
+        const termsHTML = termKeys.map(term => {
+          const mods = bySubject[subj][sem][term];
+          return `<div class="module-term-group" data-searchable-group>
+            <div class="module-term-badge">${termLabel(term === 'null' ? null : term)} <span class="module-term-count">${mods.length}</span></div>
+            <div class="module-grid">${mods.map(card).join('')}</div>
+          </div>`;
+        }).join('');
+        return `<div class="module-semester-group" data-searchable-group>
+          <div class="module-semester-label">${sem}</div>
+          ${termsHTML}
+        </div>`;
+      }).join('');
+      return `<div class="module-subject-group" data-searchable-group>
+        <h3 class="module-subject-heading" style="color:${style.color}"><span class="module-subject-icon">${style.icon}</span>${escHtml(subj)}</h3>
+        ${semestersHTML}
+      </div>`;
     }).join('');
 
-    const grid = cards || `<div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.file}</div><div class="empty-state-title">No modules yet</div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">Add Module</button></div>`;
+    const grid = groupsHTML || `<div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.file}</div><div class="empty-state-title">No modules yet</div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">Add Module</button></div>`;
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Modules</h2><p id="module-count">${apiModules.length} module(s) uploaded</p></div>
         <div class="section-header-right teacher-resource-header-actions"><div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">${lmsIcon('plus')} Add Module</button></div>
       </div>
-      <div class="module-grid" id="teacher-module-grid">${grid}</div>`;
+      <div id="teacher-module-grid">${grid}</div>`;
   },
 
   activities(user, apiActivities = null) {
