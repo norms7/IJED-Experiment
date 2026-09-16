@@ -388,10 +388,12 @@ const DashboardController = {
         ]);
         const subjectMap = {};
         subjects.forEach((s) => {
-          subjectMap[s.subject_id] = s.subject_name;
+          subjectMap[s.subject_id] = { name: s.subject_name, semester: s.subject_semester };
         });
         modules.forEach((m) => {
-          m._subject_name = subjectMap[m.subject_id] || "Unknown";
+          const info = subjectMap[m.subject_id];
+          m._subject_name = info?.name || "Unknown";
+          m._semester = info?.semester ?? null;
         });
         area.innerHTML = TeacherView.modules(user, modules);
         this._attachSearch();
@@ -634,6 +636,14 @@ const DashboardController = {
           row.style.display = row.textContent.toLowerCase().includes(q)
             ? ""
             : "none";
+        });
+        // Hide any group wrapper (e.g. Subject/Semester/Term headers on the
+        // Modules page) once none of its own [data-searchable] items are
+        // still visible, so filtering doesn't leave empty headers behind.
+        document.querySelectorAll("[data-searchable-group]").forEach((group) => {
+          const hasVisibleItem = Array.from(group.querySelectorAll("[data-searchable]"))
+            .some((item) => item.style.display !== "none");
+          group.style.display = hasVisibleItem ? "" : "none";
         });
       });
     }
