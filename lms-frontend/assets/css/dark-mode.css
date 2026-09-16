@@ -412,6 +412,16 @@ body.dark-mode .module-subject-icon svg {
   color: #ffb5c4 !important;
   stroke: currentColor !important;
 }
+body.dark-mode .module-subject-heading,
+body.dark-mode .module-subject-heading svg {
+  color: #ffb5c4 !important;
+  stroke: currentColor !important;
+  border-bottom-color: var(--border);
+}
+body.dark-mode .module-term-badge {
+  color: #ffb5c4;
+  background: rgba(255, 181, 196, 0.12);
+}
 body.dark-mode .activity-card .badge-maroon {
   background: #512230 !important;
   color: #ffd0d8 !important;
