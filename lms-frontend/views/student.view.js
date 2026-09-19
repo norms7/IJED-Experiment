@@ -6,6 +6,41 @@
 
 "use strict";
 
+// Self-contained copy of calendar.controller.js's _parseScheduleDays().
+// Previously this view called the version defined in calendar.controller.js
+// via `typeof _parseScheduleDays === 'function' ? ... : []` — a silent,
+// no-error fallback to an empty schedule if that other file's function
+// wasn't available under the name/scope expected for any reason. Having
+// this file own its own copy removes that cross-file dependency entirely,
+// so "Schedule for today" can never silently go empty because of it.
+function _studentViewParseScheduleDays(scheduleStr) {
+  if (!scheduleStr) return [];
+  const m = String(scheduleStr).match(/^[A-Za-z]+/);
+  if (!m) return [];
+  const s = m[0];
+  const tokenMap = [
+    ['Sun', 0], ['Sat', 6], ['Tue', 2], ['Thu', 4], ['Mon', 1], ['Wed', 3], ['Fri', 5],
+    ['Su', 0], ['Sa', 6], ['Th', 4], ['Tu', 2],
+    ['M', 1], ['W', 3], ['F', 5],
+    ['T', 2],
+  ];
+  const days = [];
+  let i = 0;
+  while (i < s.length) {
+    let matched = false;
+    for (const [tok, dow] of tokenMap) {
+      if (s.slice(i, i + tok.length).toLowerCase() === tok.toLowerCase()) {
+        if (!days.includes(dow)) days.push(dow);
+        i += tok.length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) i++;
+  }
+  return days;
+}
+
 const StudentView = {
 
   /**
@@ -46,7 +81,7 @@ const StudentView = {
     const todayLabel = now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
     const todayDow = now.getDay();
     const todaySchedule = schedule.filter(item => {
-      const days = typeof _parseScheduleDays === 'function' ? _parseScheduleDays(item.schedule) : [];
+      const days = _studentViewParseScheduleDays(item.schedule);
       return days.includes(todayDow);
     });
     const formatDue = value => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
