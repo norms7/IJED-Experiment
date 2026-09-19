@@ -6,6 +6,37 @@
 
 "use strict";
 
+// Self-contained copy of calendar.controller.js's _parseScheduleDays() —
+// see student.view.js for why this file owns its own copy instead of
+// depending on that other file's function being available.
+function _teacherViewParseScheduleDays(scheduleStr) {
+  if (!scheduleStr) return [];
+  const m = String(scheduleStr).match(/^[A-Za-z]+/);
+  if (!m) return [];
+  const s = m[0];
+  const tokenMap = [
+    ['Sun', 0], ['Sat', 6], ['Tue', 2], ['Thu', 4], ['Mon', 1], ['Wed', 3], ['Fri', 5],
+    ['Su', 0], ['Sa', 6], ['Th', 4], ['Tu', 2],
+    ['M', 1], ['W', 3], ['F', 5],
+    ['T', 2],
+  ];
+  const days = [];
+  let i = 0;
+  while (i < s.length) {
+    let matched = false;
+    for (const [tok, dow] of tokenMap) {
+      if (s.slice(i, i + tok.length).toLowerCase() === tok.toLowerCase()) {
+        if (!days.includes(dow)) days.push(dow);
+        i += tok.length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) i++;
+  }
+  return days;
+}
+
 const TEACHER_SUBJECT_STYLES = {
   'Mathematics': { color: '#8b0020', icon: LMS_ICONS.calculator },
   'Science':     { color: '#2e6b3e', icon: LMS_ICONS.beaker },
@@ -28,7 +59,7 @@ const TeacherView = {
     const now = new Date();
     const todayLabel = now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
     const todaySubjects = subjects.filter(subject => {
-      const days = typeof _parseScheduleDays === 'function' ? _parseScheduleDays(subject.schedule) : [];
+      const days = _teacherViewParseScheduleDays(subject.schedule);
       return days.includes(now.getDay());
     });
     const publishedModules = modules.filter(module => module.is_published).length;
