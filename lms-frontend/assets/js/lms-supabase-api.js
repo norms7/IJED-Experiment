@@ -1300,9 +1300,23 @@
     }
 
     async createAttendanceSession(payload) {
+      // FIX: this previously called create_attendance_session() with
+      // p_section_id — but that RPC's real parameter is p_class_id (there is
+      // no section_id column anywhere in attendance_sessions), so every
+      // "Take Attendance" save for a new session failed outright with a
+      // PostgREST "function not found" error (exact parameter-name matching
+      // means a wrong param name never silently succeeds). Resolve the
+      // section the teacher picked into its class_id here so the rest of
+      // the app can keep working in terms of "section" as it already does.
+      let classId = payload.class_id || null;
+      if (!classId && payload.section_id) {
+        const { data: sec } = await this.sb.from("sections").select("class_id").eq("id", payload.section_id).single();
+        classId = sec?.class_id || null;
+      }
+      if (!classId) throw new Error("Could not resolve a class for this section.");
       return this._throwIfError(
         await this.sb.rpc("create_attendance_session", {
-          p_section_id: payload.section_id, p_subject_id: payload.subject_id, p_term: payload.term,
+          p_class_id: classId, p_subject_id: payload.subject_id, p_term: payload.term,
           p_session_date: payload.session_date, p_has_class: payload.has_class,
           p_notes: payload.notes || null, p_records: payload.records || [],
         })
