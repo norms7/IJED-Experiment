@@ -1,566 +1,730 @@
-/* ============================================================
-   views/analytics.view.js
-   Pure render functions for the Performance Analytics tab.
-   Follows the same pattern as student.view.js — returns HTML
-   strings only; no direct DOM manipulation.
+/**
+ * analytics.engine.js — Phase 2 port of analytics_service.py
+ *
+ * Faithful 1:1 port of the Python analytics service into client-side JS.
+ * No scipy was ever used server-side (only the `math` module), so every
+ * formula here is the exact same math, just in JS. RLS already restricts
+ * each student to their own rows, so it's safe to compute this in the
+ * browser instead of a backend service.
+ *
+ * Caching mirrors the original cache_or_compute() pattern, backed by the
+ * `analytics_cache_get` / `analytics_cache_set` RPCs (analytics_cache table).
+ *
+ * Load this BEFORE lms-supabase-api.js:
+ *   <script defer src="assets/js/analytics.engine.js"></script>
+ *   <script defer src="assets/js/lms-supabase-api.js"></script>
+ */
 
-   Charts are rendered via Chart.js (CDN), loaded lazily inside
-   AnalyticsController._postRender().
-   ============================================================ */
+const DESCRIPTIVE_TTL_SECONDS = 30;  // was 300 (5 min) — shortened while actively testing/demoing so changes show up fast; bump back up once this is running for real classes at scale
+const BAYESIAN_TTL_SECONDS = 60;     // was 600 (10 min) — same reasoning; Bayesian calcs are heavier so it keeps a slightly longer window
 
-"use strict";
+const AnalyticsEngine = (() => {
 
-const ANALYTICS_ICONS = {
-  chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 15V9M12 15V5M17 15v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-  trend: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 9 12l3 3 7-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h4v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  crystal: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a8 8 0 0 1 16 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6.5 18.5h11M12 16l3.8-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 13.5 7.5 14M17.5 14l1-0.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
-  inbox: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4V5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 15h4l1.5 2h5L16 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
-  warning: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 9 16H3L12 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v5M12 17h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
-  calendar: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
-  file: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l5 5v11A2.5 2.5 0 0 1 16.5 22h-9A2.5 2.5 0 0 1 5 19.5v-13A2.5 2.5 0 0 1 7.5 4H7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 3.5V9h5M8.5 13h6M8.5 16.5h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
-  radar: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7.5 5.5-2.8 9-9.4 0-2.8-9L12 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m12 3v14.5M4.5 8.5l7.5 3 7.5-3M7.3 17.5 12 11.5l4.7 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
-  target: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>',
-  users: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16 11a3 3 0 0 0 0-6M17 14.5h1a4 4 0 0 1 4 4V20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  rating: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5V4ZM8 8h8M8 12h8M8 16h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-};
+  // ── cache wrapper (mirrors cache_or_compute) ──────────────────────────────
+  // CRITICAL: every cache key passed in by callers below was previously
+  // built only from filter values (subject/term/semester) with no student_id
+  // component at all — e.g. "descriptive.grade_progress.subject_all.term_all"
+  // was IDENTICAL for every student viewing "All Subjects/All Terms". That
+  // meant whichever student's request populated the cache first would have
+  // their own grades/attendance/predictions served to every other student
+  // who happened to pick the same filters, until the TTL expired. Scoping
+  // every key by studentId here — once, centrally — closes that for every
+  // caller without needing to edit each individual cache key string.
+  async function cacheOrCompute(sb, studentId, cacheKey, ttlSeconds, computeFn) {
+    const scopedKey = `student_${studentId}.${cacheKey}`;
+    try {
+      const { data: cached } = await sb.rpc("analytics_cache_get", {
+        p_cache_key: scopedKey, p_ttl_seconds: ttlSeconds,
+      });
+      if (cached !== null && cached !== undefined) return cached;
+    } catch (_) { /* cache miss/unreachable — fall through to fresh compute */ }
 
-const analyticsIcon = (name, className = 'analytics-icon') => `<span class="${className}">${ANALYTICS_ICONS[name]}</span>`;
+    const fresh = await computeFn();
 
-const AnalyticsView = {
+    try {
+      await sb.rpc("analytics_cache_set", { p_cache_key: scopedKey, p_payload: fresh });
+    } catch (_) { /* best-effort — never block the response on a cache write */ }
 
-  // ── Shell: the two-sub-tab wrapper ───────────────────────────────────────
+    return fresh;
+  }
 
-  shell(subjectOptions = [], currentSemester = '1st') {
-    const opts = subjectOptions.map(s =>
-      `<option value="${s.subject_id}">${escHtml(s.subject_name)}</option>`
-    ).join('');
+  // ── _resolve_subject_ids ───────────────────────────────────────────────────
+  // Optional `semester` param scopes the result to only that semester's
+  // subjects. Centralized here so every descriptive/Bayesian function below
+  // gets consistent semester filtering instead of each reimplementing it
+  // (previously only getSubjectRadar did this — every other function pulled
+  // every enrolled subject across BOTH semesters regardless of the UI's
+  // semester selection).
+  function normalizeSemester(v) {
+    const s = String(v || "").trim().toLowerCase();
+    if (["1", "1st", "first", "1st semester"].includes(s)) return "1st";
+    if (["2", "2nd", "second", "2nd semester"].includes(s)) return "2nd";
+    return s || null;
+  }
 
-    return `
-      <div class="analytics-header">
-        <div>
-          <h2 class="analytics-title">${analyticsIcon('chart')}Performance Analytics</h2>
-          <p class="analytics-sub">Understand your academic journey with data-driven insights.</p>
-        </div>
-        <div class="analytics-filters">
-          <select id="analytics-semester-filter" class="analytics-select" onchange="AnalyticsController.onSemesterChange(this.value)">
-            <option value="1st" ${currentSemester === '1st' ? 'selected' : ''}>1st Semester</option>
-            <option value="2nd" ${currentSemester === '2nd' ? 'selected' : ''}>2nd Semester</option>
-          </select>
-          <select id="analytics-term-filter" class="analytics-select" onchange="AnalyticsController.onTermChange(this.value)">
-            <option value="">All Terms</option>
-            <option value="1st">1st Term</option>
-            <option value="2nd">2nd Term</option>
-            <option value="3rd">3rd Term</option>
-            <option value="4th">4th Term</option>
-          </select>
-          <select id="analytics-subject-filter" class="analytics-select" onchange="AnalyticsController.onSubjectChange(this.value)">
-            <option value="">All Subjects</option>
-            ${opts}
-          </select>
-        </div>
-      </div>
+  async function resolveSubjectIds(sb, studentId, semester = null) {
+    const { data, error } = await sb
+      .from("student_subject_enrollments")
+      .select("subject_id, subjects(semester)")
+      .eq("student_id", studentId);
+    if (error) throw new Error(error.message);
+    const expected = semester ? normalizeSemester(semester) : null;
+    return (data || [])
+      .filter(r => !expected || normalizeSemester(r.subjects?.semester) === expected)
+      .map(r => r.subject_id);
+  }
 
-      <!-- Sub-tab navigation -->
-      <div class="analytics-tabs">
-        <button class="analytics-tab active" data-tab="descriptive"
-          onclick="AnalyticsController.switchTab('descriptive', this)">
-          ${analyticsIcon('trend', 'analytics-tab-icon')}Descriptive Analysis
-        </button>
-        <button class="analytics-tab" data-tab="bayesian"
-          onclick="AnalyticsController.switchTab('bayesian', this)">
-          ${analyticsIcon('crystal', 'analytics-tab-icon')}Bayesian Analysis
-        </button>
-      </div>
+  // ── Bayesian helpers ─────────────────────────────────────────────────────
 
-      <!-- Tab panels -->
-      <div id="analytics-panel-descriptive" class="analytics-panel">
-        ${AnalyticsView.descriptiveSkeleton()}
-      </div>
-      <div id="analytics-panel-bayesian" class="analytics-panel hidden">
-        ${AnalyticsView.bayesianSkeleton()}
-      </div>`;
-  },
+  /** Abramowitz & Stegun approximation of the standard normal CDF. Defined
+   *  for parity with the Python version — not currently used by any of the
+   *  9 functions below (it wasn't used server-side either). */
+  function normalCdf(x) {
+    const t = 1 / (1 + 0.2316419 * Math.abs(x));
+    const poly = t * (0.319381530
+      + t * (-0.356563782
+        + t * (1.781477937
+          + t * (-1.821255978
+            + t * 1.330274429))));
+    const p = 1 - (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x) * poly;
+    return x >= 0 ? p : 1 - p;
+  }
 
-  // ── Skeletons ─────────────────────────────────────────────────────────────
+  function percentileRank(value, population) {
+    if (!population.length) return 50;
+    const below = population.filter(v => v < value).length;
+    return Math.round((below / population.length) * 100);
+  }
 
-  descriptiveSkeleton() {
-    return `
-      <div class="analytics-grid">
-        ${[1,2,3,4,5].map(() => `
-          <div class="analytics-card">
-            <div class="skeleton-title"></div>
-            <div class="skeleton-chart"></div>
-          </div>`).join('')}
-      </div>`;
-  },
+  /** Mean and standard deviation of a Beta(alpha, beta) distribution. */
+  function betaStats(alpha, beta) {
+    const mean = alpha / (alpha + beta);
+    const variance = (alpha * beta) / (Math.pow(alpha + beta, 2) * (alpha + beta + 1));
+    return { mean, sd: Math.sqrt(variance) };
+  }
 
-  bayesianSkeleton() {
-    return `
-      <div class="analytics-grid">
-        ${[1,2,3,4].map(() => `
-          <div class="analytics-card">
-            <div class="skeleton-title"></div>
-            <div class="skeleton-chart"></div>
-          </div>`).join('')}
-      </div>`;
-  },
+  // ══════════════════════════════════════════════════════════════════════
+  // 1. DESCRIPTIVE — Grade Progress
+  // ══════════════════════════════════════════════════════════════════════
+  async function getGradeProgress(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `descriptive.grade_progress.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+      const subjectIds = await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { data: [], enrolled_subject_ids: [] };
 
-  // ── Empty state ───────────────────────────────────────────────────────────
+      const { data: subs, error } = await sb
+        .from("activity_submissions")
+        .select("score, max_score, submitted_at, activities(id, title, activity_type, subject_id, term)")
+        .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
+      if (error) throw new Error(error.message);
 
-  empty(message = 'No data available yet. Complete some activities to see your analytics.') {
-    return `
-      <div class="analytics-empty">
-        <div class="analytics-empty-icon">${ANALYTICS_ICONS.inbox}</div>
-        <div class="analytics-empty-title">Nothing to show yet</div>
-        <div class="analytics-empty-sub">${escHtml(message)}</div>
-      </div>`;
-  },
+      const enrolledSet = new Set(subjectIds);
+      const data = [];
+      for (const sub of (subs || [])) {
+        const act = sub.activities;
+        if (!act || !enrolledSet.has(act.subject_id)) continue;
+        if (subjectId && act.subject_id !== subjectId) continue;
+        if (term && act.term !== term) continue;
+        // Defensive: a graded row should always have a submitted_at, but if
+        // one ever doesn't (bad data, manual grade with no timestamp), skip
+        // it rather than crash the whole chart on a null .slice() call.
+        if (!sub.submitted_at) continue;
+        const pct = sub.max_score > 0 ? Math.round((sub.score / sub.max_score) * 1000) / 10 : null;
+        data.push({
+          date: sub.submitted_at.slice(0, 10),
+          activity_id: act.id, activity_name: act.title, activity_type: act.activity_type,
+          subject_id: act.subject_id, score: sub.score, max_score: sub.max_score, pct,
+        });
+      }
+      data.sort((a, b) => a.date.localeCompare(b.date));
+      return { data, enrolled_subject_ids: subjectIds };
+    });
+  }
 
-  // ── Error state ───────────────────────────────────────────────────────────
-
-  error(msg = 'Could not load analytics. Please try again.') {
-    return `
-      <div class="analytics-empty">
-        <div class="analytics-empty-icon">${ANALYTICS_ICONS.warning}</div>
-        <div class="analytics-empty-title">Something went wrong</div>
-        <div class="analytics-empty-sub">${escHtml(msg)}</div>
-        <button class="btn btn-sm btn-outline" style="margin-top:12px"
-          onclick="AnalyticsController.reload()">Try Again</button>
-      </div>`;
-  },
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // DESCRIPTIVE PANEL
-  // ════════════════════════════════════════════════════════════════════════════
-
-  descriptivePanel(data, subjectMap = {}) {
-    const { grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar } = data;
-
-    return `
-      <div class="analytics-grid">
-
-        <!-- 1. Grade Progress — Line Chart -->
-        <div class="analytics-card analytics-card-wide">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('trend')}My Grade Progress</div>
-            <div class="analytics-card-sub">Score trends over time</div>
-          </div>
-          ${grade_progress.data.length
-            ? `<div class="chart-wrapper"><canvas id="chart-grade-progress"></canvas></div>`
-            : AnalyticsView.empty('Submit and get graded on activities to see your progress.')
-          }
-        </div>
-
-        <!-- 2. Attendance Calendar — Heatmap -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('calendar')}My Attendance Calendar</div>
-            <div class="analytics-card-sub">Daily attendance patterns</div>
-          </div>
-          <div class="att-legend">
-            <span class="att-dot att-present"></span>Present
-            <span class="att-dot att-absent"></span>Absent
-            <span class="att-dot att-excused"></span>Excused
-            <span class="att-dot att-no-class"></span>No Class
-          </div>
-          ${AnalyticsView._attendanceCalendar(attendance_calendar)}
-          ${AnalyticsView._attendanceSummary(attendance_calendar.summary)}
-        </div>
-
-        <!-- 3. Score vs Class Average — Bar Chart -->
-        <div class="analytics-card analytics-card-wide">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('chart')}Activity Score vs Class Average</div>
-            <div class="analytics-card-sub">How you compare to your peers</div>
-          </div>
-          ${score_vs_avg.data.length
-            ? `<div class="chart-wrapper"><canvas id="chart-score-vs-avg"></canvas></div>`
-            : AnalyticsView.empty('Class average data will appear once activities are graded.')
-          }
-        </div>
-
-        <!-- 4. Module Reading Progress — Progress Bars -->
-        <div class="analytics-card analytics-module-progress-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('file')}Module Reading Progress</div>
-            <div class="analytics-card-sub">Learning engagement with course materials</div>
-          </div>
-          ${AnalyticsView._moduleProgress(module_progress)}
-        </div>
-
-        <!-- 5. Subject Performance — Colored Comparison Chart -->
-        <div class="analytics-card analytics-card-wide analytics-subject-performance-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('chart')}Subject Performance Overview</div>
-            <div class="analytics-card-sub">Average performance by subject</div>
-          </div>
-          ${subject_radar.axes.length >= 3
-            ? `<div class="subject-radar-legend">${subject_radar.axes.map((axis, index) => `<span class="subject-radar-legend-item"><i style="background:${['#8B1E3F', '#1B998B', '#2D6CDF', '#F28E2B', '#7B2CBF', '#0081A7', '#C99700', '#D1495B', '#3A5A40', '#6A4C93', '#E76F51', '#264653'][index % 12]}"></i>${escHtml(axis.subject_name)}</span>`).join('')}</div><div class="chart-wrapper chart-wrapper-subject-performance"><canvas id="chart-subject-radar"></canvas></div>`
-            : AnalyticsView.empty('Enroll in at least 3 subjects to see the subject comparison.')
-          }
-        </div>
-
-      </div>`;
-  },
-
-  _attendanceCalendar(att) {
-    if (!att || !att.calendar || Object.keys(att.calendar).length === 0) {
-      return AnalyticsView.empty('No attendance sessions recorded yet.');
-    }
-
-    // Group by month
-    const byMonth = {};
-    for (const [dateStr, status] of Object.entries(att.calendar)) {
-      const d = new Date(dateStr + 'T00:00:00');
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!byMonth[key]) byMonth[key] = {};
-      byMonth[key][d.getDate()] = status;
-    }
-
-    const months = Object.keys(byMonth).sort();
-    // Show last 3 months
-    const visible = months.slice(-3);
-
-    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-
-    const statusClass = {
-      present:  'att-present',
-      absent:   'att-absent',
-      excused:  'att-excused',
-      late:     'att-late',
-      no_class: 'att-no-class',
-    };
-
-    return `<div class="att-months-wrapper">` + visible.map(mk => {
-      const [yr, mo] = mk.split('-').map(Number);
-      const firstDay = new Date(yr, mo - 1, 1).getDay();
-      const daysInMonth = new Date(yr, mo, 0).getDate();
-      const dayMap = byMonth[mk] || {};
-
-      let cells = DAY_LABELS.map(d => `<div class="att-day-label">${d}</div>`).join('');
-      // Empty cells before first day
-      for (let i = 0; i < firstDay; i++) cells += `<div class="att-cell att-empty"></div>`;
-      for (let d = 1; d <= daysInMonth; d++) {
-        const st = dayMap[d] || '';
-        const cls = statusClass[st] || 'att-future';
-        const title = st ? `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}: ${st.replace('_',' ')}` : '';
-        cells += `<div class="att-cell ${cls}" title="${title}">${d}</div>`;
+  // ══════════════════════════════════════════════════════════════════════
+  // 2. DESCRIPTIVE — Attendance Calendar
+  // ══════════════════════════════════════════════════════════════════════
+  async function getAttendanceCalendar(sb, studentId, subjectId = null, year = null, month = null, term = null, semester = null) {
+    const cacheKey = `descriptive.attendance.subject_${subjectId || "all"}.y${year || "x"}.m${month || "x"}.term_${term || "all"}.semester_${semester || "all"}`;
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+      // A specific subject was chosen — single call, untouched, no merge needed.
+      if (subjectId) {
+        const { data, error } = await sb.rpc('get_student_attendance_calendar', {
+          p_student_id: studentId, p_subject_id: subjectId, p_year: year, p_month: month, p_term: term
+        });
+        if (error) throw new Error(error.message);
+        return data;
       }
 
-      return `
-        <div class="att-month">
-          <div class="att-month-label">${MONTH_NAMES[mo-1]} ${yr}</div>
-          <div class="att-grid">${cells}</div>
-        </div>`;
-    }).join('') + `</div>`;
-  },
+      // "All Subjects": the RPC only accepts one p_subject_id at a time (no
+      // list param, unlike get_score_vs_class_average etc.), so semester
+      // scoping has to happen client-side — call it once per subject in the
+      // current semester and merge the results, rather than the previous
+      // behavior of passing subjectId=null and pulling every subject the
+      // student has ever been enrolled in, across both semesters.
+      const subjectIds = await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { calendar: {}, summary: { present: 0, absent: 0, late: 0, excused: 0 } };
 
-  _attendanceSummary(summary) {
-    if (!summary) return '';
-    const total = (summary.present || 0) + (summary.absent || 0) + (summary.late || 0) + (summary.excused || 0);
-    const rate = total > 0 ? Math.round(((summary.present || 0) / total) * 100) : 0;
-    const rateColor = rate >= 80 ? 'var(--green)' : rate >= 60 ? '#f59e0b' : 'var(--red)';
-    return `
-      <div class="att-summary">
-        <div class="att-summary-rate" style="color:${rateColor}">${rate}%</div>
-        <div class="att-summary-label">Attendance Rate</div>
-        <div class="att-summary-pills">
-          <span class="att-pill att-present">${summary.present || 0} Present</span>
-          <span class="att-pill att-absent">${summary.absent || 0} Absent</span>
-          <span class="att-pill att-excused">${summary.excused || 0} Excused</span>
-        </div>
-      </div>`;
-  },
+      const results = await Promise.all(subjectIds.map(sid =>
+        sb.rpc('get_student_attendance_calendar', {
+          p_student_id: studentId, p_subject_id: sid, p_year: year, p_month: month, p_term: term
+        }).then(r => { if (r.error) throw new Error(r.error.message); return r.data; })
+      ));
 
-  _moduleProgress(data) {
-    if (!data || !data.subjects || data.subjects.length === 0) {
-      return AnalyticsView.empty('No published modules found for your subjects.');
-    }
-
-    const subjects = data.subjects;
-    const totals = data.totals;
-    const overallColor = totals.pct >= 80 ? 'var(--green)' : totals.pct >= 50 ? '#f59e0b' : 'var(--red)';
-
-    return `
-      <div class="mod-overall">
-        <div class="mod-overall-bar-wrap">
-          <div class="mod-overall-bar" style="width:${totals.pct}%;background:${overallColor}"></div>
-        </div>
-        <span class="mod-overall-label">${totals.pct}% overall (${totals.read}/${totals.total} modules)</span>
-      </div>
-      <div class="mod-list">
-        ${subjects.map(s => {
-          const c = s.completion_pct >= 80 ? 'var(--green)' : s.completion_pct >= 50 ? '#f59e0b' : 'var(--red)';
-          return `
-            <div class="mod-subject-row">
-              <div class="mod-subject-name" title="${escHtml(s.subject_name || `Subject ${s.subject_id}`)}">
-                ${escHtml(s.subject_name || `Subject ${s.subject_id}`)}
-              </div>
-              <div class="mod-bar-wrap">
-                <div class="mod-bar" style="width:${s.completion_pct}%;background:${c}"></div>
-              </div>
-              <span class="mod-pct" style="color:${c}">${s.completion_pct}%</span>
-              <span class="mod-count">${s.modules_read}/${s.modules_total}</span>
-            </div>`;
-        }).join('')}
-      </div>
-      ${totals.total - totals.read > 0
-        ? `<p class="mod-remaining">${totals.total - totals.read} module(s) remaining</p>`
-        : `<p class="mod-remaining" style="color:var(--green)">${ANALYTICS_ICONS.check} All modules read!</p>`
-      }`;
-  },
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // BAYESIAN PANEL
-  // ════════════════════════════════════════════════════════════════════════════
-
-  bayesianPanel(data) {
-    const { predicted_grade, improvement_probability, students_like_you, risk_assessment } = data;
-
-    return `
-      <div class="analytics-grid">
-
-        <!-- 1. Predicted Final Grade — Gauge -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('target')}Predicted Final Grade</div>
-            <div class="analytics-card-sub">Academic 75% · Attendance 15% · Module Progress 10%</div>
-          </div>
-          ${AnalyticsView._predictedGrade(predicted_grade)}
-        </div>
-
-        <!-- 2. Grade Improvement Probability -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('trend')}Grade Improvement Probability</div>
-            <div class="analytics-card-sub">Chance your next graded activity hits this score</div>
-          </div>
-          ${AnalyticsView._improvementProb(improvement_probability)}
-        </div>
-
-        <!-- 3. Students Like You -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('users')}Students Like You</div>
-            <div class="analytics-card-sub">Anonymous comparison with similar engagement profiles</div>
-          </div>
-          ${AnalyticsView._studentsLikeYou(students_like_you)}
-        </div>
-
-        <!-- 4. Overall Performance Rating -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('rating')}Overall Performance Rating</div>
-            <div class="analytics-card-sub">Academic 75% · Attendance 15% · Module Progress 10%</div>
-          </div>
-          ${AnalyticsView._riskAssessment(risk_assessment)}
-        </div>
-
-      </div>`;
-  },
-
-  _predictedGrade(data) {
-    if (!data || data.predicted_grade === null) {
-      return AnalyticsView.empty('Submit more graded activities to generate a prediction.');
-    }
-
-    const grade = data.predicted_grade;
-    const color = grade >= 90 ? 'var(--green)'
-      : grade >= 85 ? 'var(--green-mid)'
-      : grade >= 80 ? 'var(--blue)'
-      : grade >= 75 ? 'var(--yellow)'
-      : grade >= 70 ? 'var(--orange)'
-      : 'var(--red)';
-    const arc = Math.min(grade / 100, 1);
-
-    // SVG gauge
-    const R = 60, CX = 80, CY = 80;
-    const arcLen = Math.PI * R;
-    const dashOffset = arcLen * (1 - arc);
-
-    return `
-      <div class="gauge-wrapper">
-        <svg width="160" height="100" viewBox="0 0 160 100" class="gauge-svg">
-          <!-- Track arc -->
-          <path d="M20,80 A${R},${R} 0 0,1 140,80"
-            fill="none" stroke="var(--gray-100)" stroke-width="14" stroke-linecap="round"/>
-          <!-- Value arc -->
-          <path d="M20,80 A${R},${R} 0 0,1 140,80"
-            fill="none" stroke="${color}" stroke-width="14" stroke-linecap="round"
-            stroke-dasharray="${arcLen}"
-            stroke-dashoffset="${dashOffset}"
-            style="transition:stroke-dashoffset .8s ease"/>
-        </svg>
-        <div class="gauge-value" style="color:${color}">${grade}%</div>
-        <div class="gauge-label">Predicted Grade</div>
-      </div>
-      <div class="gauge-ci">
-        <span class="gauge-ci-label">Estimated Range</span>
-        <span class="gauge-ci-range">${data.range_low}% – ${data.range_high}%</span>
-      </div>
-      <div class="gauge-meta">Based on ${data.n_observations} graded activities &middot; Current academic avg ${data.current_avg ?? '—'}%</div>
-      ${data.supporting_factors && data.supporting_factors.length
-        ? `<ul class="risk-factors-list" style="margin-top:8px">${data.supporting_factors.map(f => `<li>${escHtml(f)}</li>`).join('')}</ul>`
-        : ''}`;
-  },
-
-  _improvementProb(data) {
-    if (!data || data.probability === null) {
-      return AnalyticsView.empty('Not enough graded activities yet.');
-    }
-
-    const prob = data.probability;
-    const color = prob >= 70 ? 'var(--green)' : prob >= 45 ? '#f59e0b' : 'var(--red)';
-
-    return `
-      <div class="improv-target-row">
-        <span class="improv-label">Target Grade</span>
-        <div class="improv-target-control">
-          <button onclick="AnalyticsController.adjustTarget(-5)" class="improv-btn">−</button>
-          <span id="improv-target-display" class="improv-target-val">${data.target_grade}%</span>
-          <button onclick="AnalyticsController.adjustTarget(+5)" class="improv-btn">+</button>
-        </div>
-      </div>
-      <div class="improv-meter-wrap">
-        <div class="improv-meter-bar" style="width:${prob}%;background:${color};transition:width .6s ease"></div>
-      </div>
-      <div class="improv-prob-val" style="color:${color}">${prob}%</div>
-      <div class="improv-prob-label">${data.label} — chance your next graded activity scores ${data.target_grade}%+</div>
-      ${data.credible_low !== undefined
-        ? `<div class="gauge-meta">90% credible interval: ${data.credible_low}%–${data.credible_high}% · based on ${data.evidence_count} of your own graded activit${data.evidence_count === 1 ? 'y' : 'ies'} at this target (class rate: ${data.class_rate_at_target}%)</div>`
-        : ''}
-      <div class="gauge-meta">Your overall blended average is ${data.predicted_grade}% — a separate measure from the per-activity odds above, since it also weighs attendance and module progress.</div>
-      ${data.above_class_average_probability !== undefined
-        ? `<div class="gauge-meta">${data.above_class_average_probability}% probability your true rate at this target beats the class average</div>`
-        : ''}
-      ${data.recommendation ? `<p class="gauge-meta" style="margin-top:6px"><strong>Recommendation:</strong> ${escHtml(data.recommendation)}</p>` : ''}`;
-  },
-
-  _studentsLikeYou(data) {
-    if (!data || data.percentile === null) {
-      return AnalyticsView.empty('Comparison data will appear once more activity is recorded.');
-    }
-
-    const pct = data.percentile;
-    const color = pct >= 75 ? 'var(--green)' : pct >= 50 ? '#f59e0b' : 'var(--red)';
-    const profile = data.my_profile;
-
-    return `
-      <div class="peer-percentile">
-        <div class="peer-pct-ring" style="border-color:${color}">
-          <span class="peer-pct-val" style="color:${color}">${pct}<sup style="font-size:14px">th</sup></span>
-          <span class="peer-pct-sub">percentile</span>
-        </div>
-      </div>
-      <p class="peer-message">${escHtml(data.message)}</p>
-      <div class="peer-profile-grid">
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${data.engagement_score}%</div>
-          <div class="peer-profile-key">Engagement Score</div>
-        </div>
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.attendance_rate !== null ? profile.attendance_rate + '%' : 'No data yet'}</div>
-          <div class="peer-profile-key">Attendance</div>
-        </div>
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.module_completion !== null ? profile.module_completion + '%' : 'No data yet'}</div>
-          <div class="peer-profile-key">Modules Read</div>
-        </div>
-      </div>
-      <p class="gauge-meta">Engagement Score = Attendance×40% + Modules×60% (academic score not included) · Compared with ${data.peer_count} anonymous students with similar engagement</p>`;
-  },
-
-  _riskAssessment(data) {
-    if (!data || data.performance_score === null || data.performance_score === undefined) {
-      return AnalyticsView.empty('Performance data will appear once enough activity, attendance, and module signals are recorded.');
-    }
-
-    // Colors follow the Objective §5 rating bands exactly:
-    //   90-100 Excellent (Green) · 85-89 Very Good (Light Green) ·
-    //   80-84 Good (Blue) · 75-79 Fair (Yellow) ·
-    //   70-74 Needs Improvement (Orange) · <70 At Risk (Red)
-    const colorMap = {
-      excellent:          'var(--green)',
-      very_good:          'var(--green-mid)',
-      good:               'var(--blue)',
-      fair:               'var(--yellow)',
-      needs_improvement:  'var(--orange)',
-      at_risk:            'var(--red)',
-    };
-    const bgMap = {
-      excellent:          'var(--green-light)',
-      very_good:          'var(--green-mid-light)',
-      good:               'var(--blue-light)',
-      fair:               'var(--yellow-light)',
-      needs_improvement:  'var(--orange-light)',
-      at_risk:            'var(--red-light)',
-    };
-    const color = colorMap[data.color] || '#888';
-    const bg    = bgMap[data.color]    || '#f5f5f5';
-    const bd = data.breakdown;
-
-    // Weighted formula, spelled out plainly for teachers/panelists:
-    //   Performance Score = Academic×75% + Attendance×15% + Modules×10%
-    //
-    // All three rows are always shown, even when a component has no data
-    // yet (e.g. no attendance sessions recorded so far) — hiding a row
-    // silently would make it look like that factor doesn't count at all,
-    // when really its weight was fairly redistributed across the known
-    // components (Objective §5's "don't red-flag on missing data" rule).
-    // The formula line at the bottom only sums components that actually
-    // had data, so the displayed math still matches performance_score exactly.
-    const allRows = [
-      ['Academic Performance', bd.academic],
-      ['Attendance',           bd.attendance],
-      ['Module Progress',      bd.modules],
-    ];
-    const formulaRows = allRows.filter(([, part]) => part.value !== null);
-
-    return `
-      <div class="risk-badge" style="background:${bg};border:2px solid ${color}">
-        <span class="risk-emoji">${data.emoji}</span>
-        <span class="risk-label" style="color:${color}">${data.performance_score} — ${data.rating}</span>
-      </div>
-
-      <div class="risk-signals">
-        ${allRows.map(([label, part]) => {
-          const val = part.value;
-          if (val === null) {
-            return `
-              <div class="risk-signal-row">
-                <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
-                <div class="risk-signal-bar-wrap">
-                  <div class="risk-signal-bar" style="width:100%;background:var(--gray-100)"></div>
-                </div>
-                <span class="risk-signal-pct" style="color:var(--gray-400)">No data yet</span>
-              </div>`;
+      // Merge day-by-day statuses: if the student had different subjects
+      // with different statuses on the same date, show whichever is most
+      // worth flagging (an absence anywhere that day outranks a present).
+      const STATUS_PRIORITY = ['absent', 'late', 'excused', 'present', 'no_class'];
+      const calendar = {};
+      const summary = { present: 0, absent: 0, late: 0, excused: 0 };
+      for (const result of results) {
+        for (const [date, status] of Object.entries(result?.calendar || {})) {
+          const existing = calendar[date];
+          if (!existing || STATUS_PRIORITY.indexOf(status) < STATUS_PRIORITY.indexOf(existing)) {
+            calendar[date] = status;
           }
-          const c = val >= 80 ? 'var(--green)' : val >= 70 ? 'var(--yellow)' : 'var(--red)';
-          return `
-            <div class="risk-signal-row">
-              <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
-              <div class="risk-signal-bar-wrap">
-                <div class="risk-signal-bar" style="width:${Math.min(val,100)}%;background:${c}"></div>
-              </div>
-              <span class="risk-signal-pct" style="color:${c}">${val}%</span>
-            </div>`;
-        }).join('')}
-      </div>
+        }
+      }
+      // Recompute summary counts from the merged (deduplicated-by-date)
+      // calendar rather than summing each subject's summary, which would
+      // double-count a student's attendance rate across their subjects.
+      for (const status of Object.values(calendar)) {
+        if (status in summary) summary[status] += 1;
+      }
+      return { calendar, summary };
+    });
+  }
 
-      ${formulaRows.length < allRows.length
-        ? `<p class="gauge-meta" style="font-style:italic">Weight for components with no data yet is redistributed proportionally across the rest, so this student isn't penalized for something not yet measurable.</p>`
-        : ''}
+  // ══════════════════════════════════════════════════════════════════════
+  // 3. DESCRIPTIVE — Score vs Class Average
+  //
+  //    Computed server-side via get_score_vs_class_average(). The previous
+  //    implementation queried activity_submissions for ALL students in the
+  //    browser to build a class average — but RLS correctly restricts a
+  //    student to reading only their own submission rows, so every "class
+  //    average" silently collapsed to the requesting student's own score
+  //    (class_size was always 1). Same bug class, same fix pattern, as
+  //    "Students Like You" (§8).
+  // ══════════════════════════════════════════════════════════════════════
+  async function getScoreVsClassAverage(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `descriptive.score_vs_avg.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+      const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { data: [] };
+      const { data, error } = await sb.rpc("get_score_vs_class_average", {
+        p_student_id: studentId,
+        p_subject_ids: subjectIds,
+        p_term: term,
+      });
+      if (error) throw new Error(error.message);
+      return { data: data?.data || [] };
+    });
+  }
 
-      <p class="gauge-meta">Score = ${formulaRows.map(([l, p]) => `${l.split(' ')[0]}×${Math.round(p.weight*100)}%`).join(' + ')} = <strong>${data.performance_score}</strong> (${data.rating})</p>
+  // ══════════════════════════════════════════════════════════════════════
+  // 4. DESCRIPTIVE — Module Reading Progress
+  // ══════════════════════════════════════════════════════════════════════
+  async function getModuleReadingProgress(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `descriptive.module_progress.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+      const subjectIds = await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { subjects: [], totals: { read: 0, total: 0, pct: 0 } };
+      const filterIds = subjectId ? [subjectId] : subjectIds;
 
-      <div class="risk-factors">
-        <div class="risk-factors-title">Contributing Factors</div>
-        <ul class="risk-factors-list">
-          ${data.factors.map(f => `<li>${escHtml(f)}</li>`).join('')}
-        </ul>
-      </div>`;
-  },
+      let modQuery = sb
+        .from("modules").select("*").in("subject_id", filterIds).eq("is_published", true)
+        .order("subject_id").order("order");
+      if (term) modQuery = modQuery.eq("term", term);
+      const { data: modules, error: mErr } = await modQuery;
+      if (mErr) throw new Error(mErr.message);
 
-};
+      const { data: subjects } = await sb
+        .from("subjects").select("id, name").in("id", filterIds);
+      const subjectNames = new Map((subjects || []).map(subject => [subject.id, subject.name]));
+
+      const { data: reads, error: rErr } = await sb
+        .from("student_module_reads").select("*").eq("student_id", studentId);
+      if (rErr) throw new Error(rErr.message);
+      const readMap = new Map((reads || []).map(r => [r.module_id, r]));
+
+      const bySubject = new Map();
+      for (const mod of (modules || [])) {
+        const sid = mod.subject_id;
+        if (!bySubject.has(sid)) bySubject.set(sid, []);
+        const read = readMap.get(mod.id);
+        bySubject.get(sid).push({
+          module_id: mod.id, title: mod.title, term: mod.term, is_read: !!read,
+          first_read_at: read?.first_read_at || null, last_read_at: read?.last_read_at || null,
+        });
+      }
+
+      const subjectsOut = [];
+      let totalRead = 0, totalMods = 0;
+      for (const [sid, mods] of bySubject.entries()) {
+        const readCount = mods.filter(m => m.is_read).length;
+        const total = mods.length;
+        const pct = total ? Math.round((readCount / total) * 100) : 0;
+        subjectsOut.push({
+          subject_id: sid, modules_read: readCount, modules_total: total,
+          completion_pct: pct, remaining: total - readCount,
+          subject_name: subjectNames.get(sid) || `Subject ${sid}`, modules: mods,
+        });
+        totalRead += readCount; totalMods += total;
+      }
+      const overallPct = totalMods ? Math.round((totalRead / totalMods) * 100) : 0;
+      return { subjects: subjectsOut, totals: { read: totalRead, total: totalMods, pct: overallPct } };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 5. DESCRIPTIVE — Subject Radar
+  // ══════════════════════════════════════════════════════════════════════
+  async function getSubjectRadar(sb, studentId, term = null, semester = '1st') {
+    const cacheKey = `descriptive.subject_radar.term_${term || "all"}.semester_${semester || "all"}`;
+    return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
+      const subjectIds = await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { axes: [] };
+
+      const { data: subjects } = await sb
+        .from("subjects").select("id, name").in("id", subjectIds);
+      // resolveSubjectIds already scoped subjectIds to this semester, so no
+      // further semester filtering is needed here (the previous inline
+      // comparison duplicated that logic incompletely — it didn't recognize
+      // a bare "1"/"2" the way the shared normalizeSemester() does, which
+      // silently filtered out every subject when that's how the DB stores it).
+      const subjectRows = subjects || [];
+      const visibleSubjectIds = subjectRows.map(subject => subject.id);
+      if (!visibleSubjectIds.length) return { axes: [] };
+
+      const { data: subs, error } = await sb
+        .from("activity_submissions")
+        .select("score, max_score, activities(subject_id, term)")
+        .eq("student_id", studentId).eq("is_graded", true).not("score", "is", null);
+      if (error) throw new Error(error.message);
+
+      const subjectSet = new Set(visibleSubjectIds);
+      const perSubject = new Map();
+      for (const sub of (subs || [])) {
+        const sid = sub.activities?.subject_id;
+        if (term && sub.activities?.term !== term) continue;
+        if (sid && subjectSet.has(sid) && sub.max_score > 0) {
+          if (!perSubject.has(sid)) perSubject.set(sid, []);
+          perSubject.get(sid).push((sub.score / sub.max_score) * 100);
+        }
+      }
+
+      const subjMap = new Map(subjectRows.map(subject => [subject.id, subject.name]));
+
+      const axes = visibleSubjectIds.map(sid => {
+        const scores = perSubject.get(sid) || [];
+        const avg = scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : 0;
+        return { subject_id: sid, subject_name: subjMap.get(sid) || `Subject ${sid}`, avg_pct: avg, activity_count: scores.length };
+      });
+      return { axes };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 6. PREDICTED FINAL GRADE
+  //    Weights unified with Overall Performance Rating (§4) by school
+  //    decision: Academic 75% / Attendance 15% / Module 10% — same weights,
+  //    same formula, for both "all subjects" and any specific subject.
+  //    (Originally this used 70/20/10 per a separate §6 weighting in the
+  //    objective doc, but the school opted to make both cards agree.)
+  //    Uses the exact same Academic/Attendance/Module component values as
+  //    getRiskAssessment(), so the two cards can never show different
+  //    Academic/Attendance/Module inputs for the same student+subject.
+  // ══════════════════════════════════════════════════════════════════════
+  function emptyPrediction() {
+    return { predicted_grade: null, range_low: null, range_high: null, confidence: "n/a", n_observations: 0, current_avg: null, supporting_factors: [] };
+  }
+
+  async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `predicted_grade.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+      const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
+      if (!perf) return emptyPrediction();
+
+      const { academicPct, attendancePct, modulePct, countedActivities, factors } = perf;
+
+      const parts = [
+        { value: academicPct,   weight: 0.75 },
+        { value: attendancePct, weight: 0.15 },
+        { value: modulePct,     weight: 0.10 },
+      ].filter(p => p.value !== null);
+
+      if (!parts.length) return emptyPrediction();
+
+      const wSum = parts.reduce((a, p) => a + p.weight, 0);
+      const raw = parts.reduce((a, p) => a + p.value * (p.weight / wSum), 0);
+      const predicted = Math.min(100, Math.max(0, Math.round(raw * 100) / 100));
+
+      // Confidence range: narrows as more graded activities accumulate, so the
+      // prediction visibly firms up over the term (Objective §6 requirement
+      // that the prediction "update dynamically" and "improve" with more data).
+      // This is a stated heuristic (±15 / √n, floor of ±2), not part of the
+      // school's formula — flagged here and in the UI as an estimate.
+      const n = countedActivities || 0;
+      const margin = n > 0 ? Math.max(2, Math.round((15 / Math.sqrt(n)) * 10) / 10) : 15;
+      const lo = Math.max(0, Math.round((predicted - margin) * 10) / 10);
+      const hi = Math.min(100, Math.round((predicted + margin) * 10) / 10);
+
+      return {
+        predicted_grade: predicted,
+        range_low: lo, range_high: hi,
+        confidence: "estimated range",
+        n_observations: n,
+        current_avg: academicPct !== null ? Math.round(academicPct * 100) / 100 : null,
+        supporting_factors: factors,
+      };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 7. GRADE IMPROVEMENT PROBABILITY — real Beta-Binomial posterior.
+  //
+  //    "Success" on a graded activity = scored >= target%. We treat the
+  //    student's own graded activities as Bernoulli evidence about their
+  //    true long-run rate (theta) of hitting this target, and update a
+  //    prior built from the class's own rate at that same target
+  //    (empirical Bayes / "weakly informative prior").
+  //
+  //      Prior:      Beta(alpha0, beta0), centered on the class-wide rate,
+  //                  weighted as PRIOR_STRENGTH pseudo-observations — small
+  //                  enough that 3-4 of the student's own graded activities
+  //                  start to dominate the estimate.
+  //      Likelihood: the student's own successes/failures against target%.
+  //      Posterior:  Beta(alpha0 + successes, beta0 + failures).
+  //      Reported probability = posterior mean (the standard Beta-Binomial
+  //      posterior-predictive probability of success on the next activity).
+  //
+  //    This replaces the old static gap-lookup table (Gap ≤2 → 95%, etc.),
+  //    which had no way to express "not enough evidence yet" beyond one
+  //    flat cutoff, and ignored the class context entirely.
+  // ══════════════════════════════════════════════════════════════════════
+  const PRIOR_STRENGTH = 4; // effective sample size of the class-wide prior
+
+  async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null, term = null, semester = null) {
+    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}.target_${Math.trunc(targetGrade)}`;
+    return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+      const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term, semester);
+      const predicted = prediction.predicted_grade;
+      if (predicted === null) {
+        return { probability: null, target_grade: targetGrade, predicted_grade: null, n_observations: 0, recommendation: null };
+      }
+
+      const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) {
+        return { probability: null, target_grade: targetGrade, predicted_grade: predicted, n_observations: 0, recommendation: null };
+      }
+
+      const { data: evidence, error } = await sb.rpc("get_beta_binomial_evidence", {
+        p_student_id: studentId,
+        p_subject_ids: subjectIds,
+        p_target_pct: targetGrade,
+        p_term: term,
+      });
+      if (error) throw new Error(error.message);
+
+      const { my_successes: mySucc, my_failures: myFail, peer_successes: peerSucc, peer_failures: peerFail } = evidence;
+
+      // Prior: class-wide rate at this target, or an uninformative 50/50
+      // split if nobody else in the subject has a graded activity yet.
+      const peerTotal = peerSucc + peerFail;
+      const priorRate = peerTotal > 0 ? peerSucc / peerTotal : 0.5;
+      const alpha0 = priorRate * PRIOR_STRENGTH;
+      const beta0 = (1 - priorRate) * PRIOR_STRENGTH;
+
+      const posterior = betaStats(alpha0 + mySucc, beta0 + myFail);
+      const probability = Math.round(posterior.mean * 100);
+
+      // 90% credible interval via the normal approximation to the Beta
+      // posterior (accurate once alpha+beta isn't tiny, which the prior's
+      // pseudo-count already guarantees even with zero of the student's
+      // own graded activities).
+      const Z90 = 1.645;
+      const credibleLow = Math.max(0, Math.round((posterior.mean - Z90 * posterior.sd) * 100));
+      const credibleHigh = Math.min(100, Math.round((posterior.mean + Z90 * posterior.sd) * 100));
+
+      // A secondary, genuinely different question from the headline number:
+      // "how likely is it that this student's true rate beats the class
+      // average rate at this target?" — a one-sample z-test of the
+      // posterior mean against the prior rate, via the normal CDF.
+      const zVsClass = posterior.sd > 0 ? (posterior.mean - priorRate) / posterior.sd : 0;
+      const aboveClassAvgProbability = Math.round(normalCdf(zVsClass) * 100);
+
+      const evidenceCount = mySucc + myFail;
+      const label = probability >= 80 ? "Very likely" : probability >= 60 ? "Likely" : probability >= 40 ? "Possible" : "Challenging";
+
+      const gap = targetGrade - predicted;
+      let recommendation;
+      if (evidenceCount === 0) {
+        recommendation = `This estimate is currently based on your class's history at the ${targetGrade}% mark, since you don't have a graded activity of your own yet — it will sharpen as your results come in.`;
+      } else if (gap <= 0) {
+        recommendation = probability >= 60
+          ? "You're already on track to meet or exceed this target grade."
+          : "Your overall blended average already meets this target — but your individual graded activities haven't consistently hit it yet, since attendance and module progress are currently carrying some of the weight. Worth keeping an eye on, even though the big picture looks fine.";
+      } else if (gap <= 5) {
+        recommendation = "A small, consistent improvement on upcoming graded activities should close this gap.";
+      } else if (gap <= 10) {
+        recommendation = "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 75% of the prediction.";
+      } else {
+        recommendation = "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
+      }
+
+      return {
+        probability, target_grade: targetGrade, predicted_grade: predicted, label,
+        n_observations: prediction.n_observations,
+        recommendation,
+        // New: real Bayesian detail the old lookup table couldn't provide.
+        credible_low: credibleLow, credible_high: credibleHigh,
+        evidence_count: evidenceCount,
+        class_rate_at_target: Math.round(priorRate * 100),
+        above_class_average_probability: aboveClassAvgProbability,
+      };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 8. "Students Like You" — Engagement Index & peer percentile (§8)
+  //
+  //    Computed entirely server-side via get_engagement_percentile().
+  //    A client-side implementation is architecturally impossible to do
+  //    correctly here: RLS correctly restricts a student to reading only
+  //    their OWN attendance_records / student_module_reads rows, so any
+  //    attempt to read other students' rows from the browser to build a
+  //    peer comparison silently returns empty data for every peer. The
+  //    SECURITY DEFINER RPC computes the full Engagement Index and
+  //    percentile inside Postgres, where it can see the rows it needs, and
+  //    returns only the requesting student's own numbers + an aggregate
+  //    percentile — no peer identities or raw peer scores ever reach the
+  //    client, preserving the spec's "Never expose student identities"
+  //    requirement.
+  // ══════════════════════════════════════════════════════════════════════
+  async function getStudentsLikeYou(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `bayesian.students_like_you.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+      const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
+      if (!subjectIds.length) return { percentile: null, message: "Not enough data yet." };
+
+      const { data, error } = await sb.rpc("get_engagement_percentile", {
+        p_student_id: studentId,
+        p_subject_ids: subjectIds,
+        p_term: term,
+      });
+      if (error) throw new Error(error.message);
+
+      if (data?.percentile === null || data?.percentile === undefined) {
+        return { percentile: null, message: "Not enough data yet." };
+      }
+
+      const percentile = data.percentile;
+      let message;
+      if (percentile >= 75) message = `You perform better than ${percentile}% of students with similar engagement patterns.`;
+      else if (percentile >= 50) message = `You are performing above the median — better than ${percentile}% of similar students.`;
+      else if (percentile >= 25) message = `There is room to grow. You are currently ahead of ${percentile}% of similar students.`;
+      else message = `You are in the bottom ${100 - percentile}% of similar students — this is a great moment to step up!`;
+
+      return {
+        percentile, message,
+        engagement_score: data.engagement_score,
+        my_profile: {
+          attendance_rate: data.my_attendance_rate,
+          module_completion: data.my_module_completion,
+        },
+        peer_count: data.peer_count,
+      };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // SHARED COMPONENT CALCULATOR — Academic / Attendance / Module scores
+  //
+  // Implements the school's three base formulas exactly as specified:
+  //
+  //   §1 Academic Score (%)   = (Total Earned Points / Total Possible Points) × 100
+  //   §2 Attendance Score (%) = (Present + Late×0.5) / Total Meetings × 100
+  //   §3 Module Score (%)     = (Modules Read / Total Modules) × 100
+  //
+  // This single function is the source of truth for these three numbers.
+  // getRiskAssessment() (§4/§5, weights 75/15/10) and getPredictedFinalGrade()
+  // (§6, weights 70/20/10) both call it, so the Academic/Attendance/Module
+  // percentages shown on both cards are always identical — only the blend
+  // weights differ, exactly as the spec defines two separate formulas that
+  // share the same three inputs.
+  // ══════════════════════════════════════════════════════════════════════
+  async function computePerformanceComponents(sb, studentId, subjectId = null, term = null, semester = null) {
+    const allSubjectIds = await resolveSubjectIds(sb, studentId, semester);
+    if (!allSubjectIds.length) return null;
+    const subjectIds = subjectId ? allSubjectIds.filter(id => id === subjectId) : allSubjectIds;
+    if (!subjectIds.length) return null;
+
+    const nowIso = new Date().toISOString();
+
+    // ── §2 Attendance Score: Present = 100%, Late = 50%, Absent = 0% ──────
+    const { data: attScore, error: attErr } = await sb.rpc("get_attendance_score", {
+      p_student_id: studentId,
+      p_subject_ids: subjectIds,
+      p_term: term,
+    });
+    if (attErr) throw new Error(attErr.message);
+    const totalSessions = attScore?.total_sessions || 0;
+    const attendancePct = attScore?.attendance_pct ?? null;
+
+    // ── Modules in scope (subject + term), shared by §3 and §1 below ──────
+    let modQuery = sb.from("modules").select("id").in("subject_id", subjectIds).eq("is_published", true);
+    if (term) modQuery = modQuery.eq("term", term);
+    const { data: modsInScope, error: modErr } = await modQuery;
+    if (modErr) throw new Error(modErr.message);
+    const modIds = (modsInScope || []).map(m => m.id);
+    const totalMods = modIds.length;
+
+    // ── §3 Module Score: Modules Read / Total Modules ─────────────────────
+    // FIX: this used to count ALL of the student's module reads across
+    // their entire account, uncorrelated to subject or term, and just
+    // clamped it against totalMods — only "worked" by coincidence. Now
+    // properly scoped to the modules actually in scope.
+    const { count: reads } = totalMods
+      ? await sb.from("student_module_reads").select("id", { count: "exact", head: true })
+          .eq("student_id", studentId).in("module_id", modIds)
+      : { count: 0 };
+    const modulePct = totalMods ? (Math.min(reads || 0, totalMods) / totalMods) * 100 : null;
+
+    // ── §1 Academic Score: Total Earned / Total Possible ──────────────────
+    // Only "applicable" activities count: published, and either already due
+    // or undated. A past-due activity the student never submitted counts as
+    // 0 earned against its own max_score (not a flat 100), so a missed
+    // 10-point quiz doesn't get weighted the same as a missed 100-point exam.
+    // Term scoping: activities.term is a direct column, set explicitly when
+    // the teacher creates the activity -- filtered straight, no join needed.
+    let actQuery = sb
+      .from("activities").select("id, max_score, due_date")
+      .in("subject_id", subjectIds).eq("is_published", true)
+      .or(`due_date.is.null,due_date.lte.${nowIso}`);
+    if (term) actQuery = actQuery.eq("term", term);
+    const { data: applicableActs, error: actErr } = await actQuery;
+    if (actErr) throw new Error(actErr.message);
+
+    const { data: subs } = await sb
+      .from("activity_submissions")
+      .select("activity_id, score, max_score, is_graded")
+      .eq("student_id", studentId)
+      .in("activity_id", (applicableActs || []).map(a => a.id));
+    const submittedById = new Map((subs || []).map(s => [s.activity_id, s]));
+
+    let totalEarned = 0, totalPossible = 0, countedActivities = 0;
+    for (const act of (applicableActs || [])) {
+      const sub = submittedById.get(act.id);
+      if (sub && sub.is_graded && sub.score !== null && sub.max_score > 0) {
+        totalEarned += sub.score;
+        totalPossible += sub.max_score;
+        countedActivities++;
+      } else if (sub && !sub.is_graded) {
+        continue; // submitted, awaiting grading — can't score it yet, don't penalize
+      } else if (act.max_score > 0) {
+        // past due, never submitted → missed work counts as 0/max_score
+        totalPossible += act.max_score;
+        countedActivities++;
+      }
+      // activities with no max_score set are skipped entirely — can't be
+      // graded fairly without a denominator.
+    }
+    const academicPct = totalPossible > 0 ? (totalEarned / totalPossible) * 100 : null;
+
+    if (academicPct === null && !totalSessions && !totalMods) return null;
+
+    const factors = [];
+    if (academicPct !== null && academicPct < 75) {
+      factors.push(`Academic performance is ${Math.round(academicPct * 100) / 100}% (${totalEarned}/${totalPossible} points across ${countedActivities} applicable activit${countedActivities === 1 ? "y" : "ies"}).`);
+    }
+    if (attendancePct !== null && attendancePct < 80) {
+      factors.push(`Attendance is ${Math.round(attendancePct * 100) / 100}% (below the 80% healthy threshold).`);
+    }
+    if (modulePct !== null && modulePct < 60) {
+      factors.push(`Only ${Math.round(modulePct * 100) / 100}% of modules have been read.`);
+    }
+    if (!factors.length) factors.push("All indicators are within healthy ranges.");
+
+    return {
+      academicPct, attendancePct, modulePct,
+      totalEarned, totalPossible, countedActivities,
+      totalSessions, totalMods,
+      factors,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 4/5/9. OVERALL PERFORMANCE RATING
+  //    School standard (Objective §4): Academic 75% / Attendance 15% / Module 10%
+  //    Rating bands (Objective §5), 6 tiers:
+  //      90–100 Excellent · 85–89 Very Good · 80–84 Good ·
+  //      75–79 Fair · 70–74 Needs Improvement · <70 At Risk
+  // ══════════════════════════════════════════════════════════════════════
+  function ratingForScore(score) {
+    if (score >= 90) return { rating: "Excellent",         color: "excellent",         emoji: "🟢" };
+    if (score >= 85) return { rating: "Very Good",         color: "very_good",         emoji: "🟩" };
+    if (score >= 80) return { rating: "Good",              color: "good",              emoji: "🔵" };
+    if (score >= 75) return { rating: "Fair",              color: "fair",              emoji: "🟡" };
+    if (score >= 70) return { rating: "Needs Improvement", color: "needs_improvement", emoji: "🟠" };
+    return { rating: "At Risk", color: "at_risk", emoji: "🔴" };
+  }
+
+  async function getRiskAssessment(sb, studentId, subjectId = null, term = null, semester = null) {
+    const cacheKey = `performance.rating.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
+      const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
+      if (!perf) {
+        return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
+      }
+
+      const { academicPct, attendancePct, modulePct, totalSessions, totalMods, factors } = perf;
+
+      // If a component genuinely has no applicable data yet (e.g. no modules
+      // published, or no attendance sessions recorded), redistribute its
+      // weight proportionally across the remaining components rather than
+      // treating "no data" as "zero" — this is what stops a student from
+      // being wrongly flagged At Risk purely for low module completion when
+      // academics are strong (Objective §5's explicit fairness rule).
+      const parts = [
+        { key: "academic",   value: academicPct,   weight: 0.75 },
+        { key: "attendance", value: attendancePct,  weight: 0.15 },
+        { key: "modules",    value: modulePct,      weight: 0.10 },
+      ];
+      const known = parts.filter(p => p.value !== null);
+      const knownWeightSum = known.reduce((a, p) => a + p.weight, 0);
+      const performanceScore = knownWeightSum
+        ? Math.round(known.reduce((a, p) => a + p.value * (p.weight / knownWeightSum), 0) * 100) / 100
+        : null;
+
+      if (performanceScore === null) {
+        return { risk_level: "Unknown", rating: "Unknown", explanation: "Not enough activity yet to compute a rating.", performance_score: null };
+      }
+
+      const { rating, color, emoji } = ratingForScore(performanceScore);
+
+      const signals = {
+        academic_performance: academicPct !== null ? Math.round(academicPct * 100) / 100 : null,
+        attendance_rate: attendancePct !== null ? Math.round(attendancePct * 100) / 100 : null,
+        module_completion: modulePct !== null ? Math.round(modulePct * 100) / 100 : null,
+      };
+
+      return {
+        performance_score: performanceScore, rating, color, emoji, factors, signals,
+        breakdown: {
+          academic:   { value: signals.academic_performance, weight: 0.75 },
+          attendance: { value: signals.attendance_rate,       weight: 0.15 },
+          modules:    { value: signals.module_completion,     weight: 0.10 },
+        },
+        // Back-compat alias so any older caller keyed on risk_level still gets something sane:
+        risk_level: rating,
+      };
+    });
+  }
+
+  return {
+    normalCdf, percentileRank,
+    getGradeProgress, getAttendanceCalendar, getScoreVsClassAverage,
+    getModuleReadingProgress, getSubjectRadar,
+    getPredictedFinalGrade, getImprovementProbability, getStudentsLikeYou, getRiskAssessment,
+  };
+})();
