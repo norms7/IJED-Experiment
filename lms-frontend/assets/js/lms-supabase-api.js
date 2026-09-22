@@ -908,38 +908,29 @@
             .eq("student_id", studentId)
         );
 
-        // Enrich with real section/schedule/teacher info via the student's
-        // actual section assignment -- same reliable join
-        // getStudentWeeklySchedule() already uses, so class_name here is a
-        // real value instead of always falling back to a placeholder.
+        // Enrich with real section/schedule/teacher info via the same
+        // SECURITY DEFINER RPC getStudentWeeklySchedule() uses.
         //
-        // FIX: teacher_class_assignments has no section_id column at all
-        // (only teacher_id/class_id/subject_id) and no direct relationship
-        // to `sections`, so the previous .in('section_id', ...) filter and
-        // sections(name) embed both silently failed every time, leaving
-        // every subject's class/schedule/teacher info blank. The real path
-        // is: student_section_assignments.section_id -> sections.class_id
-        // -> teacher_class_assignments.class_id.
-        const { data: secRows } = await this.sb
-          .from('student_section_assignments').select('sections(id, name, class_id)').eq('student_id', studentId);
-        const mySections = (secRows || []).map(r => r.sections).filter(Boolean);
-        const classIds = [...new Set(mySections.map(s => s.class_id))];
-        const sectionNameByClassId = {};
-        for (const s of mySections) sectionNameByClassId[s.class_id] = s.name;
+        // FIX (real root cause, not just a wrong query shape): students
+        // have no RLS SELECT access to teacher_class_assignments at all
+        // (policy: admin or teacher_id = auth_teacher_id()) — any direct
+        // client-side query against it as a student silently returns zero
+        // rows, regardless of how the join is written. That's why this
+        // always fell back to "Class: —" no matter what the query looked
+        // like. Fixed by going through get_student_weekly_schedule(), which
+        // runs with elevated privilege server-side and does its own
+        // authorization check instead of relying on table-level RLS.
+        const scheduleRows = this._throwIfError(
+          await this.sb.rpc('get_student_weekly_schedule', { p_student_id: studentId })
+        );
         const infoBySubject = {};
-        if (classIds.length) {
-          const { data: tcaRows } = await this.sb
-            .from('teacher_class_assignments')
-            .select('subject_id, schedule, class_id, classes(name), teachers(users(first_name,last_name))')
-            .in('class_id', classIds);
-          (tcaRows || []).forEach(row => {
-            infoBySubject[row.subject_id] = {
-              class_name:   sectionNameByClassId[row.class_id] || row.classes?.name || '',
-              schedule:     row.schedule || '',
-              teacher_name: row.teachers?.users ? `${row.teachers.users.first_name} ${row.teachers.users.last_name}` : '',
-            };
-          });
-        }
+        (scheduleRows || []).forEach(row => {
+          infoBySubject[row.subject_id] = {
+            class_name:   row.section_name || '',
+            schedule:     row.schedule || '',
+            teacher_name: row.teacher_name || '',
+          };
+        });
 
         const rows = data.map(row => ({
           ...row,
@@ -965,41 +956,30 @@
     async getStudentWeeklySchedule() {
       return this._cached('student:weeklyschedule', 60_000, async () => {
         const studentId = await this._myStudentId();
-        // FIX: teacher_class_assignments has no section_id column and no
-        // direct relationship to `sections` — the previous query filtered
-        // and embedded on a relationship that doesn't exist, which silently
-        // returned nothing every time (the caller wraps this in .catch(()
-        // => []), so the failure was invisible — "No schedule for today"
-        // showed even when real schedule data existed). Correct path:
-        // student_section_assignments.section_id -> sections.class_id ->
-        // teacher_class_assignments.class_id.
-        const { data: secRows } = await this.sb
-          .from('student_section_assignments').select('sections(id, name, class_id)').eq('student_id', studentId);
-        const mySections = (secRows || []).map(r => r.sections).filter(Boolean);
-        const classIds = [...new Set(mySections.map(s => s.class_id))];
-        if (!classIds.length) return [];
-        const sectionNameByClassId = {};
-        for (const s of mySections) sectionNameByClassId[s.class_id] = s.name;
-
-        const { data: enrollRows } = await this.sb
-          .from('student_subject_enrollments').select('subject_id').eq('student_id', studentId);
-        const subjectIds = (enrollRows || []).map(r => r.subject_id);
-        if (!subjectIds.length) return [];
-
+        // FIX (real root cause): teacher_class_assignments' RLS policy is
+        // "admin or teacher_id = auth_teacher_id()" — a student has NO read
+        // access to this table at all. Every earlier version of this
+        // function queried it directly as the student's own session, and
+        // RLS silently filtered every row out (no error — that's how RLS
+        // works), so it always returned empty regardless of how correct the
+        // join logic was. This is why raw SQL run in the Supabase editor
+        // (an unrestricted connection) showed real data while the actual
+        // student-facing app never did. Fixed by routing through a
+        // SECURITY DEFINER function (get_student_weekly_schedule), the same
+        // pattern every other cross-role read in this app already uses —
+        // it bypasses RLS internally but checks the caller can only ever
+        // request their own schedule.
         const data = this._throwIfError(
-          await this.sb.from('teacher_class_assignments')
-            .select('*, subjects(id,name), classes(id,name,grade_level), teachers(id, users(first_name,last_name))')
-            .in('class_id', classIds)
-            .in('subject_id', subjectIds)
+          await this.sb.rpc('get_student_weekly_schedule', { p_student_id: studentId })
         );
-        return data.map(row => ({
+        return (data || []).map(row => ({
           subject_id:   row.subject_id,
-          subject_name: row.subjects?.name || '',
+          subject_name: row.subject_name || '',
           section_id:   null,
-          section_name: sectionNameByClassId[row.class_id] || row.classes?.name || '',
-          grade_level:  row.classes?.grade_level || '',
+          section_name: row.section_name || '',
+          grade_level:  row.grade_level || '',
           schedule:     row.schedule,
-          teacher_name: row.teachers?.users ? `${row.teachers.users.first_name} ${row.teachers.users.last_name}` : '',
+          teacher_name: row.teacher_name || '',
         }));
       });
     }
