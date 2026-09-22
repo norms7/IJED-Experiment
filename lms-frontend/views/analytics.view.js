@@ -335,7 +335,7 @@ const AnalyticsView = {
         <div class="analytics-card">
           <div class="analytics-card-header">
             <div class="analytics-card-title">${analyticsIcon('trend')}Grade Improvement Probability</div>
-            <div class="analytics-card-sub">Chance of reaching your target grade</div>
+            <div class="analytics-card-sub">Chance your next graded activity hits this score</div>
           </div>
           ${AnalyticsView._improvementProb(improvement_probability)}
         </div>
@@ -427,11 +427,11 @@ const AnalyticsView = {
         <div class="improv-meter-bar" style="width:${prob}%;background:${color};transition:width .6s ease"></div>
       </div>
       <div class="improv-prob-val" style="color:${color}">${prob}%</div>
-      <div class="improv-prob-label">${data.label} — probability of reaching ${data.target_grade}%</div>
+      <div class="improv-prob-label">${data.label} — chance your next graded activity scores ${data.target_grade}%+</div>
       ${data.credible_low !== undefined
         ? `<div class="gauge-meta">90% credible interval: ${data.credible_low}%–${data.credible_high}% · based on ${data.evidence_count} of your own graded activit${data.evidence_count === 1 ? 'y' : 'ies'} at this target (class rate: ${data.class_rate_at_target}%)</div>`
         : ''}
-      <div class="gauge-meta">Predicted grade ${data.predicted_grade}% · Gap to target: ${Math.max(0, Math.round((data.target_grade - data.predicted_grade) * 10) / 10)}%</div>
+      <div class="gauge-meta">Your overall blended average is ${data.predicted_grade}% — a separate measure from the per-activity odds above, since it also weighs attendance and module progress.</div>
       ${data.above_class_average_probability !== undefined
         ? `<div class="gauge-meta">${data.above_class_average_probability}% probability your true rate at this target beats the class average</div>`
         : ''}
