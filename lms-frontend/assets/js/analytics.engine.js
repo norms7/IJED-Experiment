@@ -461,7 +461,9 @@ const AnalyticsEngine = (() => {
       if (evidenceCount === 0) {
         recommendation = `This estimate is currently based on your class's history at the ${targetGrade}% mark, since you don't have a graded activity of your own yet — it will sharpen as your results come in.`;
       } else if (gap <= 0) {
-        recommendation = "You're already on track to meet or exceed this target grade.";
+        recommendation = probability >= 60
+          ? "You're already on track to meet or exceed this target grade."
+          : "Your overall blended average already meets this target — but your individual graded activities haven't consistently hit it yet, since attendance and module progress are currently carrying some of the weight. Worth keeping an eye on, even though the big picture looks fine.";
       } else if (gap <= 5) {
         recommendation = "A small, consistent improvement on upcoming graded activities should close this gap.";
       } else if (gap <= 10) {
