@@ -1863,12 +1863,16 @@ div[style*="overflow-x: auto"] {
   margin-bottom: 20px;
 }
 
-/* ── Stat grid — 2-col on mobile ── */
+/* ── Stat grid — responsive mobile layout ── */
 @media (max-width: 600px) {
-  .stat-grid { grid-template-columns: 1fr 1fr !important; }
+  .stat-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
 }
-@media (max-width: 380px) {
-  .stat-grid { grid-template-columns: 1fr !important; }
+@media (max-width: 360px) {
+  .stat-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ── Dashboard 2-panel (My Subjects + Recent Grades) ── */
@@ -2234,7 +2238,7 @@ img, video, iframe { max-width: 100%; height: auto; }
   .welcome-title { font-size: clamp(15px, 4.5vw, 18px); }
   .welcome-sub   { font-size: clamp(11px, 3vw, 13px); }
 
-  /* Stat grid: single column below 425px for very small phones */
+  /* Stat grid: keep 2 columns on normal phones */
   .stat-grid {
     grid-template-columns: 1fr 1fr !important;
     gap: 10px;
@@ -2296,8 +2300,11 @@ img, video, iframe { max-width: 100%; height: auto; }
   .welcome-banner { padding: 14px 12px; }
   .welcome-title { font-size: 15px; }
 
-  /* Single column stat grid on very small phones */
-  .stat-grid { grid-template-columns: 1fr 1fr !important; gap: 8px; }
+  /* Keep 2-column stat grid down to 361px */
+  .stat-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
   .stat-value { font-size: 18px; }
   .stat-label { font-size: 11px; }
 
@@ -2316,15 +2323,18 @@ img, video, iframe { max-width: 100%; height: auto; }
   .btn-sm { font-size: 11px; padding: 4px 9px; }
 }
 
-/* ── 320px ───────────────────────────────────────────────────── */
-@media (max-width: 320px) {
+/* ── 360px and below ───────────────────────────────────────── */
+@media (max-width: 360px) {
   .content-area { padding: 10px 8px; }
   .welcome-banner { padding: 12px 10px; }
   .welcome-title { font-size: 14px; }
   .welcome-sub   { font-size: 11px; }
 
-  /* Force single col stat grid at 320px */
-  .stat-grid { grid-template-columns: 1fr !important; gap: 8px; }
+  /* Single-column stat grid on very small phones */
+  .stat-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
 
   /* All section headings */
   .section-header-left h2 { font-size: 14px; }
