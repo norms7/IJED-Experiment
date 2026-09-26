@@ -829,7 +829,7 @@ const StudentView = {
       }
 
       return `
-        <div class="activity-card" style="border:1px solid var(--gray-200);border-radius:10px;padding:18px 20px;background:white;margin-bottom:14px">
+        <div class="activity-answer-question" style="border:1px solid var(--gray-200);border-radius:10px;padding:18px 20px;background:white;margin-bottom:14px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
             <div style="font-size:13px;font-weight:700;color:var(--maroon)">Question ${idx + 1}</div>
             <span class="badge badge-gold">${q.points} pt${q.points !== 1 ? 's' : ''}</span>
@@ -842,7 +842,7 @@ const StudentView = {
     const totalPts = (activity.questions || []).reduce((s, q) => s + q.points, 0);
 
     return `
-      <div style="max-width:520px;margin:0 auto">
+      <div class="activity-answer-sheet">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
           <button class="btn btn-ghost btn-sm" onclick="DashboardController.loadSection('activities')">← Back</button>
           <div>
@@ -856,7 +856,7 @@ const StudentView = {
           </div>` : ''}
         <div id="answer-sheet-questions">${questions || '<div class="empty-state"><div class="empty-state-title">No questions found.</div></div>'}</div>
         ${activity.questions && activity.questions.length ? `
-          <div style="position:sticky;bottom:0;background:white;border-top:1px solid var(--gray-200);padding:14px 0;display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
+          <div class="activity-answer-actions">
             <button class="btn btn-outline" onclick="DashboardController.loadSection('activities')">Cancel</button>
             <button class="btn btn-primary" id="submit-activity-btn" onclick="StudentController.confirmSubmit(${activity.id})">${lmsIcon('send')} Submit Activity</button>
           </div>` : ''}

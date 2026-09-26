@@ -42,7 +42,7 @@ const Toast = {
 const Modal = {
   show(title, bodyHTML, footerHTML = '', opts = {}) {
     const container = document.getElementById('modal-container');
-    const wideStyle = opts.wide ? 'max-width:860px;width:96%;' : '';
+    const wideStyle = opts.wide ? 'width:min(96%,860px);max-width:calc(100vw - 24px);' : '';
     container.innerHTML = `
       <div class="modal-overlay" id="modal-overlay">
         <div class="modal" style="${wideStyle}">
@@ -57,7 +57,7 @@ const Modal = {
 
     // Close on backdrop click
     document.getElementById('modal-overlay').addEventListener('click', (e) => {
-      if (e.target.id === 'modal-overlay') Modal.close();
+      if (e.target.id === 'modal-overlay' && opts.closeOnBackdrop !== false) Modal.close();
     });
 
     // Close on ESC key

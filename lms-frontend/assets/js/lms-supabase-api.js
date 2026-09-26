@@ -235,7 +235,9 @@
     }
 
     async deleteUser(id) {
-      return this._throwIfError(await this.sb.from("users").delete().eq("id", id));
+      return this._throwIfError(
+        await this.sb.from("users").update({ is_active: false }).eq("id", id).select().single()
+      );
     }
 
     async getRecentUsers(limit = 10) {

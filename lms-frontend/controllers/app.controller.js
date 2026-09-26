@@ -215,7 +215,6 @@ const App = {
       const el = document.getElementById(id);
       if (!el) return;
       el.querySelector(".profile-avatar-image")?.remove();
-      el.style.setProperty("background-image", "none", "important");
       if (!image) return;
       el.textContent = "";
       const imageEl = document.createElement("img");

@@ -162,7 +162,7 @@ const AttendanceController = {
         ${isEdit ? `${lmsIcon('save')} Update` : `${lmsIcon('check')} Save Attendance`}
       </button>`;
 
-    Modal.show(title, body, footer);
+    Modal.show(title, body, footer, { wide: true });
   },
 
   // ── Toggle has_class UI ────────────────────────────────────────────────────
