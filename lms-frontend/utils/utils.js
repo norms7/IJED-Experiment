@@ -42,7 +42,7 @@ const Toast = {
 const Modal = {
   show(title, bodyHTML, footerHTML = '', opts = {}) {
     const container = document.getElementById('modal-container');
-    const wideStyle = opts.wide ? 'max-width:860px;width:96%;' : '';
+    const wideStyle = opts.wide ? 'width:min(96%,860px);max-width:calc(100vw - 24px);' : '';
     container.innerHTML = `
       <div class="modal-overlay" id="modal-overlay">
         <div class="modal" style="${wideStyle}">

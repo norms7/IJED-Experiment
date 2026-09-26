@@ -141,13 +141,24 @@
   max-width: 520px;
   box-shadow: var(--shadow-lg);
   animation: modalIn .25s cubic-bezier(.4,0,.2,1);
+  display: flex;
+  flex-direction: column;
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
   box-sizing: border-box;
   word-break: break-word;
   overflow-wrap: break-word;
 }
 @keyframes modalIn { from { transform: scale(.94) translateY(10px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+
+.modal-header,
+.modal-footer { flex-shrink: 0; }
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 
 .modal-header {
   display: flex;
@@ -226,6 +237,18 @@ textarea.form-control      { resize: vertical; min-height: 80px; }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.activity-form .form-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.activity-form .form-group,
+.activity-form .form-control,
+.activity-question-builder {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .activity-form .form-row { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ── Badges ────────────────────────────────────────────────── */

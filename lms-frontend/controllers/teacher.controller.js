@@ -180,7 +180,7 @@ const TeacherController = {
     const termOptions = ['1st', '2nd', '3rd', '4th'].map(term => `<option value="${term}" ${term === selectedTerm ? 'selected' : ''}>${term} Term</option>`).join('');
 
     Modal.show(existingActivity ? 'Edit Activity' : 'Create Activity', `
-      <div style="max-height:70vh;overflow-y:auto;padding-right:4px">
+      <div class="activity-form">
 
         <div class="form-row">
           <div class="form-group" style="flex:2">
@@ -252,7 +252,7 @@ const TeacherController = {
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
       <button class="btn btn-primary" onclick="TeacherController.saveActivity()">${lmsIcon('save')} ${existingActivity ? 'Update Activity' : 'Save Activity'}</button>`,
-      { closeOnBackdrop: false }
+      { closeOnBackdrop: false, wide: true }
     );
 
     setTimeout(() => {
