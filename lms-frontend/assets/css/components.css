@@ -774,12 +774,16 @@ tbody tr:last-child td { border-bottom: none; }
   box-shadow: var(--shadow-sm);
 }
 .teacher-activity-layout {
+  flex: 1 1 0%;
+  width: 100%;
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 112px;
   align-items: start;
   gap: 12px;
 }
 .teacher-activity-content { min-width: 0; }
+.teacher-activity-title { overflow-wrap: anywhere; }
 .teacher-resource-header-actions,
 .teacher-activity-header-actions {
   display: flex;
@@ -817,6 +821,7 @@ tbody tr:last-child td { border-bottom: none; }
   .teacher-activity-actions {
     flex-direction: row;
     flex-wrap: wrap;
+    justify-content: flex-end;
   }
   .teacher-activity-actions .btn { width: auto; }
 }

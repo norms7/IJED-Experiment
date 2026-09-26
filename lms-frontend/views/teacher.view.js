@@ -294,7 +294,7 @@ const TeacherView = {
                 ${gradeBadge}
                 ${pubBadge}
               </div>
-              <div style="font-weight:600;font-size:15px;margin-bottom:4px">${escHtml(a.title)}</div>
+              <div class="teacher-activity-title" style="font-weight:600;font-size:15px;margin-bottom:4px">${escHtml(a.title)}</div>
               ${a.instructions ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">${escHtml(a.instructions.slice(0,120))}${a.instructions.length > 120 ? '…' : ''}</div>` : ''}
               <div class="teacher-activity-meta">
                 <span>${lmsIcon('chart')} ${qCount} question${qCount !== 1 ? 's' : ''} · ${maxPts} pts</span>
