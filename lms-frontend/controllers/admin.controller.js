@@ -269,7 +269,8 @@ const AdminController = {
         </div>
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
-       <button class="btn btn-primary" id="btn-save-user" onclick="AdminController.saveNewUser()">Add User</button>`
+       <button class="btn btn-primary" id="btn-save-user" onclick="AdminController.saveNewUser()">Add User</button>`,
+      { closeOnBackdrop: false }
     );
 
     // Dynamic assignment rows for teacher
@@ -578,7 +579,8 @@ const AdminController = {
         <div class="form-group"><label>New Password (leave blank to keep)</label><input class="form-control" id="e-password" type="password" placeholder="Min. 8 chars + 1 number" /></div>
         <div class="form-row"><div class="form-group"><label>First Name</label><input class="form-control" id="e-fname" value="${escHtml(user.first_name)}" /></div><div class="form-group"><label>Last Name</label><input class="form-control" id="e-lname" value="${escHtml(user.last_name)}" /></div></div>
         ${extraFields}
-      `, `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button><button class="btn btn-primary" id="btn-edit-user" onclick="AdminController.saveEditUser(${id})">Save Changes</button>`);
+      `, `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button><button class="btn btn-primary" id="btn-edit-user" onclick="AdminController.saveEditUser(${id})">Save Changes</button>`,
+        { closeOnBackdrop: false });
 
       if (role === 'teacher') {
         setTimeout(() => {
