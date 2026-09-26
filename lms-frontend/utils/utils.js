@@ -57,7 +57,7 @@ const Modal = {
 
     // Close on backdrop click
     document.getElementById('modal-overlay').addEventListener('click', (e) => {
-      if (e.target.id === 'modal-overlay') Modal.close();
+      if (e.target.id === 'modal-overlay' && opts.closeOnBackdrop !== false) Modal.close();
     });
 
     // Close on ESC key

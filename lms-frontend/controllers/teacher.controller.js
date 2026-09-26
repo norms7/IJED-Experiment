@@ -250,7 +250,8 @@ const TeacherController = {
 
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
-      <button class="btn btn-primary" onclick="TeacherController.saveActivity()">${lmsIcon('save')} ${existingActivity ? 'Update Activity' : 'Save Activity'}</button>`
+      <button class="btn btn-primary" onclick="TeacherController.saveActivity()">${lmsIcon('save')} ${existingActivity ? 'Update Activity' : 'Save Activity'}</button>`,
+      { closeOnBackdrop: false }
     );
 
     setTimeout(() => {
