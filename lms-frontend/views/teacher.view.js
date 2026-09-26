@@ -940,7 +940,7 @@ const TeacherView = {
         </select>
       </div>` : ''}
       <!-- Row 1: DATE + TERM -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="attendance-date-term" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px">
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">DATE</label>
           <input type="date" id="att-date" class="form-control"
@@ -985,7 +985,7 @@ const TeacherView = {
           <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('present')" style="color:var(--green,#16a34a)">${lmsIcon('check')} All Present</button>
           <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('absent')" style="color:#dc2626">${lmsIcon('xmark')} All Absent</button>
         </div>
-        <div class="table-wrap" style="max-height:380px;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <div class="table-wrap attendance-student-table" style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table style="width:100%;border-collapse:collapse">
             <thead style="position:sticky;top:0;z-index:1">
               <tr style="background:var(--gray-50)">

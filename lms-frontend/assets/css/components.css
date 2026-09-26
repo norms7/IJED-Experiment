@@ -251,6 +251,10 @@ textarea.form-control      { resize: vertical; min-height: 80px; }
   .activity-form .form-row { grid-template-columns: minmax(0, 1fr); }
 }
 
+@media (max-width: 480px) {
+  .attendance-date-term { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
 /* ── Badges ────────────────────────────────────────────────── */
 .badge {
   display: inline-flex;
