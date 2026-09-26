@@ -746,6 +746,33 @@ tbody tr:last-child td { border-bottom: none; }
   transition: all .22s;
   margin-bottom: 12px;
 }
+.activity-answer-sheet {
+  width: 100%;
+  max-width: 980px;
+  min-width: 0;
+  margin: 0 auto;
+}
+.activity-answer-question {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+.activity-answer-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
 .teacher-activity-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 112px;
@@ -2155,6 +2182,13 @@ body.dark-mode .profile-dropdown-divider { background: #3a1a20 !important; }
   .activity-type-icon { width: 36px; height: 36px; font-size: 17px; }
   .activity-actions { flex-wrap: wrap; }
   .activity-actions .btn { font-size: 12px; padding: 4px 10px; }
+}
+
+@media (max-width: 600px) {
+  .activity-answer-question { padding: 14px !important; }
+  .activity-answer-question label { width: 100%; min-height: 44px; box-sizing: border-box; }
+  .activity-answer-actions { flex-wrap: wrap; gap: 8px; padding: 12px; }
+  .activity-answer-actions .btn { flex: 1 1 120px; justify-content: center; }
 }
 
 /* UM toolbar: wrap on mobile */
