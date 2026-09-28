@@ -456,7 +456,7 @@ $$;
 --    Mirrors attendance.py: create_session().
 -- ----------------------------------------------------------------------------
 create or replace function create_attendance_session(
-  p_class_id integer,
+  p_section_id integer,     
   p_subject_id integer,
   p_term text,
   p_session_date date,
@@ -476,21 +476,26 @@ begin
   if v_teacher_id is null then
     raise exception 'Not a teacher account' using errcode = '42501';
   end if;
+  
+
   if not exists (
     select 1 from teacher_class_assignments
-    where teacher_id = v_teacher_id and class_id = p_class_id
+    where teacher_id = v_teacher_id and class_id = p_section_id
   ) then
     raise exception 'Not assigned to this class' using errcode = '42501';
   end if;
+  
+
   if exists (
     select 1 from attendance_sessions
-    where class_id = p_class_id and subject_id = p_subject_id and session_date = p_session_date
+    where class_id = p_section_id and subject_id = p_subject_id and session_date = p_session_date
   ) then
     raise exception 'Session already exists for %', p_session_date using errcode = '23505';
   end if;
 
+
   insert into attendance_sessions (teacher_id, class_id, subject_id, term, session_date, has_class, notes)
-  values (v_teacher_id, p_class_id, p_subject_id, p_term, p_session_date, p_has_class, p_notes)
+  values (v_teacher_id, p_section_id, p_subject_id, p_term, p_session_date, p_has_class, p_notes)
   returning id into v_session_id;
 
   if p_has_class then
@@ -503,7 +508,6 @@ begin
   return jsonb_build_object('id', v_session_id, 'session_date', p_session_date, 'has_class', p_has_class);
 end;
 $$;
-
 -- ----------------------------------------------------------------------------
 -- 8. get_dashboard_stats() — admin overview.
 --    Mirrors dashboard_service.py: get_dashboard_stats().
