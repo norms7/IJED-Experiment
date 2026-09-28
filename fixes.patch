@@ -1,0 +1,64 @@
+diff --git a/README.md b/README.md
+index baced95..c5fe1b9 100644
+--- a/README.md
++++ b/README.md
+@@ -260,7 +260,7 @@ Open `http://localhost:5500` and sign in with a Supabase Auth account linked to
+ - Run SQL migrations in the documented order and review RLS policies whenever a table or RPC changes.
+ - Keep service-role credentials inside Edge Functions or Supabase-managed secrets.
+ - Use protected RPCs for aggregates that require access to other students' rows.
+-- Analytics cache entries expire after five minutes for descriptive results and ten minutes for Bayesian results.
++- Analytics cache entries currently expire after 30 seconds for descriptive results and 60 seconds for Bayesian results (`DESCRIPTIVE_TTL_SECONDS` / `BAYESIAN_TTL_SECONDS` in `analytics.engine.js`). These were shortened from the original 5-minute / 10-minute design values for active testing/demoing; raise them back before running with real classes at scale, and update this line if you do.
+ - Attendance treats present as 100%, late as 50%, and absent as 0%.
+ - Past-due, unsubmitted activities count as zero earned points against their own maximum score; activities awaiting grading are not penalized.
+ - The frontend has no package build step. Script order in `lms-frontend/index.html` is part of the runtime dependency order.
+diff --git a/lms-frontend/assets/js/analytics.engine.js b/lms-frontend/assets/js/analytics.engine.js
+index ff30bf6..3c55ab7 100644
+--- a/lms-frontend/assets/js/analytics.engine.js
++++ b/lms-frontend/assets/js/analytics.engine.js
+@@ -15,8 +15,8 @@
+  *   <script defer src="assets/js/lms-supabase-api.js"></script>
+  */
+ 
+-const DESCRIPTIVE_TTL_SECONDS = 30;  // was 300 (5 min) — shortened while actively testing/demoing so changes show up fast; bump back up once this is running for real classes at scale
+-const BAYESIAN_TTL_SECONDS = 60;     // was 600 (10 min) — same reasoning; Bayesian calcs are heavier so it keeps a slightly longer window
++const DESCRIPTIVE_TTL_SECONDS = 30;  // current TTL — was 300 (5 min); shortened while actively testing/demoing so changes show up fast; bump back up once this is running for real classes at scale (see README "Development notes" — keep it in sync if you change this)
++const BAYESIAN_TTL_SECONDS = 60;     // current TTL — was 600 (10 min); same reasoning; Bayesian calcs are heavier so it keeps a slightly longer window (see README "Development notes" — keep it in sync if you change this)
+ 
+ const AnalyticsEngine = (() => {
+ 
+@@ -543,11 +543,11 @@ const AnalyticsEngine = (() => {
+   //   §3 Module Score (%)     = (Modules Read / Total Modules) × 100
+   //
+   // This single function is the source of truth for these three numbers.
+-  // getRiskAssessment() (§4/§5, weights 75/15/10) and getPredictedFinalGrade()
+-  // (§6, weights 70/20/10) both call it, so the Academic/Attendance/Module
+-  // percentages shown on both cards are always identical — only the blend
+-  // weights differ, exactly as the spec defines two separate formulas that
+-  // share the same three inputs.
++  // getRiskAssessment() (§4/§5) and getPredictedFinalGrade() (§6) both call
++  // it, and both now use the same 75/15/10 Academic/Attendance/Module
++  // weighting (see §6 comment above for why the two cards were unified), so
++  // the Academic/Attendance/Module percentages shown on both cards are
++  // always identical.
+   // ══════════════════════════════════════════════════════════════════════
+   async function computePerformanceComponents(sb, studentId, subjectId = null, term = null, semester = null) {
+     const allSubjectIds = await resolveSubjectIds(sb, studentId, semester);
+diff --git a/lms-frontend/views/analytics.view.js b/lms-frontend/views/analytics.view.js
+index 086ffe5..4fd02ba 100644
+--- a/lms-frontend/views/analytics.view.js
++++ b/lms-frontend/views/analytics.view.js
+@@ -331,11 +331,11 @@ const AnalyticsView = {
+           ${AnalyticsView._predictedGrade(predicted_grade)}
+         </div>
+ 
+-        <!-- 2. Grade Improvement Probability -->
++        <!-- 2. Probability of Hitting Target on Next Activity -->
+         <div class="analytics-card">
+           <div class="analytics-card-header">
+-            <div class="analytics-card-title">${analyticsIcon('trend')}Grade Improvement Probability</div>
+-            <div class="analytics-card-sub">Chance your next graded activity hits this score</div>
++            <div class="analytics-card-title">${analyticsIcon('trend')}Probability of Hitting Target on Next Activity</div>
++            <div class="analytics-card-sub">Not your final grade odds — the chance your next single graded activity meets this score</div>
+           </div>
+           ${AnalyticsView._improvementProb(improvement_probability)}
+         </div>
