@@ -331,11 +331,11 @@ const AnalyticsView = {
           ${AnalyticsView._predictedGrade(predicted_grade)}
         </div>
 
-        <!-- 2. Grade Improvement Probability -->
+        <!-- 2. Probability of Hitting Target on Next Activity -->
         <div class="analytics-card">
           <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('trend')}Grade Improvement Probability</div>
-            <div class="analytics-card-sub">Chance your next graded activity hits this score</div>
+            <div class="analytics-card-title">${analyticsIcon('trend')}Probability of Hitting Target on Next Activity</div>
+            <div class="analytics-card-sub">Not your final grade odds — the chance your next single graded activity meets this score</div>
           </div>
           ${AnalyticsView._improvementProb(improvement_probability)}
         </div>

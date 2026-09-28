@@ -15,8 +15,8 @@
  *   <script defer src="assets/js/lms-supabase-api.js"></script>
  */
 
-const DESCRIPTIVE_TTL_SECONDS = 30;  // was 300 (5 min) — shortened while actively testing/demoing so changes show up fast; bump back up once this is running for real classes at scale
-const BAYESIAN_TTL_SECONDS = 60;     // was 600 (10 min) — same reasoning; Bayesian calcs are heavier so it keeps a slightly longer window
+const DESCRIPTIVE_TTL_SECONDS = 30;  // current TTL — was 300 (5 min); shortened while actively testing/demoing so changes show up fast; bump back up once this is running for real classes at scale (see README "Development notes" — keep it in sync if you change this)
+const BAYESIAN_TTL_SECONDS = 60;     // current TTL — was 600 (10 min); same reasoning; Bayesian calcs are heavier so it keeps a slightly longer window (see README "Development notes" — keep it in sync if you change this)
 
 const AnalyticsEngine = (() => {
 
@@ -543,11 +543,11 @@ const AnalyticsEngine = (() => {
   //   §3 Module Score (%)     = (Modules Read / Total Modules) × 100
   //
   // This single function is the source of truth for these three numbers.
-  // getRiskAssessment() (§4/§5, weights 75/15/10) and getPredictedFinalGrade()
-  // (§6, weights 70/20/10) both call it, so the Academic/Attendance/Module
-  // percentages shown on both cards are always identical — only the blend
-  // weights differ, exactly as the spec defines two separate formulas that
-  // share the same three inputs.
+  // getRiskAssessment() (§4/§5) and getPredictedFinalGrade() (§6) both call
+  // it, and both now use the same 75/15/10 Academic/Attendance/Module
+  // weighting (see §6 comment above for why the two cards were unified), so
+  // the Academic/Attendance/Module percentages shown on both cards are
+  // always identical.
   // ══════════════════════════════════════════════════════════════════════
   async function computePerformanceComponents(sb, studentId, subjectId = null, term = null, semester = null) {
     const allSubjectIds = await resolveSubjectIds(sb, studentId, semester);

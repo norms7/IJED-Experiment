@@ -260,7 +260,7 @@ Open `http://localhost:5500` and sign in with a Supabase Auth account linked to 
 - Run SQL migrations in the documented order and review RLS policies whenever a table or RPC changes.
 - Keep service-role credentials inside Edge Functions or Supabase-managed secrets.
 - Use protected RPCs for aggregates that require access to other students' rows.
-- Analytics cache entries expire after five minutes for descriptive results and ten minutes for Bayesian results.
+- Analytics cache entries currently expire after 30 seconds for descriptive results and 60 seconds for Bayesian results (`DESCRIPTIVE_TTL_SECONDS` / `BAYESIAN_TTL_SECONDS` in `analytics.engine.js`). These were shortened from the original 5-minute / 10-minute design values for active testing/demoing; raise them back before running with real classes at scale, and update this line if you do.
 - Attendance treats present as 100%, late as 50%, and absent as 0%.
 - Past-due, unsubmitted activities count as zero earned points against their own maximum score; activities awaiting grading are not penalized.
 - The frontend has no package build step. Script order in `lms-frontend/index.html` is part of the runtime dependency order.
