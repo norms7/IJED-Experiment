@@ -73,9 +73,9 @@ The underlying academic measures use the following formulas:
 
 The calculation process is:
 
-1. Only published activities that are due, or have no due date, are included.
-2. Graded submissions contribute their earned points and maximum points; if a legacy submission has no valid `max_score`, the activity's `max_score` is used.
-3. Past-due activities with no submission contribute `0 / max_score`; submissions waiting for grading are excluded until graded.
+1. Published activities with a graded submission count immediately, even if their due date is in the future.
+2. Unsubmitted activities count only when due or undated, and contribute `0 / max_score`; future activities without a submission are excluded.
+3. Graded submissions contribute their earned points and maximum points; if a legacy submission has no valid `max_score`, the activity's `max_score` is used. Submissions waiting for grading are excluded until graded.
 4. Published modules and recorded attendance are filtered to the selected subject and term.
 5. The resulting component percentages are displayed in the descriptive cards and reused by the Bayesian calculations.
 

@@ -336,7 +336,7 @@ const AnalyticsEngine = (() => {
   }
 
   async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null, semester = null) {
-    const cacheKey = `predicted_grade.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    const cacheKey = `predicted_grade.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) return emptyPrediction();
@@ -555,7 +555,7 @@ const AnalyticsEngine = (() => {
     const subjectIds = subjectId ? allSubjectIds.filter(id => id === subjectId) : allSubjectIds;
     if (!subjectIds.length) return null;
 
-    const nowIso = new Date().toISOString();
+    const now = new Date();
 
     // ── §2 Attendance Score: Present = 100%, Late = 50%, Absent = 0% ──────
     const { data: attScore, error: attErr } = await sb.rpc("get_attendance_score", {
@@ -587,16 +587,14 @@ const AnalyticsEngine = (() => {
     const modulePct = totalMods ? (Math.min(reads || 0, totalMods) / totalMods) * 100 : null;
 
     // ── §1 Academic Score: Total Earned / Total Possible ──────────────────
-    // Only "applicable" activities count: published, and either already due
-    // or undated. A past-due activity the student never submitted counts as
-    // 0 earned against its own max_score (not a flat 100), so a missed
-    // 10-point quiz doesn't get weighted the same as a missed 100-point exam.
+    // Graded submissions count as soon as they're graded, even if the due
+    // date is still in the future. Unsubmitted activities count only once
+    // due (or if undated), as 0 earned against their own max_score.
     // Term scoping: activities.term is a direct column, set explicitly when
     // the teacher creates the activity -- filtered straight, no join needed.
     let actQuery = sb
       .from("activities").select("id, max_score, due_date")
-      .in("subject_id", subjectIds).eq("is_published", true)
-      .or(`due_date.is.null,due_date.lte.${nowIso}`);
+      .in("subject_id", subjectIds).eq("is_published", true);
     if (term) actQuery = actQuery.eq("term", term);
     const { data: applicableActs, error: actErr } = await actQuery;
     if (actErr) throw new Error(actErr.message);
@@ -619,8 +617,8 @@ const AnalyticsEngine = (() => {
         countedActivities++;
       } else if (sub && !sub.is_graded) {
         continue; // submitted, awaiting grading — can't score it yet, don't penalize
-      } else if (act.max_score > 0) {
-        // past due, never submitted → missed work counts as 0/max_score
+      } else if ((!act.due_date || new Date(act.due_date) <= now) && act.max_score > 0) {
+        // due or undated, never submitted → missed work counts as 0/max_score
         totalPossible += act.max_score;
         countedActivities++;
       }
@@ -668,7 +666,7 @@ const AnalyticsEngine = (() => {
   }
 
   async function getRiskAssessment(sb, studentId, subjectId = null, term = null, semester = null) {
-    const cacheKey = `performance.rating.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    const cacheKey = `performance.rating.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) {
