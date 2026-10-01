@@ -225,17 +225,33 @@ const App = {
     });
   },
 
-  previewProfileImage(input) {
+  async previewProfileImage(input) {
     const file = input.files?.[0];
     if (!file) return;
+    const user = DashboardController.currentUser || Storage.get("ijla_session");
+
+    // Show the picked image immediately, before the upload finishes.
     const reader = new FileReader();
     reader.onload = () => {
-      const user =
-        DashboardController.currentUser || Storage.get("ijla_session");
-      this._pendingProfileImage = reader.result;
-      this.applyProfileImage(user);
+      this.applyProfileImage({ ...user, avatar_url: reader.result });
     };
     reader.readAsDataURL(file);
+
+    try {
+      const avatarUrl = await api.uploadMyProfilePicture(file);
+      this.applyProfileImage({ ...user, avatar_url: avatarUrl });
+      if (DashboardController.currentUser) {
+        DashboardController.currentUser.avatar_url = avatarUrl;
+      }
+      Toast.show("Profile picture updated.", "success");
+    } catch (err) {
+      console.error("Failed to upload profile picture:", err);
+      Toast.show(err.message || "Could not upload profile picture.", "error");
+      // Revert the preview since the upload didn't actually save.
+      this.applyProfileImage(user);
+    } finally {
+      input.value = "";
+    }
   },
 };
 /* ── Dark Mode ──────────────────────────────────────────────── */
