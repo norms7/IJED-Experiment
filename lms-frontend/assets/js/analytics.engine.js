@@ -601,19 +601,21 @@ const AnalyticsEngine = (() => {
     const { data: applicableActs, error: actErr } = await actQuery;
     if (actErr) throw new Error(actErr.message);
 
-    const { data: subs } = await sb
+    const { data: subs, error: subsErr } = await sb
       .from("activity_submissions")
       .select("activity_id, score, max_score, is_graded")
       .eq("student_id", studentId)
       .in("activity_id", (applicableActs || []).map(a => a.id));
+    if (subsErr) throw new Error(subsErr.message);
     const submittedById = new Map((subs || []).map(s => [s.activity_id, s]));
 
     let totalEarned = 0, totalPossible = 0, countedActivities = 0;
     for (const act of (applicableActs || [])) {
       const sub = submittedById.get(act.id);
-      if (sub && sub.is_graded && sub.score !== null && sub.max_score > 0) {
+      const maxScore = sub?.max_score > 0 ? sub.max_score : act.max_score;
+      if (sub && sub.is_graded && sub.score !== null && maxScore > 0) {
         totalEarned += sub.score;
-        totalPossible += sub.max_score;
+        totalPossible += maxScore;
         countedActivities++;
       } else if (sub && !sub.is_graded) {
         continue; // submitted, awaiting grading — can't score it yet, don't penalize
