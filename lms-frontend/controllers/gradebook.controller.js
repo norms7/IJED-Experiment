@@ -350,15 +350,7 @@ const GradebookController = {
         return acc;
       }, []);
 
-      let totalEarned = 0, totalPossible = 0;
-      stuSubs.forEach(({ act, sub }) => {
-        if (sub.is_graded && sub.score != null && act.max_score) {
-          totalEarned   += sub.score;
-          totalPossible += act.max_score;
-        }
-      });
-
-      const activityPct   = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
+      const activityPct = TeacherView._activityScore(activities, studentId).percentage;
       const readCount     = stu._modulesRead ?? 0;
       const modulePct     = modules.length > 0 ? Math.round((readCount / modules.length) * 100) : 0;
       const attPresent    = stu._attPresent ?? 0;
@@ -410,7 +402,9 @@ const GradebookController = {
       const scores = activities.map(act => {
         const sub = act._submissions?.find(s => s.student_id === studentId);
         if (sub?.is_graded && sub?.score != null) {
-          totalEarned += sub.score; totalPossible += act.max_score ?? 0;
+          const maxScore = sub.max_score > 0 ? sub.max_score : act.max_score;
+          totalEarned += sub.score;
+          totalPossible += maxScore > 0 ? maxScore : 0;
           return sub.score;
         }
         return '';

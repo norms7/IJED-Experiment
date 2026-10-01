@@ -47,6 +47,30 @@ const TEACHER_SUBJECT_STYLES = {
 
 const TeacherView = {
 
+  _activityScore(activities, studentId, now = new Date()) {
+    let totalEarned = 0;
+    let totalPossible = 0;
+
+    activities.forEach(act => {
+      const sub = act._submissions?.find(s => s.student_id === studentId);
+      if (sub?.is_graded && sub.score != null) {
+        const maxScore = sub.max_score > 0 ? sub.max_score : act.max_score;
+        if (maxScore > 0) {
+          totalEarned += sub.score;
+          totalPossible += maxScore;
+        }
+      } else if (!sub && (!act.due_date || new Date(act.due_date) <= now) && act.max_score > 0) {
+        totalPossible += act.max_score;
+      }
+    });
+
+    return {
+      totalEarned,
+      totalPossible,
+      percentage: totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null,
+    };
+  },
+
   dashboard(user, subjects = null, dashboardData = {}) {
     if (!subjects) {
       return `<div class="teacher-dashboard-loading"><div class="teacher-dashboard-hero"><div><p>Teacher workspace</p><h1>Loading your teaching day…</h1></div>${LMS_ICONS.school}</div><div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading dashboard data…</div></div>`;
@@ -450,23 +474,7 @@ const TeacherView = {
           }, []);
           const submittedCount = stuSubs.length;
 
-          let totalEarned = 0, totalPossible = 0;
-          stuSubs.forEach(({ act, sub }) => {
-            const isApplicable = !act.due_date || new Date(act.due_date) <= new Date();
-            if (!isApplicable) return;
-            if (sub.is_graded && sub.score != null && (sub.max_score || act.max_score) > 0) {
-              totalEarned   += sub.score;
-              totalPossible += sub.max_score || act.max_score;
-            } else if (sub && !sub.is_graded) {
-              return;
-            }
-          });
-          activities.forEach(act => {
-            const sub = act._submissions?.find(s => s.student_id === studentId);
-            const isApplicable = !act.due_date || new Date(act.due_date) <= new Date();
-            if (!sub && isApplicable && act.max_score > 0) totalPossible += act.max_score;
-          });
-          const activityPct   = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
+          const activityPct = TeacherView._activityScore(activities, studentId).percentage;
           const readCount     = stu._modulesRead ?? 0;
           const attPresent    = stu._attPresent  ?? 0;
           const attLate       = stu._attLate     ?? 0;

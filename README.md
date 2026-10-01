@@ -42,6 +42,7 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - Track module reading progress
 - Create attendance sessions and record present, late, absent, or excused status
 - View attendance summaries and gradebook data
+- Gradebook ACT% is earned points divided by possible points; graded submissions count immediately, pending submissions do not count, and due unsubmitted activities count as zero.
 
 ### Student
 
