@@ -223,6 +223,13 @@ const TeacherController = {
           <div id="act-grading-badge" style="margin-top:6px">${this._gradingBadge('auto')}</div>
         </div>
 
+        <div class="form-group" id="act-points-wrap" style="display:none">
+          <label>Total Points *</label>
+          <input class="form-control" id="act-points" type="number" min="1" max="1000" step="1"
+                 value="${existingActivity?.max_score ?? ''}" placeholder="e.g. 50" />
+          <small class="text-muted">Maximum score for this activity. You will grade each submission out of this number.</small>
+        </div>
+
         <div class="form-row">
           <div class="form-group">
             <label>Start Date / Time</label>
@@ -321,8 +328,17 @@ const TeacherController = {
     const badgeEl  = document.getElementById('act-grading-badge');
     const qSection = document.getElementById('act-questions-section');
     if (badgeEl)  badgeEl.innerHTML  = this._gradingBadge(fmt?.grading || 'auto');
-    const hideQ = val === 'assignment' || val === 'freeform';
+    const hideQ = this._isSinglePrompt(val);
     if (qSection) qSection.style.display = hideQ ? 'none' : '';
+    // Freeform / Assignment have no question builder, so the teacher sets the
+    // total points directly. (Hybrid keeps per-question points; max = their sum.)
+    const pointsWrap = document.getElementById('act-points-wrap');
+    if (pointsWrap) pointsWrap.style.display = hideQ ? '' : 'none';
+  },
+
+  /** Formats that are a single manually-graded prompt (no question builder). */
+  _isSinglePrompt(format) {
+    return format === 'freeform' || format === 'assignment';
   },
 
   // ── Question builder ──────────────────────────────────────
@@ -490,11 +506,20 @@ const TeacherController = {
     if (!term)      { Toast.show('Please select a term.', 'error'); return; }
     if (!moduleId)  { Toast.show('Please select a module.', 'error'); return; }
 
-    const needsQuestions = !['assignment', 'freeform'].includes(format);
-    if (needsQuestions && !this._questions.length) {
+    const singlePrompt = this._isSinglePrompt(format);
+    let manualPoints = null;
+    if (singlePrompt) {
+      const raw = document.getElementById('act-points')?.value;
+      manualPoints = Number(raw);
+      if (!raw || !Number.isInteger(manualPoints) || manualPoints < 1 || manualPoints > 1000) {
+        Toast.show('Please enter the total points (a whole number from 1 to 1000).', 'error'); return;
+      }
+    }
+
+    if (!singlePrompt && !this._questions.length) {
       Toast.show('Please add at least one question.', 'error'); return;
     }
-    for (const [i, q] of this._questions.entries()) {
+    for (const [i, q] of (singlePrompt ? [] : this._questions).entries()) {
       if (!q.text.trim()) { Toast.show(`Question ${i + 1} is missing question text.`, 'error'); return; }
       if ((q.type === 'multiple_choice' || q.type === 'checkbox') && q.choices.filter(c => c.text.trim()).length < 2) {
         Toast.show(`Question ${i + 1} needs at least 2 choices.`, 'error'); return;
@@ -513,7 +538,18 @@ const TeacherController = {
 
     const fmt         = this._FORMAT_TYPES.find(f => f.value === format);
     const gradingMode = fmt?.grading || 'auto';
-    const questions   = this._questions.map((q, i) => ({
+    // Freeform / Assignment: one essay prompt carrying the teacher-defined points.
+    // This lets students answer + submit through the normal pipeline, and the
+    // activity gets a real max_score so grading and analytics have a denominator.
+    const singlePromptQuestion = singlePrompt ? {
+      order:          0,
+      question_text:  instructions || title,
+      question_type:  'essay',
+      points:         manualPoints,
+      correct_answer: null,
+      choices:        [],
+    } : null;
+    const questions   = singlePrompt ? [singlePromptQuestion] : this._questions.map((q, i) => ({
       order:          i,
       question_text:  q.text.trim(),
       question_type:  q.type,
@@ -521,7 +557,9 @@ const TeacherController = {
       correct_answer: q.correct !== null ? String(q.correct) : null,
       choices:        q.choices.map((c, ci) => ({ order: ci, choice_text: c.text.trim() })).filter(c => c.choice_text),
     }));
-    const max_score = questions.reduce((s, q) => s + q.points, 0) || null;
+    const max_score = singlePrompt
+      ? manualPoints
+      : (questions.reduce((s, q) => s + q.points, 0) || null);
     const payload = {
       title,
       subject_id:           subjectId,
@@ -536,8 +574,14 @@ const TeacherController = {
       due_date:             dueRaw   ? new Date(dueRaw).toISOString()   : null,
       max_score,
       is_published:         true,
-      questions,
     };
+    if (singlePrompt && this._editingActivityId) {
+      // Editing: update the existing prompt in place instead of delete+recreate,
+      // otherwise existing student answers would be cascade-deleted.
+      payload.single_prompt = singlePromptQuestion;
+    } else {
+      payload.questions = questions;
+    }
 
     const btn = document.querySelector('#modal-container .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
@@ -728,7 +772,7 @@ const TeacherController = {
         }
 
         const gradeBtn = isManual && !s.is_graded
-          ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score || 100})">${lmsIcon('pen')} Grade</button>`
+          ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score ?? 0})">${lmsIcon('pen')} Grade</button>`
           : (s.is_graded ? `<span class="badge badge-green">✓ Graded</span>` : `<span class="badge badge-gray">Auto</span>`);
 
         return `<tr data-class-id="${s.class_id || ''}" data-searchable
@@ -887,7 +931,7 @@ const TeacherController = {
             ${LMS_ICONS.loading} <strong>Pending grade</strong>
             ${activity.grading_mode === 'manual'
               ? `<button class="btn btn-xs btn-primary" style="margin-left:12px"
-                   onclick="TeacherController.openManualGrade(${activityId}, ${submissionId}, ${activity.max_score || 100})">
+                   onclick="TeacherController.openManualGrade(${activityId}, ${submissionId}, ${activity.max_score ?? 0})">
                    ${lmsIcon('pen')} Grade Now</button>`
               : ''}
           </div>`;
@@ -911,6 +955,10 @@ const TeacherController = {
   },
 
   openManualGrade(activityId, submissionId, maxScore) {
+    if (!maxScore || maxScore <= 0) {
+      Toast.show('This activity has no total points yet. Click Edit on the activity and set the points first.', 'error');
+      return;
+    }
     Modal.show(`${lmsIcon('pen')} Enter Grade`, `
       <div class="form-group">
         <label>Score <span class="text-muted">/ ${maxScore}</span></label>
@@ -948,8 +996,8 @@ const TeacherController = {
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
       await api.manualGradeSubmission(activityId, submissionId, { score, grade, remarks });
-      Modal.close();
-      Toast.show('Grade saved!', 'success');
+      Toast.show('Grade saved! The student has been notified.', 'success');
+      await this.openGradeActivity(activityId);
     } catch (err) {
       if (btn) { btn.disabled = false; btn.textContent = 'Submit Grade'; }
       Toast.show(err.message || 'Failed to save grade.', 'error');
