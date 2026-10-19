@@ -37,7 +37,8 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - View assigned subjects, classes, and students
 - Create, publish, edit, and delete learning modules
 - Upload PDF module files to Supabase Storage
-- Create and manage multiple-choice, freeform, hybrid, and assignment activities
+- Create and manage multiple-choice, freeform, hybrid, and assignment activities, including activity files for manually graded work
+- Review student-uploaded files alongside written answers and manually grade submissions
 - Review submissions and manually grade activities when required
 - Track module reading progress
 - Create attendance sessions and record present, late, absent, or excused status
@@ -169,7 +170,7 @@ This change does not mean that all computation moved into the browser. Any calcu
 | Authorization | PostgreSQL Row Level Security policies |
 | Database logic | PostgreSQL functions and RPCs |
 | Realtime | Supabase Realtime subscriptions |
-| File storage | Supabase Storage (`module-files` bucket) |
+| File storage | Supabase Storage (`module-files` and private `Activity-files` buckets) |
 | Administrative server code | Supabase Edge Function (`admin-create-user`) |
 | Spreadsheet support | SheetJS via CDN |
 | Frontend hosting | Any static host or local Live Server |
@@ -198,7 +199,8 @@ Experiment/
     ├── 04_sample_seed_data.sql             # Optional sample LMS data
     ├── 05_profile_settings.sql             # Profile details and avatar storage policies
     ├── 06_notifications_realtime.sql       # Notification triggers and Realtime publication
-    ├── 07_audit_log.sql                    # Administrative audit history and triggers
+    ├── 07_activity_term.sql                # Activity term column and index
+    ├── 08_activity_file_uploads.sql        # Activity attachment metadata and private storage policies
     ├── edge_functions/admin-create-user/   # Secure admin account creation
     ├── edge_functions/admin-update-user/   # Secure admin email/password updates
     ├── FULL_SETUP_GUIDE.md
@@ -224,7 +226,8 @@ Run these files in the Supabase SQL Editor, in order:
 4. `supabase-migration/04_sample_seed_data.sql` (optional)
 5. `supabase-migration/05_profile_settings.sql`
 6. `supabase-migration/06_notifications_realtime.sql`
-7. `supabase-migration/07_audit_log.sql`
+7. `supabase-migration/07_activity_term.sql`
+8. `supabase-migration/08_activity_file_uploads.sql` (after confirming the existing `Activity-files` bucket exists)
 
 The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 
@@ -232,7 +235,7 @@ The migration guide explains account linking, storage policies, and deployment d
 
 Update the project URL and public anon key in `lms-frontend/assets/js/lms-supabase-api.js` if they are not already configured. The anon key is intended for browser use; database protection must come from the RLS policies. Never put the Supabase service-role key in frontend files.
 
-Create a public Storage bucket named `module-files` and apply the teacher upload and file read policies described in the setup guide.
+Create a public Storage bucket named `module-files` and apply the teacher upload and file read policies described in the setup guide. The `Activity-files` bucket must also exist before running migration 08; that migration makes it private and restricts access to enrolled students and the activity's teacher. Activity and student answer uploads are limited to 50 MB, and files are served with short-lived signed URLs.
 
 The profile settings migration creates the `profile-images` bucket, stores address/social details, and adds the avatar URL used by student and teacher profile settings. Profile identity, role, section, year level, employment, and account status remain read-only.
 

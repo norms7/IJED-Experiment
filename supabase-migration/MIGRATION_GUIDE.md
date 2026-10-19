@@ -44,8 +44,8 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
    and the `profile-images` Storage bucket policies.
 6. `06_notifications_realtime.sql` — publishes notification changes through
    Supabase Realtime and creates notifications for published activities and modules.
-7. `07_audit_log.sql` — creates the admin-only audit history table and logs
-   administrative changes to users, profiles, assignments, sections, modules, and activities.
+7. `07_activity_term.sql` — adds the activity term column and index.
+8. `08_activity_file_uploads.sql` — adds activity attachment metadata and configures the existing `Activity-files` bucket as private with teacher/student access policies. Create or confirm the bucket before running this migration.
 
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside
@@ -140,6 +140,12 @@ on storage.objects for select
 using (bucket_id = 'module-files');
 ```
 
+The activity upload feature uses the existing `Activity-files` bucket. Run
+`08_activity_file_uploads.sql` after confirming that bucket exists. The
+migration makes the bucket private and permits access only to the activity's
+teacher and enrolled students. Activity materials and student answers support
+files up to 50 MB and use signed URLs.
+
 ---
 
 ## Phase 5 — Swap the frontend
@@ -197,6 +203,8 @@ Go through this checklist in order — each role builds on the previous:
 - [ ] Upload a module file
 - [ ] Create an activity with questions (multiple choice + one essay, to
       test both auto and manual grading paths)
+- [ ] Add an activity file to a manually graded activity and open it as a student
+- [ ] Upload a file with an essay answer and open it from the teacher submission review
 - [ ] Create an attendance session with records
 
 **Student:**

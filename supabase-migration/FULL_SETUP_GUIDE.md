@@ -96,7 +96,8 @@ exact order**, from `supabase-migration/` in your unzipped folder:
    profile image URLs, and the `profile-images` Storage bucket policies.
 6. `06_notifications_realtime.sql` — enables notification Realtime events and
    creates notifications for published activities and modules.
-7. `07_audit_log.sql` — creates the admin-only audit history table and logging triggers.
+7. `07_activity_term.sql` — adds the activity term column and index.
+8. `08_activity_file_uploads.sql` — adds activity attachment fields, makes the existing `Activity-files` bucket private, and scopes upload/read/delete access to the activity's teacher and enrolled students. Ensure that bucket already exists before running this migration.
 
 Deploy both admin Edge Functions when account management is enabled:
 
@@ -151,6 +152,12 @@ create policy "Anyone can read module files"
 on storage.objects for select
 using (bucket_id = 'module-files');
 ```
+
+For manual-grading activity attachments and student answer uploads, use the
+existing `Activity-files` bucket. Run `08_activity_file_uploads.sql` after
+that bucket exists; it configures the bucket as private and installs the
+required access policies. Keep the bucket's upload limit at or above 50 MB,
+which is the frontend's per-file limit.
 
 ---
 

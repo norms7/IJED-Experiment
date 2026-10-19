@@ -122,6 +122,9 @@ const StudentController = {
     area.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading activity…</div></div>`;
     try {
       const activity = await api.getStudentActivity(activityId);
+      if (activity.file_path) {
+        activity.file_url = await api.getActivityFileSignedUrl(activity.file_path);
+      }
       if (activity.is_past_due) {
         const dueDateStr = activity.due_date
           ? new Date(activity.due_date).toLocaleString('en-PH', {
@@ -189,6 +192,7 @@ const StudentController = {
     if (!activity) return;
 
     const answers     = [];
+    const answerFiles = [];
     let allAnswered   = true;
 
     for (const q of activity.questions) {
@@ -204,7 +208,16 @@ const StudentController = {
       } else {
         const el = document.getElementById(`q_${q.id}`);
         val = el ? el.value.trim() : null;
-        if (!val) allAnswered = false;
+        const fileInput = q.question_type === 'essay'
+          ? document.getElementById(`q_file_${q.id}`)
+          : null;
+        const file = fileInput?.files?.[0] || null;
+        if (file && file.size > 50 * 1024 * 1024) {
+          Toast.show('Answer files must be 50 MB or smaller.', 'error');
+          return;
+        }
+        if (!val && !file) allAnswered = false;
+        if (file) answerFiles.push({ questionId: q.id, file });
       }
       answers.push({ question_id: q.id, answer_value: val });
     }
@@ -217,13 +230,37 @@ const StudentController = {
     const btn = document.getElementById('submit-activity-btn');
     if (btn) { btn.disabled = true; btn.textContent = '📤 Submitting…'; }
 
+    const uploadedFiles = [];
+    let submissionSaved = false;
     try {
+      for (const answerFile of answerFiles) {
+        const uploaded = await api.uploadStudentActivityAnswerFile(activityId, answerFile.file);
+        uploadedFiles.push(uploaded.file_path);
+        const answer = answers.find(item => item.question_id === answerFile.questionId);
+        answer.answer_value = JSON.stringify({
+          text: answer.answer_value || '',
+          file_path: uploaded.file_path,
+          file_name: uploaded.file_name,
+        });
+      }
       const result = await api.submitActivityAnswers(activityId, answers);
+      submissionSaved = true;
+      result.answers = answers.map(answer => ({ ...answer }));
+      await this._resolveActivityFiles(activity, result);
       Toast.show('Activity submitted!', 'success');
       const area = document.getElementById('content-area');
       area.innerHTML = StudentView.activityResult(activity, result);
     } catch (err) {
-      Toast.show('Submission failed: ' + err.message, 'error');
+      if (!submissionSaved) {
+        for (const path of uploadedFiles) {
+          try { await api.removeActivityFile(path); }
+          catch (cleanupError) { console.error('Could not remove an unsubmitted answer file:', cleanupError); }
+        }
+      }
+      Toast.show(
+        (submissionSaved ? 'Submitted, but could not load the result: ' : 'Submission failed: ') + err.message,
+        'error',
+      );
       if (btn) { btn.disabled = false; btn.textContent = '📤 Submit Activity'; }
     }
   },
@@ -238,10 +275,26 @@ const StudentController = {
         api.getStudentActivity(activityId),
         api.getMyActivityResult(activityId),
       ]);
+      await this._resolveActivityFiles(activity, result);
       area.innerHTML = StudentView.activityResult(activity, result);
     } catch (err) {
       Toast.show('Failed to load result: ' + err.message, 'error');
       this.loadActivities();
+    }
+  },
+
+  async _resolveActivityFiles(activity, result) {
+    if (activity?.file_path) {
+      activity.file_url = await api.getActivityFileSignedUrl(activity.file_path);
+    }
+    for (const answer of result?.answers || []) {
+      if (!answer.answer_value) continue;
+      let parsed;
+      try { parsed = JSON.parse(answer.answer_value); } catch { continue; }
+      if (!parsed || typeof parsed !== 'object' || !parsed.file_path) continue;
+      answer.file_name = parsed.file_name || 'Submitted file';
+      answer.file_url = await api.getActivityFileSignedUrl(parsed.file_path);
+      answer.answer_text = parsed.text || '';
     }
   },
 

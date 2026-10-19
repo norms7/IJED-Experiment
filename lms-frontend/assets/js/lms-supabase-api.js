@@ -1039,6 +1039,64 @@ class LMSAdminAPI {
     return { file_url: data.publicUrl, file_name: file.name };
   }
 
+  _validateActivityFile(file) {
+    if (!file) throw new Error("Please choose a file to upload.");
+    if (file.size > 50 * 1024 * 1024) {
+      throw new Error("Activity files must be 50 MB or smaller.");
+    }
+  }
+
+  async _uploadActivityFile(path, file) {
+    this._validateActivityFile(file);
+    const { error } = await this.sb.storage
+      .from("Activity-files")
+      .upload(path, file, { contentType: file.type || undefined });
+    if (error) throw new Error(error.message);
+    return { file_path: path, file_name: file.name };
+  }
+
+  async uploadTeacherActivityFile(activityId, file) {
+    this._validateActivityFile(file);
+    const safeName = file.name.replace(/[^\w.-]+/g, "_").replace(/^\.+/, "");
+    const uniqueName =
+      globalThis.crypto?.randomUUID?.() ||
+      `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    return this._uploadActivityFile(
+      `activities/${activityId}/${uniqueName}_${safeName || "attachment"}`,
+      file,
+    );
+  }
+
+  async uploadStudentActivityAnswerFile(activityId, file) {
+    this._validateActivityFile(file);
+    const studentId = await this._myStudentId();
+    const safeName = file.name.replace(/[^\w.-]+/g, "_").replace(/^\.+/, "");
+    const uniqueName =
+      globalThis.crypto?.randomUUID?.() ||
+      `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    return this._uploadActivityFile(
+      `submissions/${activityId}/${studentId}/${uniqueName}_${safeName || "answer"}`,
+      file,
+    );
+  }
+
+  async getActivityFileSignedUrl(path) {
+    if (!path) throw new Error("An activity file path is required.");
+    const { data, error } = await this.sb.storage
+      .from("Activity-files")
+      .createSignedUrl(path, 60 * 60);
+    if (error) throw new Error(error.message);
+    return data.signedUrl;
+  }
+
+  async removeActivityFile(path) {
+    if (!path) return;
+    const { error } = await this.sb.storage
+      .from("Activity-files")
+      .remove([path]);
+    if (error) throw new Error(error.message);
+  }
+
   async uploadSubjectMaterial(subjectId, formData) {
     const file = formData.get("file");
     const upload = await this.uploadModuleFile(file);

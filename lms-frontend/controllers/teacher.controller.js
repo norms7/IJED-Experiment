@@ -140,6 +140,7 @@ const TeacherController = {
   /** Questions array held in memory while the modal is open */
   _questions: [],
   _editingActivityId: null,
+  _editingActivityFilePath: null,
 
   _gradingBadge(mode) {
     return mode === 'auto'
@@ -152,6 +153,7 @@ const TeacherController = {
   async openAddActivity(presetSubjectId = null, existingActivity = null) {
     this._questions = [];
     this._editingActivityId = existingActivity?.id || null;
+    this._editingActivityFilePath = existingActivity?.file_path || null;
     let subjectOpts = '<option value="">Loading...</option>';
     let moduleMap   = {};
 
@@ -220,7 +222,14 @@ const TeacherController = {
         <div class="form-group">
           <label>Question Format</label>
           <select class="form-control" id="act-format" onchange="TeacherController._onFormatChange(this.value)">${formatOpts}</select>
-          <div id="act-grading-badge" style="margin-top:6px">${this._gradingBadge('auto')}</div>
+          <div id="act-grading-badge" style="margin-top:6px">${this._gradingBadge(existingActivity?.grading_mode || 'auto')}</div>
+        </div>
+
+        <div class="form-group" id="act-file-wrap" style="display:${existingActivity?.grading_mode === 'manual' ? '' : 'none'}">
+          <label>Activity File <span class="text-muted">(optional, up to 50 MB)</span></label>
+          ${existingActivity?.file_name ? `<div class="text-sm" style="margin-bottom:6px">Current file: ${escHtml(existingActivity.file_name)} (kept unless replaced)</div>` : ''}
+          <input class="form-control" id="act-file" type="file" />
+          <small class="text-muted">Students can view this file while completing the activity.</small>
         </div>
 
         <div class="form-group" id="act-points-wrap" style="display:none">
@@ -327,7 +336,9 @@ const TeacherController = {
     const fmt      = this._FORMAT_TYPES.find(f => f.value === val);
     const badgeEl  = document.getElementById('act-grading-badge');
     const qSection = document.getElementById('act-questions-section');
+    const fileWrap = document.getElementById('act-file-wrap');
     if (badgeEl)  badgeEl.innerHTML  = this._gradingBadge(fmt?.grading || 'auto');
+    if (fileWrap) fileWrap.style.display = fmt?.grading === 'manual' ? '' : 'none';
     const hideQ = this._isSinglePrompt(val);
     if (qSection) qSection.style.display = hideQ ? 'none' : '';
     // Freeform / Assignment have no question builder, so the teacher sets the
@@ -497,6 +508,7 @@ const TeacherController = {
     const actType      = document.getElementById('act-type')?.value;
     const actCustom    = document.getElementById('act-type-custom')?.value.trim();
     const format       = document.getElementById('act-format')?.value;
+    const selectedFile = document.getElementById('act-file')?.files?.[0] || null;
     const startRaw     = document.getElementById('act-start')?.value;
     const dueRaw       = document.getElementById('act-due')?.value;
     const instructions = document.getElementById('act-instructions')?.value.trim();
@@ -538,6 +550,10 @@ const TeacherController = {
 
     const fmt         = this._FORMAT_TYPES.find(f => f.value === format);
     const gradingMode = fmt?.grading || 'auto';
+    const activityFile = gradingMode === 'manual' ? selectedFile : null;
+    if (activityFile && activityFile.size > 50 * 1024 * 1024) {
+      Toast.show('Activity files must be 50 MB or smaller.', 'error'); return;
+    }
     // Freeform / Assignment: one essay prompt carrying the teacher-defined points.
     // This lets students answer + submit through the normal pipeline, and the
     // activity gets a real max_score so grading and analytics have a denominator.
@@ -585,20 +601,72 @@ const TeacherController = {
 
     const btn = document.querySelector('#modal-container .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    const wasEditing = Boolean(this._editingActivityId);
+    const activityId = this._editingActivityId;
+    let createdActivityId = null;
+    let uploadedFilePath = null;
+    let uploadedFileName = null;
+    let replacedFileCleanupFailed = false;
     try {
-      const wasEditing = Boolean(this._editingActivityId);
       if (wasEditing) {
+        if (activityFile) {
+          const uploaded = await api.uploadTeacherActivityFile(activityId, activityFile);
+          uploadedFilePath = uploaded.file_path;
+          uploadedFileName = uploaded.file_name;
+        }
         await api.updateTeacherActivity(this._editingActivityId, payload);
+        if (uploadedFilePath) {
+          await api.updateTeacherActivity(activityId, {
+            file_path: uploadedFilePath,
+            file_name: uploadedFileName,
+          });
+        }
       } else {
-        await api.createTeacherActivity(payload);
+        const created = await api.createTeacherActivity(payload);
+        createdActivityId = created.id;
+        if (activityFile) {
+          const uploaded = await api.uploadTeacherActivityFile(created.id, activityFile);
+          uploadedFilePath = uploaded.file_path;
+          uploadedFileName = uploaded.file_name;
+          await api.updateTeacherActivity(created.id, {
+            file_path: uploaded.file_path,
+            file_name: uploadedFileName,
+          });
+        }
+      }
+      if (wasEditing && uploadedFilePath && this._editingActivityFilePath) {
+        try {
+          await api.removeActivityFile(this._editingActivityFilePath);
+        } catch (cleanupError) {
+          console.error('Could not remove the replaced activity file:', cleanupError);
+          replacedFileCleanupFailed = true;
+        }
       }
       this._editingActivityId = null;
+      this._editingActivityFilePath = null;
       Modal.close();
-      Toast.show(wasEditing ? 'Activity updated successfully!' : 'Activity created successfully!', 'success');
+      Toast.show(
+        replacedFileCleanupFailed
+          ? 'Activity saved, but the previous file could not be removed.'
+          : (wasEditing ? 'Activity updated successfully!' : 'Activity created successfully!'),
+        replacedFileCleanupFailed ? 'error' : 'success',
+      );
       DashboardController.loadSection('activities');
     } catch (err) {
+      const cleanupErrors = [];
+      if (uploadedFilePath) {
+        try { await api.removeActivityFile(uploadedFilePath); }
+        catch (cleanupError) { cleanupErrors.push(`uploaded file cleanup failed: ${cleanupError.message}`); }
+      }
+      if (createdActivityId) {
+        try { await api.deleteTeacherActivity(createdActivityId); }
+        catch (cleanupError) { cleanupErrors.push(`activity cleanup failed: ${cleanupError.message}`); }
+      }
       if (btn) { btn.disabled = false; btn.innerHTML = `${lmsIcon('save')} Save Activity`; }
-      Toast.show(err.message || 'Failed to create activity.', 'error');
+      Toast.show(
+        [err.message || 'Failed to save activity.', ...cleanupErrors].join(' — '),
+        'error',
+      );
     }
   },
 
@@ -841,6 +909,9 @@ const TeacherController = {
       // Fetch activity with questions + correct answers (teacher can see correct_answer)
       const activity = await api.getTeacherActivity(activityId);
       const answers  = submission.activity_answers || [];
+      const activityFileUrl = activity.file_path
+        ? await api.getActivityFileSignedUrl(activity.file_path)
+        : null;
 
       // Map answers by question_id for quick lookup
       const answerMap = new Map(answers.map(a => [a.question_id, a]));
@@ -859,16 +930,30 @@ const TeacherController = {
           ...q,
           choices: (q.activity_question_choices || []).sort((a, b) => a.order - b.order),
         }));
-      const questionRows = questions.map((q, idx) => {
+      const questionRows = (await Promise.all(questions.map(async (q, idx) => {
         const ans      = answerMap.get(q.id);
-        const answered = ans?.answer_value ?? null;
+        let answered   = ans?.answer_value ?? null;
         const type     = q.question_type;
+        let attachment = null;
+        if (answered) {
+          let parsed;
+          try { parsed = JSON.parse(answered); } catch (_) {}
+          if (parsed && typeof parsed === 'object' && parsed.file_path) {
+            attachment = {
+              ...parsed,
+              file_url: await api.getActivityFileSignedUrl(parsed.file_path),
+            };
+            answered = parsed.text || '';
+          }
+        }
 
         // ── Render the student's answer based on question type ──────────
         let answerDisplay = '<span style="color:#9ca3af;font-style:italic">No answer</span>';
         let resultBadge   = '';
 
-        if (answered !== null && answered !== undefined && answered !== '') {
+        if (attachment) {
+          answerDisplay = `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-top:4px;white-space:pre-wrap;font-size:13px;line-height:1.6">${answered ? `${escHtml(String(answered))}<br>` : ''}<a href="${escHtml(attachment.file_url)}" target="_blank" rel="noopener noreferrer">${escHtml(attachment.file_name || 'Download submitted file')}</a></div>`;
+        } else if (answered !== null && answered !== undefined && answered !== '') {
           if (type === 'multiple_choice' || type === 'fill_blank') {
             const isCorrect = ans?.is_correct;
             answerDisplay   = `<span style="font-weight:600">${escHtml(String(answered))}</span>`;
@@ -918,7 +1003,7 @@ const TeacherController = {
             <div style="font-size:14px">${answerDisplay}${resultBadge}</div>
             ${correctDisplay}
           </div>`;
-      }).join('');
+      }))).join('');
 
       const gradeSection = submission.is_graded
         ? `<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
@@ -941,6 +1026,7 @@ const TeacherController = {
         `<div style="font-size:13px;color:#6b7280;margin-bottom:6px">
           Submitted: ${submittedDate} &nbsp;|&nbsp; Activity: <strong>${escHtml(activity.title)}</strong>
         </div>
+        ${activityFileUrl ? `<div style="margin-bottom:12px;font-size:13px">Activity file: <a href="${escHtml(activityFileUrl)}" target="_blank" rel="noopener noreferrer">${escHtml(activity.file_name || 'Download activity file')}</a></div>` : ''}
         ${gradeSection}
         <div>${questionRows || '<p style="color:#9ca3af;text-align:center">No questions found.</p>'}</div>`,
         `<button class="btn btn-ghost" onclick="TeacherController.openGradeActivity(${activityId})">← Back to Submissions</button>

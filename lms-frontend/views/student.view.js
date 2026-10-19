@@ -826,6 +826,11 @@ const StudentView = {
         answerWidget = `<input type="text" id="q_${q.id}" class="form-control" placeholder="Type your answer here…" style="margin-top:10px" />`;
       } else {
         answerWidget = `<textarea id="q_${q.id}" class="form-control" rows="4" placeholder="Write your answer here…" style="margin-top:10px;resize:vertical"></textarea>`;
+        if (q.question_type === 'essay') {
+          answerWidget += `
+            <label for="q_file_${q.id}" style="display:block;margin-top:10px;font-size:12px;font-weight:600">Attach a file (optional, up to 50 MB)</label>
+            <input type="file" id="q_file_${q.id}" class="form-control" style="margin-top:4px" />`;
+        }
       }
 
       return `
@@ -854,6 +859,10 @@ const StudentView = {
           <div style="padding:14px 16px;background:#fff9e6;border:1px solid #f0c040;border-radius:8px;margin-bottom:20px;font-size:13px;color:#7a5c00">
             <strong>📌 Instructions:</strong> ${escHtml(activity.instructions)}
           </div>` : ''}
+        ${activity.file_url ? `
+          <div style="padding:12px 16px;background:#f8fafc;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:20px;font-size:13px">
+            <strong>Activity file:</strong> <a href="${escHtml(activity.file_url)}" target="_blank" rel="noopener noreferrer">${escHtml(activity.file_name || 'Open attached file')}</a>
+          </div>` : ''}
         <div id="answer-sheet-questions">${questions || '<div class="empty-state"><div class="empty-state-title">No questions found.</div></div>'}</div>
         ${activity.questions && activity.questions.length ? `
           <div class="activity-answer-actions">
@@ -877,8 +886,19 @@ const StudentView = {
       const ptsEarned  = ans ? (ans.points_earned ?? '?') : 0;
 
       let answerDisplay = '—';
+      let answerFileHtml = '';
       if (ans && ans.answer_value != null) {
-        if (q.question_type === 'multiple_choice' || q.question_type === 'checkbox') {
+        let parsedAttachment = null;
+        try {
+          const parsed = JSON.parse(ans.answer_value);
+          if (parsed && typeof parsed === 'object' && parsed.file_path) parsedAttachment = parsed;
+        } catch {}
+        if (parsedAttachment) {
+          answerDisplay = parsedAttachment.text || 'File submitted';
+          answerFileHtml = ans.file_url
+            ? `<a href="${escHtml(ans.file_url)}" target="_blank" rel="noopener noreferrer">${escHtml(ans.file_name || parsedAttachment.file_name || 'Download submitted file')}</a>`
+            : escHtml(ans.file_name || parsedAttachment.file_name || 'Submitted file');
+        } else if (q.question_type === 'multiple_choice' || q.question_type === 'checkbox') {
           try {
             const idxs   = q.question_type === 'checkbox' ? JSON.parse(ans.answer_value) : [parseInt(ans.answer_value)];
             const labels = idxs.map(i => q.choices[i]?.choice_text || `Choice ${i}`);
@@ -898,7 +918,7 @@ const StudentView = {
             <span class="badge badge-gold">${ptsEarned} / ${q.points} pt${q.points !== 1 ? 's' : ''}</span>
           </div>
           <div style="font-size:13px;font-weight:600;color:#1a1a2e;margin:6px 0">${escHtml(q.question_text)}</div>
-          <div style="font-size:13px;color:#444">Your answer: <em>${escHtml(answerDisplay)}</em></div>
+          <div style="font-size:13px;color:#444">Your answer: <em>${escHtml(answerDisplay)}</em>${answerFileHtml ? `<div style="margin-top:5px">${answerFileHtml}</div>` : ''}</div>
         </div>`;
     }).join('');
 
