@@ -210,7 +210,15 @@ const NotificationController = {
       this._renderList();
     }
     if (linkType === "module")   DashboardController.loadSection("modules");
-    if (linkType === "activity") DashboardController.loadSection("activities");
+    if (linkType === "activity") {
+      const isStudent = api.getCurrentUser()?.role === "student";
+      if (n?.notification_type === "activity_graded" && isStudent && linkId) {
+        // Take the student straight to their graded result.
+        StudentController.viewResult(linkId);
+      } else {
+        DashboardController.loadSection("activities");
+      }
+    }
     document.getElementById("notif-dropdown")?.classList.remove("open");
   },
 
