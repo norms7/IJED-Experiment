@@ -1185,7 +1185,7 @@ class LMSAdminAPI {
   }
 
   async updateTeacherActivity(id, payload) {
-    const { questions, ...fields } = payload;
+    const { questions, single_prompt, ...fields } = payload;
     const result = this._throwIfError(
       await this.sb
         .from("activities")
@@ -1194,6 +1194,31 @@ class LMSAdminAPI {
         .select()
         .single(),
     );
+    // Freeform / Assignment: update the single essay prompt in place so any
+    // existing student answers (FK cascade on question delete) are preserved.
+    if (single_prompt) {
+      const { choices, ...qFields } = single_prompt;
+      const { data: existing } = await this.sb
+        .from("activity_questions")
+        .select("id")
+        .eq("activity_id", id)
+        .order("order", { ascending: true })
+        .limit(1);
+      if (existing?.length) {
+        this._throwIfError(
+          await this.sb
+            .from("activity_questions")
+            .update({ question_text: qFields.question_text, points: qFields.points })
+            .eq("id", existing[0].id),
+        );
+      } else {
+        this._throwIfError(
+          await this.sb
+            .from("activity_questions")
+            .insert({ ...qFields, activity_id: id, order: 0 }),
+        );
+      }
+    }
     if (questions) {
       await this.sb.from("activity_questions").delete().eq("activity_id", id);
       for (const [i, q] of questions.entries()) {
