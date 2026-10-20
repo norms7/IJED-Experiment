@@ -290,51 +290,72 @@ const TeacherView = {
         </div>`;
     }
 
-    const cards = apiActivities.map(a => {
-      const typeLabel   = TYPE_LABELS[a.activity_type]  || a.activity_type;
-      const formatLabel = FORMAT_LABELS[a.format_type]  || a.format_type;
-      const typeIcon    = TYPE_ICONS[a.activity_type] || 'file';
-      const formatIcon  = FORMAT_ICONS[a.format_type] || 'file';
-      const gradeBadge  = a.grading_mode === 'auto'
-        ? `<span class="badge badge-green" style="font-size:10px">${lmsIcon('check')} Auto</span>`
-        : `<span class="badge badge-gold"  style="font-size:10px">${lmsIcon('pen')} Manual</span>`;
-      const dueLabel   = a.due_date   ? `Due: ${new Date(a.due_date).toLocaleDateString()}`     : 'No due date';
-      const startLabel = a.start_date ? `Opens: ${new Date(a.start_date).toLocaleDateString()}` : '';
-      const qCount     = a.questions?.length ?? 0;
-      const maxPts     = a.max_score ?? (a.questions?.reduce((s, q) => s + q.points, 0) ?? 0);
-      const pubBadge   = a.is_published
-        ? `<span class="badge badge-green" style="font-size:10px">Published</span>`
-        : `<span class="badge badge-gray"  style="font-size:10px">Draft</span>`;
-      const customType = a.activity_type === 'other' && a.activity_type_custom
-        ? ` · ${escHtml(a.activity_type_custom)}` : '';
+    const activitiesBySubject = new Map();
+    apiActivities.forEach(activity => {
+      const subjectName = activity._subject_name || 'Unknown subject';
+      if (!activitiesBySubject.has(subjectName)) activitiesBySubject.set(subjectName, []);
+      activitiesBySubject.get(subjectName).push(activity);
+    });
 
-      return `
-        <div class="activity-card" data-searchable style="border:1px solid var(--gray-200);border-radius:10px;padding:16px;background:white;margin-bottom:12px">
-          <div class="teacher-activity-layout">
-            <div class="teacher-activity-content">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-                <span class="badge badge-maroon" style="font-size:11px">${lmsIcon(typeIcon)}${escHtml(typeLabel)}${escHtml(customType)}</span>
-                <span class="badge" style="background:var(--gray-100);color:var(--gray-700);font-size:11px">${lmsIcon(formatIcon)}${escHtml(formatLabel)}</span>
-                ${gradeBadge}
-                ${pubBadge}
-              </div>
-              <div class="teacher-activity-title" style="font-weight:600;font-size:15px;margin-bottom:4px">${escHtml(a.title)}</div>
-              ${a.instructions ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">${escHtml(a.instructions.slice(0,120))}${a.instructions.length > 120 ? '…' : ''}</div>` : ''}
-              <div class="teacher-activity-meta">
-                <span>${lmsIcon('chart')} ${qCount} question${qCount !== 1 ? 's' : ''} · ${maxPts} pts</span>
-                <span>${lmsIcon('calendar')} ${dueLabel}</span>
-                <span>${startLabel ? `${lmsIcon('clock')} ${startLabel}` : '—'}</span>
-                <span>${lmsIcon('inbox')} ${a.submission_count ?? 0} submitted${a.pending_submission_count ? ` · ${a.pending_submission_count} pending grade` : ''}</span>
+    const subjectGroups = [...activitiesBySubject.entries()]
+      .sort(([subjectA], [subjectB]) => subjectA.localeCompare(subjectB))
+      .map(([subjectName, subjectActivities]) => {
+        const cards = subjectActivities.map(a => {
+          const typeLabel   = TYPE_LABELS[a.activity_type]  || a.activity_type;
+          const formatLabel = FORMAT_LABELS[a.format_type]  || a.format_type;
+          const typeIcon    = TYPE_ICONS[a.activity_type] || 'file';
+          const formatIcon  = FORMAT_ICONS[a.format_type]  || 'file';
+          const gradeBadge  = a.grading_mode === 'auto'
+            ? `<span class="badge badge-green" style="font-size:10px">${lmsIcon('check')} Auto</span>`
+            : `<span class="badge badge-gold"  style="font-size:10px">${lmsIcon('pen')} Manual</span>`;
+          const dueLabel   = a.due_date   ? `Due: ${new Date(a.due_date).toLocaleDateString()}`     : 'No due date';
+          const startLabel = a.start_date ? `Opens: ${new Date(a.start_date).toLocaleDateString()}` : '';
+          const qCount     = a.questions?.length ?? 0;
+          const maxPts     = a.max_score ?? (a.questions?.reduce((s, q) => s + q.points, 0) ?? 0);
+          const pubBadge   = a.is_published
+            ? `<span class="badge badge-green" style="font-size:10px">Published</span>`
+            : `<span class="badge badge-gray"  style="font-size:10px">Draft</span>`;
+          const customType = a.activity_type === 'other' && a.activity_type_custom
+            ? ` · ${escHtml(a.activity_type_custom)}` : '';
+
+          return `
+            <div class="activity-card" data-searchable style="border:1px solid var(--gray-200);border-radius:10px;padding:16px;background:white;margin-bottom:12px">
+              <div class="teacher-activity-layout">
+                <div class="teacher-activity-content">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                    <span class="badge badge-maroon" style="font-size:11px">${lmsIcon(typeIcon)}${escHtml(typeLabel)}${escHtml(customType)}</span>
+                    <span class="badge" style="background:var(--gray-100);color:var(--gray-700);font-size:11px">${lmsIcon(formatIcon)}${escHtml(formatLabel)}</span>
+                    ${gradeBadge}
+                    ${pubBadge}
+                  </div>
+                  <div class="teacher-activity-title" style="font-weight:600;font-size:15px;margin-bottom:4px">${escHtml(a.title)}</div>
+                  ${a.instructions ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">${escHtml(a.instructions.slice(0,120))}${a.instructions.length > 120 ? '…' : ''}</div>` : ''}
+                  <div class="teacher-activity-meta">
+                    <span>${lmsIcon('chart')} ${qCount} question${qCount !== 1 ? 's' : ''} · ${maxPts} pts</span>
+                    <span>${lmsIcon('calendar')} ${dueLabel}</span>
+                    <span>${startLabel ? `${lmsIcon('clock')} ${startLabel}` : '—'}</span>
+                    <span>${lmsIcon('inbox')} ${a.submission_count ?? 0} submitted${a.pending_submission_count ? ` · ${a.pending_submission_count} pending grade` : ''}</span>
+                  </div>
+                </div>
+                <div class="teacher-activity-actions">
+                  <button class="btn btn-xs btn-outline" onclick="TeacherController.openGradeActivity(${a.id})">${lmsIcon('chart')} Submissions</button>
+                  <button class="btn btn-xs btn-outline" onclick="TeacherController.openEditActivity(${a.id})">${lmsIcon('edit')} Edit</button>
+                  <button class="btn btn-xs btn-danger"  onclick="TeacherController.deleteActivity(${a.id})">${lmsIcon('trash')} Delete</button>
+                </div>
               </div>
             </div>
-            <div class="teacher-activity-actions">
-              <button class="btn btn-xs btn-outline" onclick="TeacherController.openGradeActivity(${a.id})">${lmsIcon('chart')} Submissions</button>
-              <button class="btn btn-xs btn-outline" onclick="TeacherController.openEditActivity(${a.id})">${lmsIcon('edit')} Edit</button>
-              <button class="btn btn-xs btn-danger"  onclick="TeacherController.deleteActivity(${a.id})">${lmsIcon('trash')} Delete</button>
+          `;
+        }).join('');
+
+        return `
+          <section data-searchable-group style="margin-bottom:24px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 12px">
+              <h3 style="margin:0;font-size:17px;color:var(--maroon)">${escHtml(subjectName)}</h3>
+              <span class="badge badge-gray" style="font-size:11px">${subjectActivities.length} activit${subjectActivities.length === 1 ? 'y' : 'ies'}</span>
             </div>
-          </div>
-        </div>`;
-    }).join('');
+            ${cards}
+          </section>`;
+      }).join('');
 
     return `
       <div class="section-header">
@@ -347,7 +368,7 @@ const TeacherView = {
           <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">${lmsIcon('plus')} Create Activity</button>
         </div>
       </div>
-      <div id="teacher-activity-grid">${cards}</div>`;
+      <div id="teacher-activity-grid">${subjectGroups}</div>`;
   },
 
   // ── Digital Gradebook: Sections List ─────────────────────────────────────
