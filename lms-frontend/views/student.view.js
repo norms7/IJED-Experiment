@@ -883,9 +883,9 @@ const StudentView = {
     const questions = (activity.questions || []).map((q, idx) => {
       const ans        = answerMap[q.id];
       const resultBadge = ans?.is_correct === true
-        ? `<span role="img" aria-label="Correct" title="Correct" style="color:#15803d">${LMS_ICONS.check}</span>`
+        ? `<span role="img" aria-label="Correct" title="Correct" style="color:#15803d;font-size:20px;font-weight:700">✓</span>`
         : ans?.is_correct === false
-          ? `<span role="img" aria-label="Incorrect" title="Incorrect" style="color:#b91c1c">${LMS_ICONS.xmark}</span>`
+          ? `<span role="img" aria-label="Incorrect" title="Incorrect" style="color:#b91c1c;font-size:20px;font-weight:700">✗</span>`
           : '';
 
       let answerDisplay = '—';
@@ -913,13 +913,14 @@ const StudentView = {
       }
 
       let correctAnswerDisplay = '';
-      if (ans?.is_correct === false && q.correct_answer != null) {
-        correctAnswerDisplay = q.correct_answer;
+      const correctAnswer = ans?.correct_answer ?? q.correct_answer;
+      if (ans?.is_correct === false && correctAnswer != null) {
+        correctAnswerDisplay = correctAnswer;
         if (q.question_type === 'multiple_choice' || q.question_type === 'checkbox') {
           try {
             const choiceIndexes = q.question_type === 'checkbox'
-              ? JSON.parse(q.correct_answer)
-              : [Number.parseInt(q.correct_answer, 10)];
+              ? JSON.parse(correctAnswer)
+              : [Number.parseInt(correctAnswer, 10)];
             if (Array.isArray(choiceIndexes) && choiceIndexes.length) {
               correctAnswerDisplay = choiceIndexes
                 .map(choiceIndex => q.choices?.[choiceIndex]?.choice_text || `Choice ${choiceIndex}`)

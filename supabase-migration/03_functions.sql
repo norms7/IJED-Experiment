@@ -45,6 +45,44 @@ select q.id, q.activity_id, q."order", q.question_text, q.question_type, q.point
   ) then q.correct_answer else null end as correct_answer
 from activity_questions q;
 
+create or replace function get_student_activity_result(p_activity_id integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id integer := auth_student_id();
+  v_result jsonb;
+begin
+  if v_student_id is null then
+    raise exception 'Not a student account' using errcode = '42501';
+  end if;
+
+  select jsonb_build_object(
+    'submission', to_jsonb(s),
+    'answers', coalesce((
+      select jsonb_agg(
+        to_jsonb(ans) || jsonb_build_object('correct_answer', q.correct_answer)
+        order by q."order"
+      )
+      from activity_answers ans
+      join activity_questions q on q.id = ans.question_id
+      where ans.submission_id = s.id
+    ), '[]'::jsonb)
+  )
+  into v_result
+  from activity_submissions s
+  where s.activity_id = p_activity_id
+    and s.student_id = v_student_id;
+
+  return v_result;
+end;
+$$;
+
+revoke all on function get_student_activity_result(integer) from public, anon;
+grant execute on function get_student_activity_result(integer) to authenticated;
+
 -- ----------------------------------------------------------------------------
 -- 2. notify() / notify_many() — internal helpers used by the RPCs below.
 --    Supabase Realtime (subscribe to `notifications` table) replaces the
