@@ -83,22 +83,29 @@ const StudentController = {
     // api.getMyActivityResult(a.id) call per match — so 10 submitted
     // activities = 11 total HTTP round-trips.
     //
-    // AFTER: The backend's GET /student/me/activities already returns a full
-    // `submission` object inline (submitted_at, score, max_score, grade,
-    // is_graded, remarks) for every activity where the student has a row in
-    // activity_submissions. We just normalise that field and render directly.
-    // Zero extra calls, always.
+    // AFTER: The activity endpoint returns a full `submission` object inline
+    // for each activity. Fetch subject names once for grouping, then normalize
+    // submission data locally without per-activity result requests.
     //
     // The _normaliseSubmission helper below handles all the legacy field name
     // variants (submission / my_submission / already_submitted) so this is
     // backwards-compatible with any cached/stale API responses.
     // ─────────────────────────────────────────────────────────────────────────
 
-    return api.getStudentActivities()
-      .then(activities => {
+    return Promise.all([
+      api.getStudentActivities(),
+      api.getStudentSubjects(),
+    ])
+      .then(([activities, subjects]) => {
         // Normalise submission field across all naming variants the backend
         // may have returned (current: `submission`, older: `my_submission`).
-        const normalised = activities.map(a => _normaliseSubmission(a));
+        const subjectMap = Object.fromEntries(
+          (subjects || []).map(subject => [subject.subject_id, subject.subject_name]),
+        );
+        const normalised = activities.map(a => ({
+          ..._normaliseSubmission(a),
+          _subject_name: subjectMap[a.subject_id] || 'Unknown subject',
+        }));
         area.innerHTML = StudentView.activities(normalised);
         DashboardController._attachSearch();
       })
@@ -110,8 +117,13 @@ const StudentController = {
 
   _filterActivities(text) {
     const q = text.trim().toLowerCase();
-    document.querySelectorAll('#student-activity-list tr[data-searchable]').forEach(row => {
-      row.style.display = q && !row.textContent.toLowerCase().includes(q) ? 'none' : 'table-row';
+    document.querySelectorAll('#student-activity-list [data-searchable]').forEach(row => {
+      row.style.display = q && !row.textContent.toLowerCase().includes(q) ? 'none' : '';
+    });
+    document.querySelectorAll('#student-activity-list [data-searchable-group]').forEach(group => {
+      const hasVisibleItem = [...group.querySelectorAll('[data-searchable]')]
+        .some(item => item.style.display !== 'none');
+      group.style.display = hasVisibleItem ? '' : 'none';
     });
   },
 

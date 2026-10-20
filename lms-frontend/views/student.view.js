@@ -751,31 +751,50 @@ const StudentView = {
         </tr>`;
     };
 
-    // Group by term (same order/labels as My Subjects) so a teacher's 3rd
-    // term quiz can never blend visually into 1st term's list. Activities
-    // with no term set (legacy rows created before the term column was
-    // wired into Create Activity) fall into an "Other" group at the end
-    // rather than silently disappearing.
-    const grouped = {};
+    // Group by subject first, then by term, so activities from different
+    // classes do not blend together in one long list.
+    const grouped = new Map();
     apiActivities.forEach(a => {
-      const key = TERM_ORDER.includes(a.term) ? a.term : '__other__';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(a);
+      const subjectName = a._subject_name || 'Unknown subject';
+      if (!grouped.has(subjectName)) grouped.set(subjectName, new Map());
+      const terms = grouped.get(subjectName);
+      const termKey = TERM_ORDER.includes(a.term) ? a.term : '__other__';
+      if (!terms.has(termKey)) terms.set(termKey, []);
+      terms.get(termKey).push(a);
     });
-    const orderedKeys = [...TERM_ORDER.filter(t => grouped[t]), ...(grouped.__other__ ? ['__other__'] : [])];
 
-    const rows = orderedKeys.map(key => {
-      const acts = grouped[key];
-      const label = key === '__other__' ? 'Other' : TERM_LABELS[key];
-      const headerRow = `
-        <tr class="term-divider-row">
-          <td colspan="9" style="padding:10px 16px;background:var(--gray-50,#f7f5f2);border-top:1px solid var(--gray-200)">
-            <span class="badge badge-maroon" style="font-size:11px">${escHtml(label)}</span>
-            <span style="font-size:11px;color:var(--gray-500);margin-left:6px">${acts.length} activit${acts.length !== 1 ? 'ies' : 'y'}</span>
-          </td>
-        </tr>`;
-      return headerRow + acts.map(buildRow).join('');
-    }).join('');
+    const subjectGroups = [...grouped.entries()]
+      .sort(([subjectA], [subjectB]) => subjectA.localeCompare(subjectB))
+      .map(([subjectName, terms]) => {
+        const orderedTerms = [
+          ...TERM_ORDER.filter(term => terms.has(term)),
+          ...(terms.has('__other__') ? ['__other__'] : []),
+        ];
+        const termRows = orderedTerms.map(termKey => {
+          const acts = terms.get(termKey);
+          const label = termKey === '__other__' ? 'Other' : TERM_LABELS[termKey];
+          return `
+            <tr class="term-divider-row">
+              <td colspan="9" style="padding:10px 16px;background:var(--gray-50,#f7f5f2);border-top:1px solid var(--gray-200)">
+                <span class="badge badge-maroon" style="font-size:11px">${escHtml(label)}</span>
+                <span style="font-size:11px;color:var(--gray-500);margin-left:6px">${acts.length} activit${acts.length !== 1 ? 'ies' : 'y'}</span>
+              </td>
+            </tr>
+            ${acts.map(buildRow).join('')}`;
+        }).join('');
+        const subjectActivityCount = [...terms.values()]
+          .reduce((total, termActivities) => total + termActivities.length, 0);
+        return `
+          <tbody data-searchable-group>
+            <tr class="subject-divider-row">
+              <td colspan="9" style="padding:12px 16px;background:var(--gray-50,#f7f5f2);border-top:2px solid var(--gray-200)">
+                <strong style="color:var(--maroon);font-size:14px">${escHtml(subjectName)}</strong>
+                <span style="font-size:11px;color:var(--gray-500);margin-left:8px">${subjectActivityCount} activit${subjectActivityCount !== 1 ? 'ies' : 'y'}</span>
+              </td>
+            </tr>
+            ${termRows}
+          </tbody>`;
+      }).join('');
 
     return `
       <div class="section-header">
@@ -783,7 +802,7 @@ const StudentView = {
         <div class="search-box"><span>${lmsIcon('search')}</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
       </div>
       <div class="table-wrap" style="margin-top:8px;border:1px solid var(--gray-200);border-radius:12px;overflow-x:auto;overflow-y:visible;background:white;box-shadow:0 1px 4px rgba(0,0,0,.05);-webkit-overflow-scrolling:touch">
-        <table class="activity-table">
+        <table class="activity-table" id="student-activity-list">
           <thead>
             <tr>
               <th style="text-align:left">Assignment</th>
@@ -797,7 +816,7 @@ const StudentView = {
               <th style="text-align:center">Action</th>
             </tr>
           </thead>
-          <tbody id="student-activity-list">${rows}</tbody>
+          ${subjectGroups}
         </table>
       </div>`;
   },
@@ -1025,57 +1044,72 @@ const StudentView = {
       exam: 'Exam', lab_exercise: 'Lab Exercise', assignment: 'Assignment', other: 'Other',
     };
 
-    const rows = graded.map(a => {
-      const sub        = a.submission;
-      const subjectName = subjectMap[a.subject_id] || '—';
-      const typeLabel  = TYPE_LABELS[a.activity_type] || a.activity_type || '—';
-      const term       = a.term ? `${a.term} Term` : '—';
+    const rowsBySubject = new Map();
+    graded.forEach(a => {
+      const subjectName = subjectMap[a.subject_id] || 'Unknown subject';
+      if (!rowsBySubject.has(subjectName)) rowsBySubject.set(subjectName, []);
+      rowsBySubject.get(subjectName).push(a);
+    });
 
-      // Score / pct
-      const score    = sub.score;
-      const maxScore = sub.max_score ?? a.max_score;
-      const pct      = score != null && maxScore ? Math.round(score / maxScore * 100) : null;
-      const pctColor = pct === null ? 'var(--gray-400)' : pct >= 75 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626';
-      const pctBadge = pct !== null
-        ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${pct}%</span>`
-        : `<span class="badge badge-gray" style="font-size:11px">Pending</span>`;
+    const subjectGroups = [...rowsBySubject.entries()]
+      .sort(([subjectA], [subjectB]) => subjectA.localeCompare(subjectB))
+      .map(([subjectName, subjectActivities]) => {
+        const rows = subjectActivities.map(a => {
+          const sub        = a.submission;
+          const typeLabel  = TYPE_LABELS[a.activity_type] || a.activity_type || '—';
+          const term       = a.term ? `${a.term} Term` : '—';
 
-      // PH grade
-      const phGrade = pct !== null ? StudentView._toPhGrade(pct) : '—';
-      const phColor = phGrade === '—' ? 'var(--gray-400)'
-        : parseFloat(phGrade) <= 1.75 ? '#16a34a'
-        : parseFloat(phGrade) <= 2.75 ? '#d97706'
-        : '#dc2626';
+          const score    = sub.score;
+          const maxScore = sub.max_score ?? a.max_score;
+          const pct      = score != null && maxScore ? Math.round(score / maxScore * 100) : null;
+          const pctBadge = pct !== null
+            ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${pct}%</span>`
+            : `<span class="badge badge-gray" style="font-size:11px">Pending</span>`;
 
-      // Remarks
-      const remarks = sub.remarks || '—';
+          const phGrade = pct !== null ? StudentView._toPhGrade(pct) : '—';
+          const phColor = phGrade === '—' ? 'var(--gray-400)'
+            : parseFloat(phGrade) <= 1.75 ? '#16a34a'
+            : parseFloat(phGrade) <= 2.75 ? '#d97706'
+            : '#dc2626';
 
-      // Date
-      const dateStr = sub.submitted_at
-        ? new Date(sub.submitted_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
-        : '—';
+          const remarks = sub.remarks || '—';
 
-      // Graded status
-      const gradedBadge = sub.is_graded || score != null
-        ? `<span class="badge badge-green" style="font-size:10px">${lmsIcon('check')} Graded</span>`
-        : `<span class="badge badge-gold" style="font-size:10px">${lmsIcon('clock')} Pending</span>`;
+          const dateStr = sub.submitted_at
+            ? new Date(sub.submitted_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '—';
 
-      return `<tr data-searchable>
-        <td>
-          <div style="font-weight:600;font-size:13px;color:var(--maroon)">${escHtml(a.title)}</div>
-          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${escHtml(typeLabel)} · ${escHtml(term)}</div>
-        </td>
-        <td><span class="badge badge-maroon" style="font-size:11px">${escHtml(subjectName)}</span></td>
-        <td style="text-align:center;font-weight:600">
-          ${score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
-        </td>
-        <td style="text-align:center">${pctBadge}</td>
-        <td style="text-align:center;font-weight:700;color:${phColor};font-size:14px">${escHtml(String(phGrade))}</td>
-        <td>${gradedBadge}</td>
-        <td style="font-size:12px;color:var(--gray-500)">${escHtml(remarks)}</td>
-        <td style="font-size:12px;color:var(--gray-500)">${escHtml(dateStr)}</td>
-      </tr>`;
-    }).join('');
+          const gradedBadge = sub.is_graded || score != null
+            ? `<span class="badge badge-green" style="font-size:10px">${lmsIcon('check')} Graded</span>`
+            : `<span class="badge badge-gold" style="font-size:10px">${lmsIcon('clock')} Pending</span>`;
+
+          return `<tr data-searchable>
+            <td>
+              <div style="font-weight:600;font-size:13px;color:var(--maroon)">${escHtml(a.title)}</div>
+              <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${escHtml(typeLabel)} · ${escHtml(term)}</div>
+            </td>
+            <td><span class="badge badge-maroon" style="font-size:11px">${escHtml(subjectName)}</span></td>
+            <td style="text-align:center;font-weight:600">
+              ${score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
+            </td>
+            <td style="text-align:center">${pctBadge}</td>
+            <td style="text-align:center;font-weight:700;color:${phColor};font-size:14px">${escHtml(String(phGrade))}</td>
+            <td>${gradedBadge}</td>
+            <td style="font-size:12px;color:var(--gray-500)">${escHtml(remarks)}</td>
+            <td style="font-size:12px;color:var(--gray-500)">${escHtml(dateStr)}</td>
+          </tr>`;
+        }).join('');
+
+        return `
+          <tbody data-searchable-group>
+            <tr class="subject-divider-row">
+              <td colspan="8" style="padding:12px 16px;background:var(--gray-50,#f7f5f2);border-top:2px solid var(--gray-200)">
+                <strong style="color:var(--maroon);font-size:14px">${escHtml(subjectName)}</strong>
+                <span style="font-size:11px;color:var(--gray-500);margin-left:8px">${subjectActivities.length} activit${subjectActivities.length === 1 ? 'y' : 'ies'}</span>
+              </td>
+            </tr>
+            ${rows}
+          </tbody>`;
+      }).join('');
 
     return `
       <!-- Summary strip -->
@@ -1120,17 +1154,21 @@ const StudentView = {
                       <th style="white-space:nowrap">Submitted</th>
                     </tr>
                   </thead>
-                  <tbody>${rows}</tbody>
+                  ${subjectGroups}
                 </table>
               </div>
             </div>`;
         }
 
         // Mobile card layout
-        return `<div style="display:flex;flex-direction:column;gap:10px">
-          ${graded.map(a => {
+        const subjectCards = [...rowsBySubject.entries()]
+          .sort(([subjectA], [subjectB]) => subjectA.localeCompare(subjectB))
+          .map(([subjectName, subjectActivities]) => `
+            <section data-searchable-group>
+              <h3 style="margin:8px 0;font-size:15px;color:var(--maroon)">${escHtml(subjectName)}</h3>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                ${subjectActivities.map(a => {
             const sub         = a.submission;
-            const subjectName = subjectMap[a.subject_id] || '—';
             const typeLabel   = ({ quiz:'Quiz', long_quiz:'Long Quiz', task_performance:'Task Performance',
               exam:'Exam', lab_exercise:'Lab Exercise', assignment:'Assignment', other:'Other' })[a.activity_type] || a.activity_type || '—';
             const term        = a.term ? `${a.term} Term` : '—';
@@ -1151,7 +1189,7 @@ const StudentView = {
             const rowStyle = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13px';
             const labelStyle = 'color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px';
             return `
-              <div style="background:#fff;border:1px solid #f0e8e8;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+              <div data-searchable style="background:#fff;border:1px solid #f0e8e8;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
                 <div style="font-weight:700;font-size:14px;color:var(--maroon);margin-bottom:2px">${escHtml(a.title)}</div>
                 <div style="font-size:11px;color:var(--gray-400);margin-bottom:10px">${escHtml(typeLabel)} · ${escHtml(term)}</div>
                 <div style="${rowStyle}">
@@ -1186,8 +1224,11 @@ const StudentView = {
                   <span style="font-size:12px;color:var(--gray-500)">${escHtml(dateStr)}</span>
                 </div>
               </div>`;
-          }).join('')}
-        </div>`;
+                }).join('')}
+              </div>
+            </section>`)
+          .join('');
+        return `<div style="display:flex;flex-direction:column;gap:10px">${subjectCards}</div>`;
       })()}
 
       <!-- Grade scale legend -->
