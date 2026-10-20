@@ -164,6 +164,11 @@ const SessionGuard = {
       expired: "Your session expired. Please sign in again.",
       manual: "You have been signed out.",
     }[reason] || "You have been signed out.";
+    if (reason === "idle" || reason === "expired") {
+      window.alert(msg);
+      App.showPage("landing");
+      return;
+    }
     Toast.show(msg, "info", 6000);
   },
 };
