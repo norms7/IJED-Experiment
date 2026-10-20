@@ -1714,16 +1714,20 @@ class LMSAdminAPI {
     const studentId = await this._myStudentId();
     const res = await this.sb
       .from("activity_submissions")
-      .select("*, activity_answers(*)")
+      .select("*")
       .eq("activity_id", activityId)
       .eq("student_id", studentId)
       .maybeSingle();
     if (res.error) throw new Error(res.error.message);
     if (!res.data) return null;
+    const answerRes = await this.sb
+      .from("activity_answers")
+      .select("*")
+      .eq("submission_id", res.data.id);
+    if (answerRes.error) throw new Error(answerRes.error.message);
     return {
       ...res.data,
-      // Keep the view independent of Supabase's relationship field name.
-      answers: res.data.activity_answers || [],
+      answers: answerRes.data || [],
     };
   }
 
