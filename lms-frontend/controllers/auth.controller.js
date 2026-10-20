@@ -25,6 +25,7 @@ const AuthController = {
       }
 
       Toast.show(`Welcome back, ${data.full_name}! 👋`, 'success');
+      SessionGuard.start();   // begin idle tracking (5-minute auto sign-out)
       App.showPage('app');
       DashboardController.load(user);
       
@@ -38,24 +39,34 @@ const AuthController = {
     }
   },
 
-  /** Clear session and return to landing page */
-  logout() {
-    // ── CLEANUP: destroy notification channel, polling, and state ──────────
-    NotificationController.destroy();
-    // ─────────────────────────────────────────────────────────────────────────
+  /**
+   * Sign out and wipe everything belonging to the previous session.
+   * @param {{reason?: 'manual'|'idle'|'expired'}} opts
+   *
+   * Ends with a full page reload on purpose: it is the only way to guarantee
+   * no old DOM, controller state, cache, timer or realtime channel survives.
+   */
+  async logout(opts = {}) {
+    const reason = opts.reason || 'manual';
+    SessionGuard._ending = true;
+    SessionGuard.stop();
 
-    api.logout();
-    
-    // Clear all session artifacts (use localStorage consistently)
-    localStorage.removeItem('lms_token');
-    localStorage.removeItem('lms_user');
-    localStorage.removeItem('ijla_session');
+    // 1. Remove old data from the screen right away.
+    SessionGuard.wipeScreen();
 
-    DashboardController.currentUser = null;
-    App.populateProfileDropdown();
-    App.applyProfileImage(null);
-    
-    App.showPage('landing');
-    Toast.show('You have been signed out.', 'info');
+    // 2. Stop realtime channel + polling.
+    try { NotificationController.destroy(); } catch {}
+
+    // 3. End the Supabase session (don't let a dead network block the logout).
+    try {
+      await Promise.race([api.logout(), new Promise((r) => setTimeout(r, 2500))]);
+    } catch {}
+
+    // 4. Purge every user-specific key, then leave a one-time message.
+    SessionGuard.purgeStorage();
+    SessionGuard.setNotice(reason);
+
+    // 5. Fresh page = fresh memory.
+    window.location.reload();
   },
 };
