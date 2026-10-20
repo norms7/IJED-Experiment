@@ -1037,8 +1037,8 @@ const AdminController = {
     user.name = name;
     user.full_name = name;
     Storage.set(`ijed_profile_contact_${user.id}`, { personalEmail, phoneNumber, ...location });
-    Storage.set('ijla_session', user);
-    Storage.set('lms_user', user);
+    SessionStore.set('ijla_session', user);
+    SessionStore.set('lms_user', user);
     document.getElementById('sb-username').textContent = name;
     App.populateProfileDropdown(user);
     Toast.show('Profile information saved on this device.', 'success');
