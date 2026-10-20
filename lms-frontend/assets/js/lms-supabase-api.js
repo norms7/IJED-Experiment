@@ -9,10 +9,41 @@ const SUPABASE_ANON_KEY =
 
 class LMSAdminAPI {
   constructor() {
-    this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Auth token lives in sessionStorage (not localStorage): closing the tab or
+    // browser ends the login instead of leaving a stale session on disk.
+    this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storage: window.sessionStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
     this._cache = new Map();
     this._session = null;
-    this._restoreSession();
+    // Awaitable so App.init can verify the session before showing the app.
+    this.ready = this._restoreSession().catch((err) => {
+      console.warn("[LMS] session restore failed:", err);
+    });
+    // Token refresh failed / signed out elsewhere → end the session cleanly.
+    this.sb.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT" && this.getCurrentUser()) {
+        SessionGuard.expire("expired");
+      }
+    });
+  }
+
+  /** True only if a real, unexpired Supabase session exists for the stored user. */
+  async hasValidSession() {
+    try {
+      await this.ready;
+      const { data, error } = await this.sb.auth.getSession(); // refreshes if possible
+      if (error || !data?.session) return false;
+      const exp = (data.session.expires_at || 0) * 1000;
+      if (exp && exp <= Date.now()) return false;
+      return !!(this.getCurrentUser() || (await this._hydrateSessionUser(data.session)));
+    } catch {
+      return false;
+    }
   }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
@@ -70,8 +101,8 @@ class LMSAdminAPI {
       profile_details: profile.profile_details || {},
       _token: session.access_token,
     };
-    localStorage.setItem("lms_user", JSON.stringify(userPayload));
-    localStorage.setItem("ijla_session", JSON.stringify(userPayload));
+    sessionStorage.setItem("lms_user", JSON.stringify(userPayload));
+    sessionStorage.setItem("ijla_session", JSON.stringify(userPayload));
     this._session = userPayload;
     return userPayload;
   }
@@ -100,7 +131,15 @@ class LMSAdminAPI {
   }
 
   _throwIfError(res) {
-    if (res.error) throw new Error(res.error.message || "Request failed");
+    if (res.error) {
+      const msg = res.error.message || "Request failed";
+      // An expired/invalid token means the session is dead — sign out cleanly
+      // instead of leaving a half-working screen.
+      if (/jwt expired|invalid jwt|invalid refresh token/i.test(msg) && this.getCurrentUser()) {
+        SessionGuard.expire("expired");
+      }
+      throw new Error(msg);
+    }
     return res.data;
   }
 
@@ -125,17 +164,28 @@ class LMSAdminAPI {
     };
   }
 
-  logout() {
-    this.sb.auth.signOut();
-    localStorage.removeItem("lms_user");
-    localStorage.removeItem("ijla_session");
+  async logout() {
+    // Clear local state first so nothing can read the old user while signOut runs.
+    sessionStorage.removeItem("lms_user");
+    sessionStorage.removeItem("ijla_session");
     this._session = null;
     this.clearCache();
+    try {
+      // "local" = end THIS browser's session only (don't sign the user out of
+      // their other devices).
+      await this.sb.auth.signOut({ scope: "local" });
+    } catch (err) {
+      console.warn("[LMS] signOut failed (continuing):", err);
+    }
   }
 
   getCurrentUser() {
-    const raw = localStorage.getItem("lms_user");
-    return raw ? JSON.parse(raw) : null;
+    try {
+      const raw = sessionStorage.getItem("lms_user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   }
 
   isLoggedIn() {
@@ -269,8 +319,8 @@ class LMSAdminAPI {
         .eq("id", user.id),
     );
     const session = { ...user, avatar_url: avatarUrl };
-    localStorage.setItem("lms_user", JSON.stringify(session));
-    localStorage.setItem("ijla_session", JSON.stringify(session));
+    sessionStorage.setItem("lms_user", JSON.stringify(session));
+    sessionStorage.setItem("ijla_session", JSON.stringify(session));
     this._session = session;
     this.clearCache("profile:me");
     return avatarUrl;
