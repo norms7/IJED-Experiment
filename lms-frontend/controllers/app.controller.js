@@ -100,7 +100,7 @@ const App = {
   },
 
   /** Bootstrap the app: dark mode, clock, session restore */
-  init() {
+  async init() {
     const savedSidebarState = Storage.get("ijla_sidebar_collapsed");
     this.sidebarCollapsed =
       savedSidebarState === true || savedSidebarState === "true";
@@ -156,16 +156,48 @@ const App = {
     });
     this.updateClock();
     setInterval(() => this.updateClock(), 1000);
-    const session = Storage.get("ijla_session");
-    if (session) {
-      this.showPage("app");
-      Loader.init(); // Init after page is visible so content-area has dimensions
-      this.populateProfileDropdown(session);
-      DashboardController.load(session);
-      NotificationController.init();
-    } else {
+    await this._restoreSession();
+  },
+
+  /**
+   * Only show the app if there is a stored session that is (a) not idle for
+   * more than 5 minutes and (b) still valid on Supabase. Anything else is
+   * treated as logged out and fully purged — this is what used to leave a
+   * "logged in" screen that couldn't load any data.
+   */
+  async _restoreSession() {
+    await api.ready; // let the Supabase client finish restoring first
+    const session = SessionStore.get("ijla_session");
+
+    if (!session) {
+      SessionGuard.purgeStorage(); // also removes legacy localStorage sessions
       this.showPage("landing");
+      SessionGuard.showPendingNotice();
+      return;
     }
+
+    if (SessionGuard.isStale()) {
+      SessionGuard.purgeStorage();
+      SessionGuard.setNotice("idle");
+      this.showPage("landing");
+      SessionGuard.showPendingNotice();
+      return;
+    }
+
+    if (!(await api.hasValidSession())) {
+      SessionGuard.purgeStorage();
+      SessionGuard.setNotice("expired");
+      this.showPage("landing");
+      SessionGuard.showPendingNotice();
+      return;
+    }
+
+    this.showPage("app");
+    Loader.init(); // Init after page is visible so content-area has dimensions
+    this.populateProfileDropdown(session);
+    DashboardController.load(session);
+    NotificationController.init();
+    SessionGuard.start();
   },
 
   /** Populate profile dropdown with user info */
@@ -201,7 +233,7 @@ const App = {
   },
 
   applyProfileImage(
-    user = DashboardController.currentUser || Storage.get("ijla_session"),
+    user = DashboardController.currentUser || SessionStore.get("ijla_session"),
   ) {
     const image =
       user?.avatar_url ||
@@ -228,7 +260,7 @@ const App = {
   async previewProfileImage(input) {
     const file = input.files?.[0];
     if (!file) return;
-    const user = DashboardController.currentUser || Storage.get("ijla_session");
+    const user = DashboardController.currentUser || SessionStore.get("ijla_session");
 
     // Show the picked image immediately, before the upload finishes.
     const reader = new FileReader();
