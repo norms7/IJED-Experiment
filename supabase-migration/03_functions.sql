@@ -34,12 +34,16 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_auth_user();
 
 -- ----------------------------------------------------------------------------
--- 1. Student-safe question view (strips correct_answer before it ever
---    reaches the client — equivalent to _strip_correct_answers() in Python)
+-- 1. Student-safe question view (reveals correct_answer only after the
+--    current student has submitted the activity)
 -- ----------------------------------------------------------------------------
 create or replace view student_safe_questions as
-select id, activity_id, "order", question_text, question_type, points
-from activity_questions;
+select q.id, q.activity_id, q."order", q.question_text, q.question_type, q.points,
+  case when exists (
+    select 1 from activity_submissions s
+    where s.activity_id = q.activity_id and s.student_id = auth_student_id()
+  ) then q.correct_answer else null end as correct_answer
+from activity_questions q;
 
 -- ----------------------------------------------------------------------------
 -- 2. notify() / notify_many() — internal helpers used by the RPCs below.

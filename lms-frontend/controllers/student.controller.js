@@ -243,13 +243,16 @@ const StudentController = {
           file_name: uploaded.file_name,
         });
       }
-      const result = await api.submitActivityAnswers(activityId, answers);
+      await api.submitActivityAnswers(activityId, answers);
       submissionSaved = true;
-      result.answers = answers.map(answer => ({ ...answer }));
-      await this._resolveActivityFiles(activity, result);
+      const [submittedActivity, result] = await Promise.all([
+        api.getStudentActivity(activityId),
+        api.getMyActivityResult(activityId),
+      ]);
+      await this._resolveActivityFiles(submittedActivity, result);
       Toast.show('Activity submitted!', 'success');
       const area = document.getElementById('content-area');
-      area.innerHTML = StudentView.activityResult(activity, result);
+      area.innerHTML = StudentView.activityResult(submittedActivity, result);
     } catch (err) {
       if (!submissionSaved) {
         for (const path of uploadedFiles) {

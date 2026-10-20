@@ -882,8 +882,11 @@ const StudentView = {
 
     const questions = (activity.questions || []).map((q, idx) => {
       const ans        = answerMap[q.id];
-      const correctIcon = ans ? (ans.is_correct === true ? LMS_ICONS.check : ans.is_correct === false ? LMS_ICONS.xmark : LMS_ICONS.clipboard) : '—';
-      const ptsEarned  = ans ? (ans.points_earned ?? '?') : 0;
+      const resultBadge = ans?.is_correct === true
+        ? `<span role="img" aria-label="Correct" title="Correct" style="color:#15803d">${LMS_ICONS.check}</span>`
+        : ans?.is_correct === false
+          ? `<span role="img" aria-label="Incorrect" title="Incorrect" style="color:#b91c1c">${LMS_ICONS.xmark}</span>`
+          : '';
 
       let answerDisplay = '—';
       let answerFileHtml = '';
@@ -909,16 +912,34 @@ const StudentView = {
         }
       }
 
+      let correctAnswerDisplay = '';
+      if (ans?.is_correct === false && q.correct_answer != null) {
+        correctAnswerDisplay = q.correct_answer;
+        if (q.question_type === 'multiple_choice' || q.question_type === 'checkbox') {
+          try {
+            const choiceIndexes = q.question_type === 'checkbox'
+              ? JSON.parse(q.correct_answer)
+              : [Number.parseInt(q.correct_answer, 10)];
+            if (Array.isArray(choiceIndexes) && choiceIndexes.length) {
+              correctAnswerDisplay = choiceIndexes
+                .map(choiceIndex => q.choices?.[choiceIndex]?.choice_text || `Choice ${choiceIndex}`)
+                .join(', ');
+            }
+          } catch {}
+        }
+      }
+
       const rowBg = ans ? (ans.is_correct === true ? '#e6f4ea' : ans.is_correct === false ? '#fde8ec' : '#fff9e6') : '';
 
       return `
         <div style="border:1px solid var(--gray-200);border-radius:10px;padding:14px 18px;background:${rowBg || 'white'};margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <div style="font-size:13px;font-weight:700;color:var(--maroon)">Q${idx + 1} ${correctIcon}</div>
-            <span class="badge badge-gold">${ptsEarned} / ${q.points} pt${q.points !== 1 ? 's' : ''}</span>
+            <div style="font-size:13px;font-weight:700;color:var(--maroon)">Q${idx + 1}</div>
+            ${resultBadge}
           </div>
           <div style="font-size:13px;font-weight:600;color:#1a1a2e;margin:6px 0">${escHtml(q.question_text)}</div>
           <div style="font-size:13px;color:#444">Your answer: <em>${escHtml(answerDisplay)}</em>${answerFileHtml ? `<div style="margin-top:5px">${answerFileHtml}</div>` : ''}</div>
+          ${correctAnswerDisplay !== '' ? `<div style="font-size:13px;color:#15803d;margin-top:5px">Correct answer: <em>${escHtml(correctAnswerDisplay)}</em></div>` : ''}
         </div>`;
     }).join('');
 

@@ -268,7 +268,8 @@ create policy activities_teacher_delete on activities for delete
 
 -- ============================================================================
 -- activity_questions / activity_question_choices — visible if parent activity
--- is visible; students NEVER see correct_answer (handled by a view, see below)
+-- is visible; student_safe_questions reveals correct_answer only after a
+-- student's submission.
 -- ============================================================================
 create policy questions_select on activity_questions for select
   using (
