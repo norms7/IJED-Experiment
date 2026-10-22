@@ -72,16 +72,27 @@ const AnalyticsController = {
         this._currentSemester = await api.getStudentCurrentSemester();
       }
 
+      api.clearCache("student:mysubjects:");
       // Fetch subjects for the filter dropdown — scoped to the current
       // semester only, so 1st and 2nd semester subjects are never mixed
       // together in the same dropdown/analytics run.
       this._subjects = await api.getStudentSubjects(this._currentSemester);
+      if (this._currentSubject && !this._subjects.some(subject =>
+        String(subject.subject_id) === String(this._currentSubject)
+      )) {
+        this._currentSubject = null;
+      }
     } catch (_) {
       this._subjects = [];
     }
 
     // Render shell (tabs + filter)
-    area.innerHTML = AnalyticsView.shell(this._subjects, this._currentSemester);
+    area.innerHTML = AnalyticsView.shell(
+      this._subjects,
+      this._currentSemester,
+      this._currentTerm,
+      this._currentSubject,
+    );
 
     // Load the default tab
     await this._loadDescriptive();

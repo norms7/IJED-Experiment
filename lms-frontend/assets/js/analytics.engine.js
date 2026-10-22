@@ -41,7 +41,7 @@ const AnalyticsEngine = (() => {
   // every key by studentId here — once, centrally — closes that for every
   // caller without needing to edit each individual cache key string.
   async function cacheOrCompute(sb, studentId, cacheKey, ttlSeconds, computeFn) {
-    const scopedKey = `student_${studentId}.${cacheKey}`;
+    const scopedKey = `analytics_scope_v2.student_${studentId}.${cacheKey}`;
     try {
       const { data: cached } = await sb.rpc("analytics_cache_get", {
         p_cache_key: scopedKey, p_ttl_seconds: ttlSeconds,

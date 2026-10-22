@@ -31,9 +31,9 @@ const AnalyticsView = {
 
   // ── Shell: the two-sub-tab wrapper ───────────────────────────────────────
 
-  shell(subjectOptions = [], currentSemester = '1st') {
+  shell(subjectOptions = [], currentSemester = '1st', currentTerm = null, currentSubject = null) {
     const opts = subjectOptions.map(s =>
-      `<option value="${s.subject_id}">${escHtml(s.subject_name)}</option>`
+      `<option value="${s.subject_id}" ${String(s.subject_id) === String(currentSubject) ? 'selected' : ''}>${escHtml(s.subject_name)}</option>`
     ).join('');
 
     return `
@@ -48,11 +48,11 @@ const AnalyticsView = {
             <option value="2nd" ${currentSemester === '2nd' ? 'selected' : ''}>2nd Semester</option>
           </select>
           <select id="analytics-term-filter" class="analytics-select" onchange="AnalyticsController.onTermChange(this.value)">
-            <option value="">All Terms</option>
-            <option value="1st">1st Term</option>
-            <option value="2nd">2nd Term</option>
-            <option value="3rd">3rd Term</option>
-            <option value="4th">4th Term</option>
+            <option value="" ${!currentTerm ? 'selected' : ''}>All Terms</option>
+            <option value="1st" ${currentTerm === '1st' ? 'selected' : ''}>1st Term</option>
+            <option value="2nd" ${currentTerm === '2nd' ? 'selected' : ''}>2nd Term</option>
+            <option value="3rd" ${currentTerm === '3rd' ? 'selected' : ''}>3rd Term</option>
+            <option value="4th" ${currentTerm === '4th' ? 'selected' : ''}>4th Term</option>
           </select>
           <select id="analytics-subject-filter" class="analytics-select" onchange="AnalyticsController.onSubjectChange(this.value)">
             <option value="">All Subjects</option>
