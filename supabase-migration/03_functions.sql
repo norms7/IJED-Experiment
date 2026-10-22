@@ -637,6 +637,68 @@ begin
 end;
 $$;
 
+create or replace function get_attendance_score(
+  p_student_id integer,
+  p_subject_ids integer[],
+  p_term text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_term text;
+  v_total_sessions integer;
+  v_weighted_attendance numeric;
+begin
+  if auth_student_id() is null or p_student_id is distinct from auth_student_id() then
+    raise exception 'Can only read your own attendance score' using errcode = '42501';
+  end if;
+
+  v_term := case
+    when lower(trim(coalesce(p_term, ''))) ~ '^(1st|first|1)( (term|quarter))?$' then '1st'
+    when lower(trim(coalesce(p_term, ''))) ~ '^(2nd|second|2)( (term|quarter))?$' then '2nd'
+    when lower(trim(coalesce(p_term, ''))) ~ '^(3rd|third|3)( (term|quarter))?$' then '3rd'
+    when lower(trim(coalesce(p_term, ''))) ~ '^(4th|fourth|4)( (term|quarter))?$' then '4th'
+    else nullif(lower(trim(coalesce(p_term, ''))), '')
+  end;
+
+  select
+    count(*)::integer,
+    coalesce(sum(case lower(trim(ar.status))
+      when 'present' then 1
+      when 'late' then 0.5
+      else 0
+    end), 0)
+  into v_total_sessions, v_weighted_attendance
+  from attendance_records ar
+  join attendance_sessions asess on asess.id = ar.session_id
+  where ar.student_id = p_student_id
+    and asess.subject_id = any(coalesce(p_subject_ids, '{}'::integer[]))
+    and asess.has_class = true
+    and (
+      v_term is null
+      or case
+        when lower(trim(asess.term)) ~ '^(1st|first|1)( (term|quarter))?$' then '1st'
+        when lower(trim(asess.term)) ~ '^(2nd|second|2)( (term|quarter))?$' then '2nd'
+        when lower(trim(asess.term)) ~ '^(3rd|third|3)( (term|quarter))?$' then '3rd'
+        when lower(trim(asess.term)) ~ '^(4th|fourth|4)( (term|quarter))?$' then '4th'
+        else lower(trim(asess.term))
+      end = v_term
+    );
+
+  return jsonb_build_object(
+    'total_sessions', v_total_sessions,
+    'attendance_pct', case when v_total_sessions > 0
+      then round(v_weighted_attendance / v_total_sessions * 100, 1)
+      else null end
+  );
+end;
+$$;
+
+revoke all on function get_attendance_score(integer, integer[], text) from public, anon;
+grant execute on function get_attendance_score(integer, integer[], text) to authenticated;
+
 -- ----------------------------------------------------------------------------
 -- 7. create_attendance_session() — teacher creates a session + bulk records.
 --    Mirrors attendance.py: create_session().

@@ -37,7 +37,8 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 3. `03_functions.sql` — creates the RPC functions (`submit_activity`,
    `manual_grade_submission`, `enroll_student_subjects`,
    `create_attendance_session`, `get_dashboard_stats`,
-   `get_student_dashboard_stats`, `mark_module_read`, the
+   `get_student_dashboard_stats`, `mark_module_read`,
+   `get_attendance_score`, the
    `analytics_cache_get/set` pair, and the `on_auth_user_created` trigger).
 4. `04_sample_seed_data.sql` — optional sample LMS data.
 5. `05_profile_settings.sql` — adds persisted contact details, avatar URLs,
@@ -47,11 +48,12 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 7. `07_activity_term.sql` — adds the activity term column and index.
 8. `08_activity_file_uploads.sql` — adds activity attachment metadata and configures the existing `Activity-files` bucket as private with teacher/student access policies. Create or confirm the bucket before running this migration.
 
-For an existing project receiving this scoring fix, also rerun the updated
-`03_functions.sql` in the SQL Editor. It synchronizes each activity's maximum
-to the sum of its question points, recalculates existing auto-graded scores
-from their saved answer correctness and current question points, and updates
-the submission RPC. Manual grades are left unchanged.
+For an existing project receiving these scoring and analytics fixes, also
+rerun the updated `03_functions.sql` in the SQL Editor. It synchronizes each
+activity's maximum to the sum of its question points, recalculates existing
+auto-graded scores from their saved answer correctness and current question
+points, updates the submission RPC, and installs the semester/term-scoped
+attendance score RPC. Manual grades are left unchanged.
 
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside

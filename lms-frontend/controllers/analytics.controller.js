@@ -26,6 +26,7 @@ const AnalyticsController = {
   _currentSemester: null,           // '1st' | '2nd' — resolved on first load, defaults to 1st
   _currentSubject: null,            // null = All subjects
   _currentTerm:    null,            // null = All terms; else '1st'/'2nd'/'3rd'/'4th'
+  _filterRevision: 0,
   _targetGrade:    90,              // For improvement probability
   _descData:       null,
   _bayesData:      null,
@@ -54,6 +55,7 @@ const AnalyticsController = {
     // exactly what shell() always renders. This keeps state and DOM in sync
     // on every fresh entry into the Analytics section.
     this._currentTab = 'descriptive';
+    this._filterRevision++;
 
     // Reset state on each entry
     this._destroyAllCharts();
@@ -103,10 +105,13 @@ const AnalyticsController = {
    */
   async _prefetchBayesian() {
     if (this._bayesData) return; // already have it somehow
+    const requestRevision = this._filterRevision;
+    const requestTarget = this._targetGrade;
     try {
-      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester);
+      const data = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester);
+      if (requestRevision === this._filterRevision && requestTarget === this._targetGrade) this._bayesData = data;
     } catch (_) {
-      this._bayesData = null; // let the normal click-triggered load retry
+      if (requestRevision === this._filterRevision && requestTarget === this._targetGrade) this._bayesData = null;
     }
   },
 
@@ -133,6 +138,8 @@ const AnalyticsController = {
   // ── Public: semester filter ───────────────────────────────────────────────
 
   async onSemesterChange(val) {
+    this._filterRevision++;
+    const requestRevision = this._filterRevision;
     this._currentSemester = val || '1st';
     // Previous subject selection may not belong to the new semester at all
     // — reset to "All Subjects" for that semester rather than carrying over
@@ -144,6 +151,7 @@ const AnalyticsController = {
     } catch (_) {
       this._subjects = [];
     }
+    if (requestRevision !== this._filterRevision) return;
 
     // Refresh just the subject dropdown's options in place — a full shell
     // re-render would also reset the term filter and active tab, which
@@ -167,6 +175,7 @@ const AnalyticsController = {
   // ── Public: subject filter ────────────────────────────────────────────────
 
   async onSubjectChange(val) {
+    this._filterRevision++;
     this._currentSubject = val ? parseInt(val, 10) : null;
     // Invalidate cached data for both tabs so they refetch
     this._descData  = null;
@@ -180,6 +189,7 @@ const AnalyticsController = {
   // ── Public: term filter ───────────────────────────────────────────────────
 
   async onTermChange(val) {
+    this._filterRevision++;
     this._currentTerm = val || null;
     this._descData  = null;
     this._bayesData = null;
@@ -210,23 +220,25 @@ const AnalyticsController = {
   async _loadDescriptive() {
     const panel = document.getElementById('analytics-panel-descriptive');
     if (!panel) return;
+    const requestRevision = this._filterRevision;
 
     if (this._descData) {
       // Re-render from cache (e.g. returning to tab)
       panel.innerHTML = AnalyticsView.descriptivePanel(this._descData);
-      await this._renderDescriptiveCharts(this._descData);
+      await this._renderDescriptiveCharts(this._descData, requestRevision);
       return;
     }
 
     panel.innerHTML = AnalyticsView.descriptiveSkeleton();
 
     try {
-      this._descData = await api.getDescriptiveAnalytics(this._currentSubject, this._currentTerm, this._currentSemester);
-      if (!panel.isConnected) return;  // user navigated away
-      panel.innerHTML = AnalyticsView.descriptivePanel(this._descData);
-      await this._renderDescriptiveCharts(this._descData);
+      const data = await api.getDescriptiveAnalytics(this._currentSubject, this._currentTerm, this._currentSemester);
+      if (!panel.isConnected || requestRevision !== this._filterRevision) return;
+      this._descData = data;
+      panel.innerHTML = AnalyticsView.descriptivePanel(data);
+      await this._renderDescriptiveCharts(data, requestRevision);
     } catch (err) {
-      if (!panel.isConnected) return;
+      if (!panel.isConnected || requestRevision !== this._filterRevision) return;
       panel.innerHTML = AnalyticsView.error(err.message);
     }
   },
@@ -236,6 +248,8 @@ const AnalyticsController = {
   async _loadBayesian() {
     const panel = document.getElementById('analytics-panel-bayesian');
     if (!panel) return;
+    const requestRevision = this._filterRevision;
+    const requestTarget = this._targetGrade;
 
     if (this._bayesData) {
       panel.innerHTML = AnalyticsView.bayesianPanel(this._bayesData);
@@ -245,11 +259,12 @@ const AnalyticsController = {
     panel.innerHTML = AnalyticsView.bayesianSkeleton();
 
     try {
-      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester);
-      if (!panel.isConnected) return;
-      panel.innerHTML = AnalyticsView.bayesianPanel(this._bayesData);
+      const data = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester);
+      if (!panel.isConnected || requestRevision !== this._filterRevision || requestTarget !== this._targetGrade) return;
+      this._bayesData = data;
+      panel.innerHTML = AnalyticsView.bayesianPanel(data);
     } catch (err) {
-      if (!panel.isConnected) return;
+      if (!panel.isConnected || requestRevision !== this._filterRevision || requestTarget !== this._targetGrade) return;
       panel.innerHTML = AnalyticsView.error(err.message);
     }
   },
@@ -278,13 +293,14 @@ const AnalyticsController = {
 
   // ── Private: render all descriptive charts ───────────────────────────────
 
-  async _renderDescriptiveCharts(data) {
+  async _renderDescriptiveCharts(data, requestRevision = this._filterRevision) {
     try {
       await this._ensureChartJs();
     } catch (_) {
       console.warn('Analytics: Chart.js failed to load.');
       return;
     }
+    if (requestRevision !== this._filterRevision) return;
 
     const { grade_progress, score_vs_avg, subject_radar } = data;
 

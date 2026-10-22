@@ -20,6 +20,16 @@ const BAYESIAN_TTL_SECONDS = 60;     // current TTL — was 600 (10 min); same r
 
 const AnalyticsEngine = (() => {
 
+  function normalizeTerm(value) {
+    const term = String(value || "").trim().toLowerCase();
+    const match = term.match(/^(1st|first|1|2nd|second|2|3rd|third|3|4th|fourth|4)(?:\s+(?:term|quarter))?$/);
+    if (!match) return term || null;
+    if (["1st", "first", "1"].includes(match[1])) return "1st";
+    if (["2nd", "second", "2"].includes(match[1])) return "2nd";
+    if (["3rd", "third", "3"].includes(match[1])) return "3rd";
+    return "4th";
+  }
+
   // ── cache wrapper (mirrors cache_or_compute) ──────────────────────────────
   // CRITICAL: every cache key passed in by callers below was previously
   // built only from filter values (subject/term/semester) with no student_id
@@ -221,18 +231,20 @@ const AnalyticsEngine = (() => {
   // 4. DESCRIPTIVE — Module Reading Progress
   // ══════════════════════════════════════════════════════════════════════
   async function getModuleReadingProgress(sb, studentId, subjectId = null, term = null, semester = null) {
-    const cacheKey = `descriptive.module_progress.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    const cacheKey = `descriptive.module_progress.v3.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { subjects: [], totals: { read: 0, total: 0, pct: 0 } };
       const filterIds = subjectId ? [subjectId] : subjectIds;
 
-      let modQuery = sb
+      const modQuery = sb
         .from("modules").select("*").in("subject_id", filterIds).eq("is_published", true)
         .order("subject_id").order("order");
-      if (term) modQuery = modQuery.eq("term", term);
-      const { data: modules, error: mErr } = await modQuery;
+      const { data: fetchedModules, error: mErr } = await modQuery;
       if (mErr) throw new Error(mErr.message);
+      const selectedTerm = normalizeTerm(term);
+      const modules = (fetchedModules || [])
+        .filter(module => !selectedTerm || normalizeTerm(module.term) === selectedTerm);
 
       const { data: subjects } = await sb
         .from("subjects").select("id, name").in("id", filterIds);
@@ -276,7 +288,7 @@ const AnalyticsEngine = (() => {
   // 5. DESCRIPTIVE — Subject Radar
   // ══════════════════════════════════════════════════════════════════════
   async function getSubjectRadar(sb, studentId, term = null, semester = '1st') {
-    const cacheKey = `descriptive.subject_radar.term_${term || "all"}.semester_${semester || "all"}`;
+    const cacheKey = `descriptive.subject_radar.v2.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, studentId, cacheKey, DESCRIPTIVE_TTL_SECONDS, async () => {
       const subjectIds = await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) return { axes: [] };
@@ -302,7 +314,7 @@ const AnalyticsEngine = (() => {
       const perSubject = new Map();
       for (const sub of (subs || [])) {
         const sid = sub.activities?.subject_id;
-        if (term && sub.activities?.term !== term) continue;
+        if (term && normalizeTerm(sub.activities?.term) !== normalizeTerm(term)) continue;
         if (sid && subjectSet.has(sid) && sub.max_score > 0) {
           if (!perSubject.has(sid)) perSubject.set(sid, []);
           perSubject.get(sid).push((sub.score / sub.max_score) * 100);
@@ -336,7 +348,7 @@ const AnalyticsEngine = (() => {
   }
 
   async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null, semester = null) {
-    const cacheKey = `predicted_grade.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    const cacheKey = `predicted_grade.v3.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) return emptyPrediction();
@@ -568,11 +580,13 @@ const AnalyticsEngine = (() => {
     const attendancePct = attScore?.attendance_pct ?? null;
 
     // ── Modules in scope (subject + term), shared by §3 and §1 below ──────
-    let modQuery = sb.from("modules").select("id").in("subject_id", subjectIds).eq("is_published", true);
-    if (term) modQuery = modQuery.eq("term", term);
+    const modQuery = sb.from("modules").select("id, term").in("subject_id", subjectIds).eq("is_published", true);
     const { data: modsInScope, error: modErr } = await modQuery;
     if (modErr) throw new Error(modErr.message);
-    const modIds = (modsInScope || []).map(m => m.id);
+    const selectedTerm = normalizeTerm(term);
+    const modIds = (modsInScope || [])
+      .filter(module => !selectedTerm || normalizeTerm(module.term) === selectedTerm)
+      .map(module => module.id);
     const totalMods = modIds.length;
 
     // ── §3 Module Score: Modules Read / Total Modules ─────────────────────
@@ -592,12 +606,13 @@ const AnalyticsEngine = (() => {
     // due (or if undated), as 0 earned against their own max_score.
     // Term scoping: activities.term is a direct column, set explicitly when
     // the teacher creates the activity -- filtered straight, no join needed.
-    let actQuery = sb
-      .from("activities").select("id, max_score, due_date")
+    const actQuery = sb
+      .from("activities").select("id, max_score, due_date, term")
       .in("subject_id", subjectIds).eq("is_published", true);
-    if (term) actQuery = actQuery.eq("term", term);
-    const { data: applicableActs, error: actErr } = await actQuery;
+    const { data: activities, error: actErr } = await actQuery;
     if (actErr) throw new Error(actErr.message);
+    const applicableActs = (activities || [])
+      .filter(activity => !selectedTerm || normalizeTerm(activity.term) === selectedTerm);
 
     const { data: subs, error: subsErr } = await sb
       .from("activity_submissions")
@@ -666,7 +681,7 @@ const AnalyticsEngine = (() => {
   }
 
   async function getRiskAssessment(sb, studentId, subjectId = null, term = null, semester = null) {
-    const cacheKey = `performance.rating.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    const cacheKey = `performance.rating.v3.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) {
