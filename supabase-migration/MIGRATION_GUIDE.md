@@ -47,6 +47,12 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 7. `07_activity_term.sql` — adds the activity term column and index.
 8. `08_activity_file_uploads.sql` — adds activity attachment metadata and configures the existing `Activity-files` bucket as private with teacher/student access policies. Create or confirm the bucket before running this migration.
 
+For an existing project receiving this scoring fix, also rerun the updated
+`03_functions.sql` in the SQL Editor. It synchronizes each activity's maximum
+to the sum of its question points, recalculates existing auto-graded scores
+from their saved answer correctness and current question points, and updates
+the submission RPC. Manual grades are left unchanged.
+
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside
 `admin-create-user` so administrators can update Auth email addresses and

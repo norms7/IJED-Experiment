@@ -147,6 +147,143 @@ $$;
 --    Mirrors student_activities.py: submit_activity() 1:1, including the
 --    grade-letter table and auto/partial/manual grading branches.
 -- ----------------------------------------------------------------------------
+create or replace function rescore_activity_submissions(p_activity_id integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update activity_answers answer
+  set points_earned = case when answer.is_correct is true then question.points else 0 end
+  from activity_questions question
+  where question.id = answer.question_id
+    and question.activity_id = p_activity_id
+    and question.question_type in ('multiple_choice', 'checkbox', 'fill_blank', 'enumeration')
+    and exists (
+      select 1
+      from activity_submissions submission
+      join activities activity on activity.id = submission.activity_id
+      where submission.id = answer.submission_id
+        and submission.activity_id = p_activity_id
+        and activity.grading_mode = 'auto'
+    );
+
+  with recalculated as (
+    select submission.id, activity.max_score,
+      coalesce(sum(answer.points_earned), 0)::integer as score
+    from activity_submissions submission
+    join activities activity on activity.id = submission.activity_id
+    left join activity_answers answer on answer.submission_id = submission.id
+    where submission.activity_id = p_activity_id
+      and activity.grading_mode = 'auto'
+      and submission.score is not null
+    group by submission.id, activity.max_score
+  )
+  update activity_submissions submission
+  set max_score = recalculated.max_score,
+      score = recalculated.score,
+      grade = case when submission.is_graded then
+    case when recalculated.max_score > 0 then
+      case
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 100 then '1.00'
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 97 then '1.25'
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 94 then '1.50'
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 91 then '1.75'
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 88 then '2.00'
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 85 then '2.25'
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 82 then '2.50'
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 79 then '2.75'
+        when recalculated.score::numeric / recalculated.max_score * 100 >= 75 then '3.00'
+        else '5.00'
+      end
+    else '5.00'
+    end
+  else null end,
+      remarks = case when submission.is_graded then 'Auto-graded' else submission.remarks end
+  from recalculated
+  where submission.id = recalculated.id;
+
+  delete from analytics_cache
+  where student_id in (
+    select distinct student_id
+    from activity_submissions
+    where activity_id = p_activity_id
+  );
+end;
+$$;
+
+revoke all on function rescore_activity_submissions(integer) from public;
+
+create or replace function sync_activity_max_score()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_activity_id integer;
+begin
+  if tg_op = 'DELETE' then
+    v_activity_id := old.activity_id;
+  else
+    v_activity_id := new.activity_id;
+  end if;
+
+  update activities
+  set max_score = (
+    select nullif(coalesce(sum(points), 0), 0)::integer
+    from activity_questions
+    where activity_id = v_activity_id
+  )
+  where id = v_activity_id;
+  perform rescore_activity_submissions(v_activity_id);
+
+  if tg_op = 'UPDATE' then
+    if old.activity_id is distinct from new.activity_id then
+      update activities
+      set max_score = (
+        select nullif(coalesce(sum(points), 0), 0)::integer
+        from activity_questions
+        where activity_id = old.activity_id
+      )
+      where id = old.activity_id;
+      perform rescore_activity_submissions(old.activity_id);
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_sync_activity_max_score on activity_questions;
+create trigger trg_sync_activity_max_score
+after insert or update or delete on activity_questions
+for each row execute function sync_activity_max_score();
+
+update activities a
+set max_score = question_totals.max_score
+from (
+  select activity_id, nullif(sum(points), 0)::integer as max_score
+  from activity_questions
+  group by activity_id
+) question_totals
+where a.id = question_totals.activity_id
+  and a.max_score is distinct from question_totals.max_score;
+
+do $$
+declare
+  v_activity_id integer;
+begin
+  for v_activity_id in
+    select id from activities where grading_mode = 'auto'
+  loop
+    perform rescore_activity_submissions(v_activity_id);
+  end loop;
+end;
+$$;
+
 create or replace function submit_activity(
   p_activity_id integer,
   p_answers jsonb   -- [{ "question_id": 1, "answer_value": "0" }, ...]
@@ -160,6 +297,7 @@ declare
   v_activity       activities%rowtype;
   v_submission_id  integer;
   v_total_earned   integer := 0;
+  v_max_score      integer;
   v_all_auto       boolean := true;
   v_ans            jsonb;
   v_question       activity_questions%rowtype;
@@ -205,8 +343,14 @@ begin
     raise exception 'You have already submitted this activity.' using errcode = '23505';
   end if;
 
+  select coalesce(nullif(sum(points), 0), v_activity.max_score, 0)::integer
+    into v_max_score
+  from activity_questions
+  where activity_id = p_activity_id;
+  update activities set max_score = v_max_score where id = p_activity_id;
+
   insert into activity_submissions (activity_id, student_id, max_score, submitted_at)
-  values (p_activity_id, v_student_id, v_activity.max_score, now())
+  values (p_activity_id, v_student_id, v_max_score, now())
   returning id into v_submission_id;
 
   for v_ans in select * from jsonb_array_elements(p_answers) loop
@@ -257,8 +401,8 @@ begin
     if v_all_auto then
       v_score := v_total_earned;
       v_is_graded := true;
-      v_pct := case when v_activity.max_score > 0
-                 then least((v_total_earned::numeric / v_activity.max_score * 100), 100.0)
+      v_pct := case when v_max_score > 0
+                 then least((v_total_earned::numeric / v_max_score * 100), 100.0)
                  else 0 end;
       v_grade := case
         when v_pct >= 100 then '1.00' when v_pct >= 97 then '1.25' when v_pct >= 94 then '1.50'
@@ -310,7 +454,7 @@ begin
     'activity_id', p_activity_id,
     'student_id', v_student_id,
     'score', v_score,
-    'max_score', v_activity.max_score,
+    'max_score', v_max_score,
     'grade', v_grade,
     'remarks', v_remarks,
     'is_graded', v_is_graded,

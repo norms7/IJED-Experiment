@@ -419,7 +419,7 @@ const StudentView = {
           const statusColor = { open:'#2e6b3e', graded:'#1a4a8a', submitted:'#6a0dad', past_due:'#c00', not_open:'#888' }[a.status] || '#666';
           const statusLabel = a.status_label || a.status || '';
           const submission  = a.submission || a.my_submission || null;
-          const score       = submission?.score != null
+          const score       = submission?.is_graded && submission.score != null
             ? `${submission.score}/${submission.max_score ?? a.max_score ?? '?'}`
             : submission ? 'Pending' : 'Not taken';
           const action       = submission
@@ -681,8 +681,7 @@ const StudentView = {
         : `<td style="padding:14px 12px;text-align:center"><span style="color:var(--gray-400);font-size:16px">—</span></td>`;
 
       let gradedCell = '';
-      // Consider graded if: is_graded flag is true OR score is already available
-      const effectivelyGraded = sub && (sub.is_graded || sub.score != null);
+      const effectivelyGraded = sub?.is_graded === true;
       if (!sub) {
         gradedCell = `<td style="padding:14px 12px;text-align:center"><span style="color:var(--gray-400);font-size:16px">—</span></td>`;
       } else if (effectivelyGraded) {
@@ -692,16 +691,14 @@ const StudentView = {
       }
 
       let scoreCell = '';
-      const effectiveMaxScore = sub?.max_score ?? a.max_score ?? null;
+      const effectiveMaxScore = sub?.max_score > 0 ? sub.max_score : a.max_score ?? null;
       if (!sub) {
         scoreCell = isPastDue
           ? `<td style="padding:14px 12px;text-align:center"><div style="font-size:13px;font-weight:600;color:#c0392b">0 / ${effectiveMaxScore ?? '?'}</div><div style="font-size:10px;color:#c0392b">No submission</div></td>`
           : `<td style="padding:14px 12px;text-align:center;font-size:13px;color:var(--gray-400)">— / ${effectiveMaxScore ?? '?'}</td>`;
-      } else if (sub.score != null) {
-        // Show score whether graded manually or auto — score present means it's been evaluated
+      } else if (sub.is_graded && sub.score != null) {
         const pct = effectiveMaxScore ? Math.round(sub.score / effectiveMaxScore * 100) : 0;
-        const scoreColor = sub.is_graded ? '#1a1a2e' : '#c04a00';
-        scoreCell = `<td style="padding:14px 12px;text-align:center"><div style="font-size:13px;font-weight:700;color:${scoreColor}">${sub.score} / ${effectiveMaxScore ?? '?'}</div><div style="font-size:11px;color:var(--gray-500)">${pct}%</div></td>`;
+        scoreCell = `<td style="padding:14px 12px;text-align:center"><div style="font-size:13px;font-weight:700;color:#1a1a2e">${sub.score} / ${effectiveMaxScore ?? '?'}</div><div style="font-size:11px;color:var(--gray-500)">${pct}%</div></td>`;
       } else {
         scoreCell = `<td style="padding:14px 12px;text-align:center;font-size:13px;color:var(--gray-500)">? / ${effectiveMaxScore ?? '?'}<br><span style="font-size:10px">Pending</span></td>`;
       }
@@ -714,9 +711,9 @@ const StudentView = {
         const gradeColor = isPassing ? '#2e6b3e' : '#c0392b';
         const gradeBg    = isPassing ? '#e6f4ea' : '#fde8ec';
         gradeCell = `<td style="padding:14px 12px;text-align:center"><span style="display:inline-block;padding:3px 10px;border-radius:6px;background:${gradeBg};color:${gradeColor};font-weight:700;font-size:13px">${escHtml(String(sub.grade))}</span></td>`;
-      } else if (sub && sub.score != null && sub.max_score != null) {
+      } else if (sub?.is_graded && sub.score != null && effectiveMaxScore > 0) {
         // Backend did not return a grade string — compute it from score
-        const pct = Math.round(sub.score / sub.max_score * 100);
+        const pct = Math.round(sub.score / effectiveMaxScore * 100);
         const gradeColor = pct >= 75 ? '#2e6b3e' : '#c0392b';
         const gradeBg    = pct >= 75 ? '#e6f4ea' : '#fde8ec';
         const gradeLabel = pct >= 97 ? '1.00' : pct >= 94 ? '1.25' : pct >= 91 ? '1.50'
@@ -1026,9 +1023,10 @@ const StudentView = {
     let totalEarned = 0, totalPossible = 0, gradedCount = 0;
     graded.forEach(a => {
       const sub = a.submission;
-      if (sub && sub.score != null && sub.max_score != null) {
+      const maxScore = sub?.max_score > 0 ? sub.max_score : a.max_score;
+      if (sub?.is_graded && sub.score != null && maxScore > 0) {
         totalEarned   += sub.score;
-        totalPossible += sub.max_score;
+        totalPossible += maxScore;
         gradedCount++;
       }
     });
@@ -1060,8 +1058,8 @@ const StudentView = {
           const term       = a.term ? `${a.term} Term` : '—';
 
           const score    = sub.score;
-          const maxScore = sub.max_score ?? a.max_score;
-          const pct      = score != null && maxScore ? Math.round(score / maxScore * 100) : null;
+          const maxScore = sub.max_score > 0 ? sub.max_score : a.max_score;
+          const pct      = sub.is_graded && score != null && maxScore > 0 ? Math.round(score / maxScore * 100) : null;
           const pctBadge = pct !== null
             ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${pct}%</span>`
             : `<span class="badge badge-gray" style="font-size:11px">Pending</span>`;
@@ -1078,7 +1076,7 @@ const StudentView = {
             ? new Date(sub.submitted_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
             : '—';
 
-          const gradedBadge = sub.is_graded || score != null
+          const gradedBadge = sub.is_graded
             ? `<span class="badge badge-green" style="font-size:10px">${lmsIcon('check')} Graded</span>`
             : `<span class="badge badge-gold" style="font-size:10px">${lmsIcon('clock')} Pending</span>`;
 
@@ -1089,7 +1087,7 @@ const StudentView = {
             </td>
             <td><span class="badge badge-maroon" style="font-size:11px">${escHtml(subjectName)}</span></td>
             <td style="text-align:center;font-weight:600">
-              ${score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
+              ${sub.is_graded && score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
             </td>
             <td style="text-align:center">${pctBadge}</td>
             <td style="text-align:center;font-weight:700;color:${phColor};font-size:14px">${escHtml(String(phGrade))}</td>
@@ -1173,14 +1171,14 @@ const StudentView = {
               exam:'Exam', lab_exercise:'Lab Exercise', assignment:'Assignment', other:'Other' })[a.activity_type] || a.activity_type || '—';
             const term        = a.term ? `${a.term} Term` : '—';
             const score       = sub.score;
-            const maxScore    = sub.max_score ?? a.max_score;
-            const pct         = score != null && maxScore ? Math.round(score / maxScore * 100) : null;
+            const maxScore    = sub.max_score > 0 ? sub.max_score : a.max_score;
+            const pct         = sub.is_graded && score != null && maxScore > 0 ? Math.round(score / maxScore * 100) : null;
             const phGrade     = pct !== null ? StudentView._toPhGrade(pct) : '—';
             const phColor     = phGrade === '—' ? 'var(--gray-400)' : parseFloat(phGrade) <= 1.75 ? '#16a34a' : parseFloat(phGrade) <= 2.75 ? '#d97706' : '#dc2626';
             const dateStr     = sub.submitted_at
               ? new Date(sub.submitted_at).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' })
               : '—';
-            const statusBadge = sub.is_graded || score != null
+            const statusBadge = sub.is_graded
               ? `<span class="badge badge-green" style="font-size:10px">${lmsIcon('check')} Graded</span>`
               : `<span class="badge badge-gold" style="font-size:10px">${lmsIcon('clock')} Pending</span>`;
             const pctBadge = pct !== null
@@ -1199,7 +1197,7 @@ const StudentView = {
                 <div style="${rowStyle}">
                   <span style="${labelStyle}">Score</span>
                   <span style="font-weight:600;color:var(--maroon)">
-                    ${score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
+                    ${sub.is_graded && score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
                   </span>
                 </div>
                 <div style="${rowStyle}">

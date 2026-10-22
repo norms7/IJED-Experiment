@@ -1217,6 +1217,9 @@ class LMSAdminAPI {
   async createTeacherActivity(payload) {
     const teacher_id = await this._myTeacherId();
     const { questions, ...activityFields } = payload;
+    if (questions?.length) {
+      activityFields.max_score = questions.reduce((total, question) => total + Number(question.points), 0);
+    }
     const activity = this._throwIfError(
       await this.sb
         .from("activities")
@@ -1225,7 +1228,7 @@ class LMSAdminAPI {
         .single(),
     );
     for (const [i, q] of (questions || []).entries()) {
-      const { choices, ...qFields } = q;
+      const { choices, question_id, ...qFields } = q;
       const question = this._throwIfError(
         await this.sb
           .from("activity_questions")
@@ -1294,6 +1297,11 @@ class LMSAdminAPI {
 
   async updateTeacherActivity(id, payload) {
     const { questions, single_prompt, ...fields } = payload;
+    if (questions?.length) {
+      fields.max_score = questions.reduce((total, question) => total + Number(question.points), 0);
+    } else if (single_prompt) {
+      fields.max_score = single_prompt.points;
+    }
     const result = this._throwIfError(
       await this.sb
         .from("activities")
@@ -1328,26 +1336,68 @@ class LMSAdminAPI {
       }
     }
     if (questions) {
-      await this.sb.from("activity_questions").delete().eq("activity_id", id);
-      for (const [i, q] of questions.entries()) {
-        const { choices, ...qFields } = q;
-        const question = this._throwIfError(
+      const existingQuestions = this._throwIfError(
+        await this.sb
+          .from("activity_questions")
+          .select("id")
+          .eq("activity_id", id),
+      );
+      const existingIds = new Set(existingQuestions.map((question) => question.id));
+      const retainedIds = questions
+        .map((question) => question.question_id)
+        .filter((questionId) => questionId != null);
+      if (new Set(retainedIds).size !== retainedIds.length || retainedIds.some((questionId) => !existingIds.has(questionId))) {
+        throw new Error("Activity question list contains an invalid or duplicate question ID.");
+      }
+
+      const removedIds = [...existingIds].filter((questionId) => !retainedIds.includes(questionId));
+      if (removedIds.length) {
+        this._throwIfError(
           await this.sb
             .from("activity_questions")
-            .insert({ ...qFields, activity_id: id, order: q.order ?? i })
-            .select()
-            .single(),
+            .delete()
+            .eq("activity_id", id)
+            .in("id", removedIds),
         );
-        if (choices?.length) {
+      }
+
+      for (const [i, q] of questions.entries()) {
+        const { choices, question_id, ...qFields } = q;
+        const question = question_id
+          ? this._throwIfError(
+              await this.sb
+                .from("activity_questions")
+                .update({ ...qFields, order: q.order ?? i })
+                .eq("activity_id", id)
+                .eq("id", question_id)
+                .select()
+                .single(),
+            )
+          : this._throwIfError(
+              await this.sb
+                .from("activity_questions")
+                .insert({ ...qFields, activity_id: id, order: q.order ?? i })
+                .select()
+                .single(),
+            );
+        this._throwIfError(
           await this.sb
             .from("activity_question_choices")
-            .insert(
-              choices.map((c, j) => ({
-                ...c,
-                question_id: question.id,
-                order: c.order ?? j,
-              })),
-            );
+            .delete()
+            .eq("question_id", question.id),
+        );
+        if (choices?.length) {
+          this._throwIfError(
+            await this.sb
+              .from("activity_question_choices")
+              .insert(
+                choices.map((c, j) => ({
+                  ...c,
+                  question_id: question.id,
+                  order: c.order ?? j,
+                })),
+              ),
+          );
         }
       }
     }

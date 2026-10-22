@@ -260,7 +260,7 @@ const GradebookController = {
     const actCards = activities.map(act => {
       const sub      = act._submissions?.find(s => s.student_id === studentId);
       const score    = sub?.is_graded && sub?.score != null ? sub.score : null;
-      const maxScore = act.max_score ?? 0;
+      const maxScore = sub?.max_score > 0 ? sub.max_score : (act.max_score ?? 0);
       const pct      = score !== null && maxScore > 0 ? Math.round(score / maxScore * 100) : null;
       const statusBadge = !sub
         ? `<span class="badge badge-gray" style="font-size:10px">Not submitted</span>`
@@ -391,7 +391,7 @@ const GradebookController = {
     // Activity breakdown sheet
     const actHeaderRow = [
       'Student Name', 'LRN / Student No.',
-      ...activities.map(a => `${a.title} (/${a.max_score ?? '?'})`),
+      ...activities.map(a => a.title),
       'Total Earned', 'Total Possible', 'Activity %',
     ];
     const actDataRows = students.map(stu => {
@@ -405,7 +405,7 @@ const GradebookController = {
           const maxScore = sub.max_score > 0 ? sub.max_score : act.max_score;
           totalEarned += sub.score;
           totalPossible += maxScore > 0 ? maxScore : 0;
-          return sub.score;
+          return `${sub.score}/${maxScore}`;
         }
         return '';
       });

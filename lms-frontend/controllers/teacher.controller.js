@@ -281,6 +281,7 @@ const TeacherController = {
       if (existingActivity?.activity_questions) {
         this._questions = existingActivity.activity_questions.map((question, index) => ({
           id: `q${question.id || index}`,
+          question_id: question.id || null,
           type: question.question_type || 'multiple_choice',
           text: question.question_text || '',
           points: question.points || 1,
@@ -364,7 +365,7 @@ const TeacherController = {
     }[format] || 'multiple_choice';
 
     const idx = this._questions.length;
-    this._questions.push({ id: `q${idx}`, type: defaultType, text: '', points: 1, correct: null, choices: [] });
+    this._questions.push({ id: `q${idx}`, question_id: null, type: defaultType, text: '', points: 1, correct: null, choices: [] });
 
     if (defaultType === 'multiple_choice' || defaultType === 'checkbox') {
       this._questions[idx].choices = ['', '', '', ''].map((_, i) => ({ id: `c${idx}_${i}`, text: '' }));
@@ -413,7 +414,10 @@ const TeacherController = {
           </div>
           ${this._renderChoicesEditor(q, idx)}
         </div>`;
-    }).join('');
+    }).join('') + `
+      <div id="act-question-total" style="text-align:right;font-size:13px;font-weight:600;color:var(--maroon);padding:4px 0 8px">
+        Total: ${this._questions.reduce((total, question) => total + (Number(question.points) || 0), 0)} points
+      </div>`;
   },
 
   _renderChoicesEditor(q, idx) {
@@ -452,13 +456,22 @@ const TeacherController = {
     if (q.type === 'fill_blank') {
       return `<div style="margin-top:8px"><label style="font-size:12px;color:var(--gray-500)">Expected Answer (exact text match, case-insensitive)</label><input class="form-control form-control-sm" placeholder="e.g. Photosynthesis" value="${escHtml(q.correct || '')}" onchange="TeacherController._qSetCorrect(${idx}, this.value)" /></div>`;
     }
-    return `<div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:6px;background:var(--gray-100);border-radius:4px">${LMS_ICONS.file} Essay — teacher grades manually after submission.</div>`;
+    return `<div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:6px;background:var(--gray-100);border-radius:4px">${lmsIcon('file')} Essay — teacher grades manually after submission.</div>`;
   },
 
   // ── Question mutation helpers ─────────────────────────────
 
   _qSetText(idx, val)   { this._questions[idx].text   = val; },
-  _qSetPoints(idx, val) { this._questions[idx].points = parseInt(val) || 1; },
+  _qSetPoints(idx, val) {
+    this._questions[idx].points = val === '' ? 0 : Number(val);
+    const total = document.getElementById('act-question-total');
+    if (total) {
+      const points = this._questions.map(question => Number(question.points));
+      total.textContent = points.every(Number.isInteger)
+        ? `Total: ${points.reduce((sum, value) => sum + value, 0)} points`
+        : 'Total: Enter valid whole-number points for every question';
+    }
+  },
 
   _qSetType(idx, val) {
     this._questions[idx].type    = val;
@@ -531,6 +544,15 @@ const TeacherController = {
     if (!singlePrompt && !this._questions.length) {
       Toast.show('Please add at least one question.', 'error'); return;
     }
+    if (!singlePrompt) {
+      for (const [i, question] of this._questions.entries()) {
+        const pointsInput = document.querySelector(`.activity-question-builder[data-q="${i}"] input[type="number"]`);
+        if (pointsInput) question.points = Number(pointsInput.value);
+        if (!Number.isInteger(question.points) || question.points < 1 || question.points > 1000) {
+          Toast.show(`Question ${i + 1} points must be a whole number from 1 to 1000.`, 'error'); return;
+        }
+      }
+    }
     for (const [i, q] of (singlePrompt ? [] : this._questions).entries()) {
       if (!q.text.trim()) { Toast.show(`Question ${i + 1} is missing question text.`, 'error'); return; }
       if ((q.type === 'multiple_choice' || q.type === 'checkbox') && q.choices.filter(c => c.text.trim()).length < 2) {
@@ -566,6 +588,7 @@ const TeacherController = {
       choices:        [],
     } : null;
     const questions   = singlePrompt ? [singlePromptQuestion] : this._questions.map((q, i) => ({
+      question_id:    q.question_id ?? null,
       order:          i,
       question_text:  q.text.trim(),
       question_type:  q.type,
@@ -762,7 +785,7 @@ const TeacherController = {
       // Section filter — always show if there's at least 1 section
       const sectionFilterHtml = `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-          <span style="font-size:13px;color:#6b7280;font-weight:500;">${LMS_ICONS.school} Section:</span>
+          <span style="font-size:13px;color:#6b7280;font-weight:500;">${lmsIcon('school')} Section:</span>
           <select id="submission-section-filter"
             style="padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:13px;cursor:pointer"
             onchange="TeacherController._filterSubmissionRows()">
@@ -774,12 +797,13 @@ const TeacherController = {
         </div>`;
 
       // ── Summary stats ─────────────────────────────────────────────────────
-      const gradedSubs   = submissions.filter(s => s.is_graded && s.score != null && activity.max_score);
-      const passed       = gradedSubs.filter(s => (s.score / activity.max_score) >= 0.75);
-      const failed       = gradedSubs.filter(s => (s.score / activity.max_score) <  0.75);
+      const submissionMaxScore = s => s.max_score > 0 ? s.max_score : activity.max_score;
+      const gradedSubs   = submissions.filter(s => s.is_graded && s.score != null && submissionMaxScore(s) > 0);
+      const passed       = gradedSubs.filter(s => (s.score / submissionMaxScore(s)) >= 0.75);
+      const failed       = gradedSubs.filter(s => (s.score / submissionMaxScore(s)) <  0.75);
       const pendingGrade = submissions.filter(s => !s.is_graded);
       const avgScore     = gradedSubs.length
-        ? Math.round(gradedSubs.reduce((acc, s) => acc + (s.score / activity.max_score * 100), 0) / gradedSubs.length)
+        ? Math.round(gradedSubs.reduce((acc, s) => acc + (s.score / submissionMaxScore(s) * 100), 0) / gradedSubs.length)
         : null;
       const passPct  = gradedSubs.length ? Math.round(passed.length / gradedSubs.length * 100) : null;
       const failPct  = gradedSubs.length ? Math.round(failed.length / gradedSubs.length * 100) : null;
@@ -798,7 +822,7 @@ const TeacherController = {
                 </span>`).join('')}
             </div>
           </div>`
-        : `<div style="margin-top:10px;font-size:12px;color:#059669">${LMS_ICONS.check} All enrolled students have submitted.</div>`;
+        : `<div style="margin-top:10px;font-size:12px;color:#059669">${lmsIcon('check')} All enrolled students have submitted.</div>`;
 
       const statBox = (value, label, color) =>
         `<div style="text-align:center;min-width:90px;flex:1">
@@ -827,15 +851,16 @@ const TeacherController = {
         const submittedAt  = s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : '—';
         let scoreCell = '— Pending —', pctCell = '—', gradeCell = '—';
 
-        if (s.is_graded && s.score != null && activity.max_score) {
-          const pct   = Math.round(s.score / activity.max_score * 100);
+        const maxScore = submissionMaxScore(s);
+        if (s.is_graded && s.score != null && maxScore > 0) {
+          const pct   = Math.round(s.score / maxScore * 100);
           const grade = s.grade || computeGrade(pct);
           const cls   = parseFloat(grade) <= 3.00 ? 'badge-green' : 'badge-danger';
-          scoreCell = `${s.score}/${activity.max_score}`;
+          scoreCell = `${s.score}/${maxScore}`;
           pctCell   = `${pct}%`;
           gradeCell = `<span class="badge ${cls}">${escHtml(grade)}</span>`;
         } else if (s.is_graded) {
-          scoreCell = s.score != null ? `${s.score}/${activity.max_score ?? '—'}` : '—';
+          scoreCell = s.score != null ? `${s.score}/${maxScore ?? '—'}` : '—';
           gradeCell = s.grade ? `<span class="badge badge-green">${escHtml(s.grade)}</span>` : '—';
         }
 
@@ -919,8 +944,9 @@ const TeacherController = {
       const studentName   = escHtml(submission.student_name || `Student #${submission.student_id}`);
       const submittedDate = submission.submitted_at
         ? new Date(submission.submitted_at).toLocaleString() : '—';
+      const submissionMaxScore = submission.max_score > 0 ? submission.max_score : activity.max_score;
       const scoreLabel    = submission.is_graded && submission.score != null
-        ? `${submission.score} / ${activity.max_score ?? '—'}`
+        ? `${submission.score} / ${submissionMaxScore ?? '—'}`
         : 'Pending';
 
       // Normalize: getTeacherActivity returns activity_questions, not questions
@@ -1007,13 +1033,13 @@ const TeacherController = {
 
       const gradeSection = submission.is_graded
         ? `<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-            <span>${LMS_ICONS.check} <strong>Graded</strong></span>
+            <span>${lmsIcon('check')} <strong>Graded</strong></span>
             <span>Score: <strong>${scoreLabel}</strong></span>
             ${submission.grade ? `<span>Grade: <strong>${escHtml(submission.grade)}</strong></span>` : ''}
             ${submission.remarks ? `<span style="color:#6b7280;font-size:13px">${escHtml(submission.remarks)}</span>` : ''}
           </div>`
         : `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 16px;margin-bottom:16px">
-            ${LMS_ICONS.loading} <strong>Pending grade</strong>
+            ${lmsIcon('loading')} <strong>Pending grade</strong>
             ${activity.grading_mode === 'manual'
               ? `<button class="btn btn-xs btn-primary" style="margin-left:12px"
                    onclick="TeacherController.openManualGrade(${activityId}, ${submissionId}, ${activity.max_score ?? 0})">
