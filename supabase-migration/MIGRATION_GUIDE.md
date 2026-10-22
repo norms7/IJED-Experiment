@@ -53,7 +53,8 @@ rerun the updated `03_functions.sql` in the SQL Editor. It synchronizes each
 activity's maximum to the sum of its question points, recalculates existing
 auto-graded scores from their saved answer correctness and current question
 points, updates the submission RPC, and installs the semester/term-scoped
-attendance score RPC. Manual grades are left unchanged.
+attendance score RPC. It also removes the old `varchar` overload of that RPC
+that can make PostgREST calls ambiguous. Manual grades are left unchanged.
 
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside

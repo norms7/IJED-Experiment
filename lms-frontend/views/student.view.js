@@ -407,7 +407,7 @@ const StudentView = {
           const resolvedUrl = m.file_url && m.file_url.startsWith('http') ? m.file_url : `${API_BASE}${m.file_url}`;
           return `<div class="accordion-content-item">
             <span class="acc-item-icon">${LMS_ICONS.file}</span>
-            <span class="acc-item-label">${escHtml(m.title)}${m.description ? '<span class="acc-item-desc">' + escHtml(m.description) + '</span>' : ''}</span>
+            <span class="acc-item-label">${escHtml(m.title)}${m.is_read ? `<span data-module-read-indicator="${m.id}" style="display:inline-flex;align-items:center;gap:3px;margin-left:7px;color:#2e6b3e;font-size:11px;font-weight:700">${lmsIcon('check')} Read</span>` : `<span data-module-read-indicator="${m.id}"></span>`}${m.description ? '<span class="acc-item-desc">' + escHtml(m.description) + '</span>' : ''}</span>
             ${hasFile
               ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">${lmsIcon('fileOpen')} Open</a>`
               : `<span class="btn btn-xs btn-outline" style="opacity:.45;cursor:default;pointer-events:none">No file</span>`}
@@ -419,6 +419,7 @@ const StudentView = {
           const statusColor = { open:'#2e6b3e', graded:'#1a4a8a', submitted:'#6a0dad', past_due:'#c00', not_open:'#888' }[a.status] || '#666';
           const statusLabel = a.status_label || a.status || '';
           const submission  = a.submission || a.my_submission || null;
+          const isAnswered  = !!submission || a.status === 'submitted' || a.status === 'graded';
           const score       = submission?.is_graded && submission.score != null
             ? `${submission.score}/${submission.max_score ?? a.max_score ?? '?'}`
             : submission ? 'Pending' : 'Not taken';
@@ -433,6 +434,7 @@ const StudentView = {
           return `<div class="accordion-content-item">
             <span class="acc-item-icon">${LMS_ICONS.clipboard}</span>
             <span class="acc-item-label">${escHtml(a.title || a.activity_type)}
+              ${isAnswered ? `<span style="display:inline-flex;align-items:center;gap:3px;margin-left:7px;color:#2e6b3e;font-size:11px;font-weight:700">${lmsIcon('check')} Answered</span>` : ''}
               <span class="acc-item-desc">${escHtml(typeLabel)}${dueStr ? ' · Due: ' + dueStr : ''}</span>
             </span>
             <span style="font-size:11px;font-weight:600;color:${statusColor};white-space:nowrap">${escHtml(statusLabel)}</span>

@@ -348,7 +348,7 @@ const AnalyticsEngine = (() => {
   }
 
   async function getPredictedFinalGrade(sb, studentId, subjectId = null, term = null, semester = null) {
-    const cacheKey = `predicted_grade.v3.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    const cacheKey = `predicted_grade.v4.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) return emptyPrediction();
@@ -413,7 +413,7 @@ const AnalyticsEngine = (() => {
   const PRIOR_STRENGTH = 4; // effective sample size of the class-wide prior
 
   async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null, term = null, semester = null) {
-    const cacheKey = `improvement_prob.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}.target_${Math.trunc(targetGrade)}`;
+    const cacheKey = `improvement_prob.v2.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}.target_${Math.trunc(targetGrade)}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term, semester);
       const predicted = prediction.predicted_grade;
@@ -594,11 +594,15 @@ const AnalyticsEngine = (() => {
     // their entire account, uncorrelated to subject or term, and just
     // clamped it against totalMods — only "worked" by coincidence. Now
     // properly scoped to the modules actually in scope.
-    const { count: reads } = totalMods
-      ? await sb.from("student_module_reads").select("id", { count: "exact", head: true })
+    const { data: readRows, error: readErr } = totalMods
+      ? await sb.from("student_module_reads").select("module_id")
           .eq("student_id", studentId).in("module_id", modIds)
-      : { count: 0 };
-    const modulePct = totalMods ? (Math.min(reads || 0, totalMods) / totalMods) * 100 : null;
+      : { data: [], error: null };
+    if (readErr) throw new Error(readErr.message);
+    const readModuleIds = new Set((readRows || []).map(read => read.module_id));
+    const modulePct = totalMods
+      ? (modIds.filter(moduleId => readModuleIds.has(moduleId)).length / totalMods) * 100
+      : null;
 
     // ── §1 Academic Score: Total Earned / Total Possible ──────────────────
     // Graded submissions count as soon as they're graded, even if the due
@@ -681,7 +685,7 @@ const AnalyticsEngine = (() => {
   }
 
   async function getRiskAssessment(sb, studentId, subjectId = null, term = null, semester = null) {
-    const cacheKey = `performance.rating.v3.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
+    const cacheKey = `performance.rating.v4.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const perf = await computePerformanceComponents(sb, studentId, subjectId, term, semester);
       if (!perf) {

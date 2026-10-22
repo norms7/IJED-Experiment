@@ -256,6 +256,7 @@ const StudentController = {
         });
       }
       await api.submitActivityAnswers(activityId, answers);
+      api.clearCache("student:activities:");
       submissionSaved = true;
       const [submittedActivity, result] = await Promise.all([
         api.getStudentActivity(activityId),
@@ -321,10 +322,18 @@ const StudentController = {
    * Called via onclick on every "Open 📖" module button.
    * @param {number} moduleId
    */
-  trackModuleRead(moduleId) {
-    api.markModuleRead(moduleId).catch(() => {
-      // Silently ignore failures — this is non-critical tracking
-    });
+  async trackModuleRead(moduleId) {
+    try {
+      await api.markModuleRead(moduleId);
+      api.clearCache("student:modules:");
+      const indicator = document.querySelector(`[data-module-read-indicator="${moduleId}"]`);
+      if (indicator) {
+        indicator.innerHTML = `${lmsIcon('check')} Read`;
+        indicator.style.cssText = 'display:inline-flex;align-items:center;gap:3px;margin-left:7px;color:#2e6b3e;font-size:11px;font-weight:700';
+      }
+    } catch (err) {
+      console.warn("Could not update module reading progress:", err);
+    }
   },
 
   // ── Attendance view ───────────────────────────────────────

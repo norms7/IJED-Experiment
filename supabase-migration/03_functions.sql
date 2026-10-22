@@ -637,6 +637,9 @@ begin
 end;
 $$;
 
+-- Remove the legacy overload so PostgREST can resolve p_term unambiguously.
+drop function if exists public.get_attendance_score(integer, integer[], character varying);
+
 create or replace function get_attendance_score(
   p_student_id integer,
   p_subject_ids integer[],
@@ -698,6 +701,7 @@ $$;
 
 revoke all on function get_attendance_score(integer, integer[], text) from public, anon;
 grant execute on function get_attendance_score(integer, integer[], text) to authenticated;
+notify pgrst, 'reload schema';
 
 -- ----------------------------------------------------------------------------
 -- 7. create_attendance_session() — teacher creates a session + bulk records.
