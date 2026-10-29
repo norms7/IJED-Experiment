@@ -179,26 +179,28 @@ const GradebookController = {
       let cached = this._subjectCache[cacheKey];
       if (!cached) {
         const [activities, modules, attendance, moduleReadsData] = await Promise.all([
-          api.getTeacherActivities({ subject_id: subjectId, term }).catch(() => []),
-          api.getMyModules(subjectId, term).catch(() => []),
-          api.getAttendanceSectionStudents(this._currentSectionId, { subjectId, term }).catch(() => ({ students: [], total_meetings: 0 })),
-          api.getClassModuleReads(subjectId, term).catch(() => ({ module_reads: {}, read_module_ids: {}, total_modules: 0 })),
+          api.getTeacherActivities({ subject_id: subjectId, term }),
+          api.getMyModules(subjectId, term),
+          api.getAttendanceSectionStudents(this._currentSectionId, { subjectId, term }),
+          api.getClassModuleReads(subjectId, term),
         ]);
 
         // Fetch submissions per activity
         const activitiesWithSubs = await Promise.all(
-          activities.map(act =>
+          activities.filter(act => act.is_published === true).map(act =>
             api.getActivitySubmissions(act.id)
-              .then(subs => ({ ...act, _submissions: Array.isArray(subs) ? subs : [] }))
-              .catch(() => ({ ...act, _submissions: [] }))
+              .then(subs => {
+                if (!Array.isArray(subs)) throw new Error(`Invalid submissions response for activity ${act.id}.`);
+                return { ...act, _submissions: subs };
+              })
           )
         );
+        const publishedModules = modules.filter(module => module.is_published === true);
 
         cached = {
-          activities: activitiesWithSubs, modules, attendance,
+          activities: activitiesWithSubs, modules: publishedModules, attendance,
           moduleReads: moduleReadsData.module_reads || {},
           readModuleIds: moduleReadsData.read_module_ids || {},
-          totalModules: moduleReadsData.total_modules || modules.length,
         };
         this._subjectCache[cacheKey] = cached;
       }
@@ -207,7 +209,6 @@ const GradebookController = {
 
       // Annotate students with attendance and module reads for this subject+term
       const attMap   = {};
-      const attTotal = attendance.total_meetings || 0;
       (attendance.students || []).forEach(s => { attMap[s.id] = s; });
 
       const studentsAnnotated = this._allStudents.map(stu => ({
@@ -216,7 +217,9 @@ const GradebookController = {
         _readModuleIds: readModuleIds[stu.id] || [],
         _attPresent:  attMap[stu.id]?.present ?? 0,
         _attLate:     attMap[stu.id]?.late ?? 0,
-        _attTotal:    attTotal,
+        _attTotal:    (attMap[stu.id]?.present ?? 0) +
+                      (attMap[stu.id]?.absent ?? 0) +
+                      (attMap[stu.id]?.late ?? 0),
       }));
 
       this._lastExportData = {
@@ -245,6 +248,15 @@ const GradebookController = {
     } catch (err) {
       console.error('[Gradebook] _renderSubjectGrades error:', err);
       Toast.show('Failed to load subject grades: ' + err.message, 'error');
+      const currentTable = document.getElementById('gb-table-wrap');
+      if (currentTable) {
+        currentTable.innerHTML = `<div class="empty-state" style="padding:40px">
+          <div class="empty-state-icon">${LMS_ICONS.warning}</div>
+          <div class="empty-state-title">Could not load gradebook data</div>
+          <div class="empty-state-sub">${escHtml(err.message)}</div>
+          <button class="btn btn-primary mt-3" onclick="GradebookController.onFilterChange()">Retry</button>
+        </div>`;
+      }
     }
   },
 
@@ -335,8 +347,8 @@ const GradebookController = {
     const headerRow = [
       'Student Name', 'LRN / Student No.',
       `Activities Submitted (/${activities.length})`, 'Activity Score %',
-      `Modules (/${modules.length})`, 'Attendance Present', 'Attendance Total', 'Attendance % (Present+Late×0.5)',
-      'Overall %', 'Final Grade (PH)',
+      `Modules (/${modules.length})`, 'Attendance Present', 'Eligible Meetings (excused excluded)', 'Attendance % (Present+Late×0.5)',
+      'Initial Grade (75/15/10 %)', 'Transmuted Grade (DepEd)', 'Passing Status',
     ];
 
     const dataRows = students.map(stu => {
@@ -350,32 +362,11 @@ const GradebookController = {
         return acc;
       }, []);
 
-      const activityPct = TeacherView._activityScore(activities, studentId).percentage;
       const readCount     = stu._modulesRead ?? 0;
-      const modulePct     = modules.length > 0 ? Math.round((readCount / modules.length) * 100) : 0;
       const attPresent    = stu._attPresent ?? 0;
-      const attLate       = stu._attLate ?? 0;
       const attTotal      = stu._attTotal   ?? 0;
-      // Objective §2: Attendance Score = (Present + Late×0.5) / Total × 100
-      // (previously this was plain present/total, giving 'late' students
-      // zero credit — inconsistent with the school's own formula, and with
-      // the student-facing Overall Performance Rating card, which already
-      // uses this same weighting.)
-      const attendancePct = attTotal > 0 ? Math.round(((attPresent + attLate * 0.5) / attTotal) * 100) : null;
-
-      // Objective §4: Overall Score = Academic×75% + Attendance×15% + Module×10%
-      // (previously this used 60/30/10 — an old weighting left over from
-      // before the school standard was implemented on the student-facing
-      // dashboard. This export must use the same official weights so a
-      // teacher's downloaded report always matches what students see.)
-      let overallPct = null;
-      if (activityPct !== null || attendancePct !== null) {
-        overallPct = Math.round(
-          (activityPct   ?? 0) * 0.75 +
-          (attendancePct ?? 0) * 0.15 +
-           modulePct           * 0.10
-        );
-      }
+      const { activityPct, attendancePct, initialGrade, transmutedGrade } =
+        TeacherView.gradebookScores(stu, activities, modules);
 
       return [
         fullName, studentNum, stuSubs.length,
@@ -383,8 +374,9 @@ const GradebookController = {
         readCount,
         attPresent, attTotal,
         attendancePct !== null ? attendancePct / 100 : '',
-        overallPct    !== null ? overallPct    / 100 : '',
-        overallPct    !== null ? TeacherView._toPhGrade(overallPct) : '',
+        initialGrade !== null ? initialGrade / 100 : '',
+        transmutedGrade ?? '',
+        transmutedGrade === null ? '' : transmutedGrade >= 75 ? 'Passing' : 'Below passing',
       ];
     });
 
@@ -417,7 +409,7 @@ const GradebookController = {
     const wb   = XLSX.utils.book_new();
 
     const ws1 = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
-    ws1['!cols'] = [{ wch:28 },{ wch:18 },{ wch:20 },{ wch:16 },{ wch:18 },{ wch:14 },{ wch:14 },{ wch:14 },{ wch:14 },{ wch:16 }];
+    ws1['!cols'] = [{ wch:28 },{ wch:18 },{ wch:20 },{ wch:16 },{ wch:18 },{ wch:14 },{ wch:14 },{ wch:24 },{ wch:22 },{ wch:22 },{ wch:18 }];
     for (let r = 1; r <= dataRows.length; r++) {
       [3, 7, 8].forEach(c => {
         const cell = XLSX.utils.encode_cell({ r, c });
@@ -436,16 +428,18 @@ const GradebookController = {
     XLSX.utils.book_append_sheet(wb, ws2, 'Activity Breakdown');
 
     const ws3 = XLSX.utils.aoa_to_sheet([
-      ['Final Grade','Range','Description'],
-      ['1.00','97–100%','Excellent'],['1.25','93–96%','Very Good'],['1.50','89–92%','Good'],
-      ['1.75','85–88%','Above Average'],['2.00','81–84%','Average'],['2.25','77–80%','Below Average'],
-      ['2.50','73–76%','Passing'],['2.75','69–72%','Conditional'],['3.00','65–68%','Barely Passing'],
-      ['5.00','Below 65%','Failed'],[],
-      ['Formula:','',''],
-      ['Overall % = (Activity% × 75%) + (Attendance% × 15%) + (Module Read% × 10%)','',''],
+      ['DepEd Transmutation — DepEd Order No. 8, s. 2015'],
+      ['Formula note', 'The Initial Grade is the shared 75/15/10 current-standing percentage. Missing components are omitted and remaining weights are proportionally redistributed.'],
+      ['If Initial Grade >= 60', 'Transmuted Grade = min(100, 75 + floor((Initial Grade - 60) / 1.6 + 1e-9))'],
+      ['If Initial Grade < 60', 'Transmuted Grade = min(100, 60 + floor(Initial Grade / 4 + 1e-9))'],
+      ['Passing mark', '75'],
+      [],
+      ['Initial Grade', 'Expected Transmuted Grade'],
+      [100, 100], [98.4, 99], [75, 84], [61.6, 76],
+      [60, 75], [59.99, 74], [4, 61], [0, 60],
     ]);
-    ws3['!cols'] = [{ wch:14 },{ wch:16 },{ wch:20 }];
-    XLSX.utils.book_append_sheet(wb, ws3, 'Grade Scale');
+    ws3['!cols'] = [{ wch:42 },{ wch:100 }];
+    XLSX.utils.book_append_sheet(wb, ws3, 'DepEd Transmutation');
 
     const safeName = `${sectionName}_${subjectName}_${term}`.replace(/[^a-z0-9]/gi, '_');
     const fileName = `Gradebook_${safeName}_${new Date().toISOString().slice(0,10)}.xlsx`;

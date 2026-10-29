@@ -9,12 +9,14 @@
 const DashboardController = {
   currentUser: null,
   currentSection: "dashboard",
+  _performanceNotificationsTriggeredFor: null,
 
   /** Navigation menus per role */
   navMenus: {
     admin: [
       { id: "dashboard", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V18a2 2 0 0 1-2 2h-3v-7H9v7H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Dashboard" },
       { id: "manage-users", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M20 19v-1a4 4 0 0 0-3-3.87" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 4.13a4 4 0 0 1 0 7.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Manage Users" },
+      { id: "class-performance", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m0 14h16M8 16v-5m4 5V7m4 9v-3m4 3V4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Class Performance" },
       { id: "calendar", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Calendar" },
       { id: "settings", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.7v2.1M12 19.2v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.7 12h2.1M19.2 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', label: "Settings" },
     ],
@@ -24,6 +26,7 @@ const DashboardController = {
       { id: "modules", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6H10l2 2h6.5A2.5 2.5 0 0 1 21 10.5v7A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Modules" },
       { id: "activities", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Activities" },
       { id: "grades", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18V9M12 18V5M19 18v-8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M3 18h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Grades" },
+      { id: "class-performance", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m0 14h16M8 16v-5m4 5V7m4 9v-3m4 3V4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Class Performance" },
       { id: "attendance", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8.5 14.5l2 2 5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>', label: "Attendance" },
       { id: "calendar", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', label: "Calendar" },
       { id: "settings", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.7v2.1M12 19.2v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.7 12h2.1M19.2 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', label: "Settings" },
@@ -63,6 +66,13 @@ const DashboardController = {
     App.applyProfileImage(user);
     this.buildNav(user.role);
     this.loadSection("dashboard");
+    if (["admin", "teacher"].includes(user.role) && this._performanceNotificationsTriggeredFor !== user.id) {
+      this._performanceNotificationsTriggeredFor = user.id;
+      api.generatePerformanceNotifications().catch(error => {
+        console.error("[Performance notifications] Login trigger failed:", error);
+        Toast.show("Performance notifications could not be generated. Please contact an administrator.", "error");
+      });
+    }
   },
 
   /** Build sidebar navigation based on user role */
@@ -117,6 +127,7 @@ const DashboardController = {
     if (id === "help") return AdminView.help(user);
     if (role === "admin") {
       if (id === "manage-users") return AdminView.manageUsers();
+      if (id === "class-performance") return '<div id="class-performance-loading" style="padding:24px;color:var(--gray-400)">Loading class performance…</div>';
     }
     if (role === "teacher") {
       if (id === "my-subjects") return TeacherView.mySubjects(user, null);
@@ -124,6 +135,7 @@ const DashboardController = {
       if (id === "activities") return TeacherView.activities(user);
       if (id === "grades") return TeacherView.grades(user);
       if (id === "attendance") return TeacherView.attendance(user);
+      if (id === "class-performance") return '<div id="class-performance-loading" style="padding:24px;color:var(--gray-400)">Loading class performance…</div>';
     }
     if (role === "student") {
       if (id === "my-subjects") return StudentView.mySubjects();
@@ -159,6 +171,11 @@ const DashboardController = {
       } finally {
         Loader.done();
       }
+      return;
+    }
+
+    if (sectionId === "class-performance" && ["admin", "teacher"].includes(role)) {
+      await ClassPerformanceController.load();
       return;
     }
 

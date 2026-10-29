@@ -1053,16 +1053,18 @@ class LMSAdminAPI {
         .eq("teacher_id", teacherId)
         .eq("is_published", true);
       if (term) modQ = modQ.eq("term", term);
-      const { data: mods } = await modQ;
+      const mods = this._throwIfError(await modQ);
       const moduleIds = (mods || []).map((m) => m.id);
       if (!moduleIds.length)
         return { module_reads: {}, read_module_ids: {}, total_modules: 0 };
 
       // Count unique modules read per student
-      const { data: reads } = await this.sb
-        .from("student_module_reads")
-        .select("student_id, module_id")
-        .in("module_id", moduleIds);
+      const reads = this._throwIfError(
+        await this.sb
+          .from("student_module_reads")
+          .select("student_id, module_id")
+          .in("module_id", moduleIds),
+      );
 
       const byStudent = {};
       (reads || []).forEach((r) => {
@@ -2131,6 +2133,75 @@ class LMSAdminAPI {
       students_like_you,
       risk_assessment,
     };
+  }
+
+  async getClassPerformanceAssignments() {
+    let teacherId = null;
+    if (this.getCurrentUser()?.role === "teacher") {
+      teacherId = await this._myTeacherId();
+      if (!teacherId) throw new Error("Could not resolve the signed-in teacher profile.");
+    } else {
+      const [subjects, sections] = await Promise.all([this.getSubjects(), this.getSections()]);
+      return subjects.flatMap(subject => sections.map(section => ({
+        subject_id: subject.id,
+        subject_name: subject.name,
+        class_id: section.class_id,
+        class_name: section.name,
+        section_id: section.id,
+        section_name: section.name,
+      })));
+    }
+
+    let query = this.sb
+      .from("teacher_class_assignments")
+      .select("subject_id, class_id, subjects(id, name), classes(name)");
+    if (teacherId) query = query.eq("teacher_id", teacherId);
+    const assignments = this._throwIfError(await query);
+    const classIds = [...new Set((assignments || []).map(row => row.class_id).filter(Boolean))];
+    if (!classIds.length) return [];
+
+    const sections = this._throwIfError(await this.sb
+      .from("sections")
+      .select("id, name, class_id")
+      .in("class_id", classIds));
+    const rows = [];
+    for (const assignment of assignments || []) {
+      for (const section of sections || []) {
+        if (section.class_id !== assignment.class_id) continue;
+        rows.push({
+          subject_id: assignment.subject_id,
+          subject_name: assignment.subjects?.name || `Subject ${assignment.subject_id}`,
+          class_id: assignment.class_id,
+          class_name: assignment.classes?.name || "",
+          section_id: section.id,
+          section_name: section.name,
+        });
+      }
+    }
+    return [...new Map(rows.map(row => [`${row.subject_id}:${row.section_id}`, row])).values()];
+  }
+
+  async getClassPerformance(subjectId, sectionId = null, term = null) {
+    return this._throwIfError(await this.sb.rpc("get_class_performance", {
+      p_subject_id: subjectId,
+      p_section_id: sectionId,
+      p_term: term,
+      p_target: 75,
+    }));
+  }
+
+  async getClassPerformanceDetails(subjectId, sectionId = null, term = null, studentId = null, since = null) {
+    return this._throwIfError(await this.sb.rpc("get_class_performance_details", {
+      p_subject_id: subjectId,
+      p_section_id: sectionId,
+      p_term: term,
+      p_student_id: studentId,
+      p_since: since,
+    }));
+  }
+
+  async generatePerformanceNotifications() {
+    return this._throwIfError(await this.sb.rpc("generate_performance_notifications"));
   }
 
   async getPredictedGrade(subjectId = null, term = null, semester = null) {
