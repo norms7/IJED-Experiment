@@ -554,6 +554,59 @@ body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
 }
 .risk-factors-list li { font-size: 12px; color: var(--gray-600); line-height: 1.5; }
 
+/* ── Class performance success rates ─────────────────────────── */
+.class-performance-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 1fr) minmax(145px, .8fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin: 12px 0 20px;
+}
+.class-performance-filters label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--gray-600);
+  font-size: 12px;
+  font-weight: 600;
+}
+.class-performance-filters .analytics-select { width: 100%; }
+.class-performance-download { min-height: 36px; white-space: nowrap; }
+.class-performance-card { gap: 16px; }
+.class-performance-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.class-performance-card-heading h3 { margin: 0; color: var(--gray-800); font-size: 16px; }
+.class-performance-card-heading p { margin: 4px 0 0; color: var(--gray-600); font-size: 12px; }
+.class-performance-card-heading > span { flex: 0 0 auto; color: var(--gray-500); font-size: 12px; }
+.class-performance-list { display: grid; }
+.class-performance-student {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 2fr) 120px;
+  grid-template-areas: "name track rate";
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  padding: 14px 10px;
+  border: 0;
+  border-top: 1px solid var(--gray-100);
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.class-performance-student:hover { background: var(--gray-50); }
+.class-performance-student-name { grid-area: name; display: grid; gap: 3px; min-width: 0; }
+.class-performance-student-name strong { overflow: hidden; color: var(--gray-800); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.class-performance-student-name small { color: var(--gray-500); font-size: 11px; }
+.class-performance-rate-track { grid-area: track; height: 9px; overflow: hidden; border-radius: 9px; background: var(--gray-100); }
+.class-performance-rate-track > span { display: block; height: 100%; border-radius: inherit; background: var(--maroon); }
+.class-performance-rate { grid-area: rate; color: var(--maroon); font-size: 15px; text-align: right; }
+.class-performance-empty { margin: 0; color: var(--gray-600); font-size: 13px; }
+
 /* ── Dark mode overrides ─────────────────────────────────────── */
 body.dark-mode .analytics-card {
   background: #2a1a1e;
@@ -585,6 +638,8 @@ body.dark-mode .skeleton-chart    {
   .analytics-grid { grid-template-columns: 1fr; }
   .analytics-module-progress-card { grid-column: 1; width: 100%; }
   .analytics-card-wide { grid-column: 1; }
+  .class-performance-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .class-performance-download { justify-self: start; }
   .analytics-attendance-card { grid-column: 1; }
   .analytics-header { flex-direction: column; }
   .analytics-tabs { overflow-x: auto; }
@@ -608,4 +663,11 @@ body.dark-mode .skeleton-chart    {
   .analytics-tab { font-size: 12px; padding: 8px 14px; }
   .gauge-value   { font-size: 26px; }
   .improv-prob-val { font-size: 28px; }
+  .class-performance-filters { grid-template-columns: 1fr; }
+  .class-performance-download { width: 100%; }
+  .class-performance-student {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name rate" "track track";
+    gap: 10px 12px;
+  }
 }

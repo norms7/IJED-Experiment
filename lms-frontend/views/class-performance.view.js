@@ -13,10 +13,10 @@ const ClassPerformanceView = {
     return `
       <section class="section-header">
         <div class="section-header-left">
-          <div><h2>Class Performance</h2><p>Review current standing and recorded learning activity for your authorized classes.</p></div>
+          <div><h2>Class Performance</h2><p>See each student’s estimated chance of meeting the 75% target on their next graded activity.</p></div>
         </div>
       </section>
-      <div class="analytics-filters" style="margin:12px 0 20px">
+      <div class="class-performance-filters">
         <label>Subject
           <select id="cp-subject" class="analytics-select" onchange="ClassPerformanceController.onSubjectChange(this.value)">
             ${subjects.map(item => `<option value="${item.id}" ${String(item.id) === String(subjectId) ? "selected" : ""}>${escHtml(item.name)}</option>`).join("")}
@@ -34,13 +34,7 @@ const ClassPerformanceView = {
             ${["1st", "2nd", "3rd", "4th"].map(term => `<option value="${term}" ${filters.term === term ? "selected" : ""}>${term} Term</option>`).join("")}
           </select>
         </label>
-        <label>Report period
-          <select id="cp-period" class="analytics-select" onchange="ClassPerformanceController.onPeriodChange(this.value)">
-            <option value="term" ${filters.period !== "weekly" ? "selected" : ""}>Term / Quarterly</option>
-            <option value="weekly" ${filters.period === "weekly" ? "selected" : ""}>Weekly (last 7 days)</option>
-          </select>
-        </label>
-        <button class="btn btn-primary btn-sm" onclick="ClassPerformanceController.downloadReport()">Download report (Excel)</button>
+        <button class="btn btn-primary btn-sm class-performance-download" onclick="ClassPerformanceController.downloadReport()">Download report (Excel)</button>
       </div>
       <div id="cp-content">${ClassPerformanceView.loading()}</div>`;
   },
@@ -53,56 +47,37 @@ const ClassPerformanceView = {
     return `<div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.warning}</div><div class="empty-state-title">Could not load class performance</div><div class="empty-state-sub">${escHtml(message)}</div><button class="btn btn-primary mt-3" onclick="ClassPerformanceController.${retry}()">Retry</button></div>`;
   },
 
-  _ratingClass(rating) {
-    return ({
-      "Excellent": "badge-green",
-      "Very Good": "badge-green",
-      "Good": "badge-blue",
-      "Fair": "badge-gold",
-      "Needs Improvement": "badge-gold",
-      "At Risk": "badge-red",
-    })[rating] || "badge-gray";
-  },
-
-  render(rows, period) {
-    const bands = ["Excellent", "Very Good", "Good", "Fair", "Needs Improvement", "At Risk"];
-    const counts = Object.fromEntries(bands.map(band => [band, rows.filter(row => row.rating === band).length]));
-    const attention = rows.filter(row => ["Needs Improvement", "At Risk"].includes(row.rating));
+  render(rows) {
+    const sortedRows = [...rows].sort((a, b) => {
+      if (a.next_probability == null) return b.next_probability == null ? 0 : 1;
+      if (b.next_probability == null) return -1;
+      return b.next_probability - a.next_probability;
+    });
 
     return `
-      <p class="gauge-meta">${period === "weekly"
-        ? "Weekly view: current standing is shown with activity and attendance records from the last 7 days."
-        : "Term / quarterly view: current standing and records for the selected term are shown."}</p>
-      <div class="teacher-dashboard-stat-grid">
-        ${bands.map(band => `<article class="teacher-dashboard-stat-card"><span>${escHtml(band)}</span><strong>${counts[band]}</strong></article>`).join("")}
-      </div>
-      <section class="analytics-card" style="margin:16px 0;border-left:4px solid var(--orange)">
-        <h3>Needs attention (${attention.length})</h3>
-        ${attention.length
-          ? `<ul>${attention.map(row => `<li><button class="btn btn-ghost btn-sm" onclick="ClassPerformanceController.openStudent(${row.student_id})">${escHtml(row.name)} — ${escHtml(row.rating)} (${row.overall_score}%)</button></li>`).join("")}</ul>`
-          : "<p>No students are currently in the Needs Improvement or At Risk bands.</p>"}
-      </section>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr>
-            <th>Student</th><th>Academic</th><th>Attendance</th><th>Modules</th><th>Overall</th><th>Rating</th><th>Missing / backlog</th><th>Graded activities</th><th>P(next ≥75%)</th>
-          </tr></thead>
-          <tbody>
-            ${rows.length ? rows.map(row => `
-              <tr class="cp-student-row" tabindex="0" role="button" onclick="ClassPerformanceController.openStudent(${row.student_id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ClassPerformanceController.openStudent(${row.student_id})}">
-                <td>${escHtml(row.name)}${row.student_number ? `<small style="display:block">${escHtml(row.student_number)}</small>` : ""}</td>
-                <td>${row.academic_pct == null ? "—" : `${row.academic_pct.toFixed(1)}%`}</td>
-                <td>${row.attendance_pct == null ? "—" : `${row.attendance_pct.toFixed(1)}%`}</td>
-                <td>${row.modules_pct == null ? "—" : `${row.modules_pct.toFixed(1)}%`}</td>
-                <td>${row.overall_score == null ? "—" : `${row.overall_score.toFixed(2)}%`}</td>
-                <td><span class="badge ${ClassPerformanceView._ratingClass(row.rating)}">${escHtml(row.rating)}${row.low_confidence ? " · Low confidence" : ""}</span></td>
-                <td>${row.missing_count}</td>
-                <td>${row.graded_count}${row.low_confidence ? ' <span class="badge badge-gold" title="Fewer than 3 graded activities">Low confidence</span>' : ""}</td>
-                <td>${row.next_probability == null ? "—" : `${row.next_probability.toFixed(1)}%`}</td>
-              </tr>`).join("") : `<tr><td colspan="9">No active enrolled students found for these filters.</td></tr>`}
-          </tbody>
-        </table>
-      </div>`;
+      <section class="analytics-card class-performance-card">
+        <div class="class-performance-card-heading">
+          <div>
+            <h3>Student success rate</h3>
+            <p>Estimated chance of scoring at least 75% on the next graded activity.</p>
+          </div>
+          <span>${sortedRows.length} student${sortedRows.length === 1 ? "" : "s"}</span>
+        </div>
+        ${sortedRows.length ? `
+          <div class="class-performance-list">
+            ${sortedRows.map(row => `
+              <button class="class-performance-student" type="button" onclick="ClassPerformanceController.openStudent(${row.student_id})">
+                <span class="class-performance-student-name">
+                  <strong>${escHtml(row.name)}</strong>
+                  ${row.student_number ? `<small>${escHtml(row.student_number)}</small>` : ""}
+                </span>
+                <span class="class-performance-rate-track" aria-hidden="true">
+                  <span style="width:${row.next_probability == null ? 0 : Math.max(0, Math.min(100, row.next_probability))}%"></span>
+                </span>
+                <strong class="class-performance-rate">${row.next_probability == null ? "Not enough data" : `${row.next_probability.toFixed(1)}%`}</strong>
+              </button>`).join("")}
+          </div>` : `<p class="class-performance-empty">No active students found for these filters.</p>`}
+      </section>`;
   },
 
   studentDetails(student, details) {

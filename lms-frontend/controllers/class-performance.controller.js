@@ -3,7 +3,7 @@
 const ClassPerformanceController = {
   _assignments: [],
   _rows: [],
-  _filters: { subjectId: null, sectionId: "", term: "", period: "term" },
+  _filters: { subjectId: null, sectionId: "", term: "" },
   _requestId: 0,
 
   async load() {
@@ -51,17 +51,6 @@ const ClassPerformanceController = {
     this._filters.sectionId = document.getElementById("cp-section")?.value || "";
     this._filters.term = document.getElementById("cp-term")?.value || "";
     await this.refresh();
-  },
-
-  async onPeriodChange(value) {
-    this._filters.period = value === "weekly" ? "weekly" : "term";
-    await this.refresh();
-  },
-
-  _since() {
-    return this._filters.period === "weekly"
-      ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      : null;
   },
 
   _prepareRow(row) {
@@ -122,7 +111,7 @@ const ClassPerformanceController = {
       );
       if (requestId !== this._requestId || !target.isConnected) return;
       this._rows = (Array.isArray(data) ? data : []).map(row => this._prepareRow(row));
-      target.innerHTML = ClassPerformanceView.render(this._rows, this._filters.period);
+      target.innerHTML = ClassPerformanceView.render(this._rows);
     } catch (error) {
       if (requestId === this._requestId && target.isConnected) {
         target.innerHTML = ClassPerformanceView.error(error.message);
@@ -137,7 +126,7 @@ const ClassPerformanceController = {
       this._filters.sectionId ? Number(this._filters.sectionId) : null,
       this._filters.term || null,
       studentId,
-      this._since(),
+      null,
     );
   },
 
@@ -173,7 +162,6 @@ const ClassPerformanceController = {
       ["Rating bands", "90+ Excellent; 85–89 Very Good; 80–84 Good; 75–79 Fair; 70–74 Needs Improvement; below 70 At Risk."],
       ["Low confidence", "Fewer than 3 graded activities."],
       ["P(next activity ≥ 75%)", "Beta-Binomial posterior mean; prior strength 4 centered on the class peer success rate, or 50% if no peer evidence."],
-      ["Weekly report period", "Activity and attendance detail rows from the last 7 days; summary standing remains current for the selected term."],
     ];
   },
 
