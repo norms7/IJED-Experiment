@@ -210,6 +210,7 @@ Experiment/
     ├── 06_notifications_realtime.sql       # Notification triggers and Realtime publication
     ├── 07_activity_term.sql                # Activity term column and index
     ├── 08_performance_overview.sql         # Protected analytics/report RPCs, cache invalidation, notifications
+    ├── 09_student_attendance_summary.sql   # Repairs the student attendance summary RPC response
     ├── edge_functions/admin-create-user/   # Secure admin account creation
     ├── edge_functions/admin-update-user/   # Secure admin email/password updates
     ├── FULL_SETUP_GUIDE.md
@@ -226,7 +227,7 @@ Run the dependency-free pure calculation suite with:
 node tests\performance.test.js
 ```
 
-The Supabase integration assertions in `supabase-migration/tests/08_performance_overview_tests.sql` must be run in the Supabase SQL Editor after migrations 01-08. They run in a transaction and roll back their test users, classes, submissions, attendance, modules, and notifications.
+The Supabase integration assertions in `supabase-migration/tests/08_performance_overview_tests.sql` must be run in the Supabase SQL Editor after migrations 01-09. They run in a transaction and roll back their test users, classes, submissions, attendance, modules, and notifications.
 
 ## Setup
 
@@ -249,6 +250,7 @@ Run these files in the Supabase SQL Editor, in order:
 6. `supabase-migration/06_notifications_realtime.sql`
 7. `supabase-migration/07_activity_term.sql`
 8. `supabase-migration/08_performance_overview.sql`
+9. `supabase-migration/09_student_attendance_summary.sql`
 
 The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 

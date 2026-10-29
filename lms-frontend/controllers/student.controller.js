@@ -348,7 +348,7 @@ const StudentController = {
       })
       .catch(err => {
         Toast.show('Failed to load attendance: ' + err.message, 'error');
-        area.innerHTML = StudentView.attendance([]);
+        area.innerHTML = StudentView.attendanceError(err.message);
       });
   },
 };

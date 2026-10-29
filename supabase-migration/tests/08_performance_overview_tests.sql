@@ -1,4 +1,4 @@
--- Run in the Supabase SQL Editor after migrations 01-08. All fixtures and
+-- Run in the Supabase SQL Editor after migrations 01-09. All fixtures and
 -- generated notifications are rolled back when this script completes.
 begin;
 
@@ -13,6 +13,10 @@ begin
      or to_regprocedure('public.get_score_vs_class_average(integer,integer[],text)') is null
      or to_regprocedure('public.get_student_attendance_calendar(integer,integer,integer,integer,text)') is null then
     raise exception 'Canonical text RPC signatures are missing';
+  end if;
+  if to_regprocedure('public.get_student_attendance_summary(integer)') is null
+     or pg_get_function_result(to_regprocedure('public.get_student_attendance_summary(integer)')) <> 'jsonb' then
+    raise exception 'Student attendance summary must return the canonical JSON response';
   end if;
   raise notice 'PASS analytics RPCs have one canonical term signature';
 end;
@@ -185,6 +189,7 @@ declare
   v_chart_data jsonb;
   v_chart_row jsonb;
   v_leaderboard_data jsonb;
+  v_attendance jsonb;
   v_denied boolean;
 begin
   select * into v_ids from performance_test_ids;
@@ -209,6 +214,18 @@ begin
     raise exception 'Term aliases did not produce identical component results';
   end if;
   raise notice 'PASS normalized term variants return identical results';
+
+  v_attendance := get_student_attendance_summary(v_ids.student_one);
+  if jsonb_array_length(v_attendance) <> 1
+     or (v_attendance->0->'totals'->>'present')::integer <> 7
+     or (v_attendance->0->'totals'->>'late')::integer <> 2
+     or (v_attendance->0->'totals'->>'absent')::integer <> 1
+     or (v_attendance->0->'totals'->>'excused')::integer <> 2
+     or (v_attendance->0->'totals'->>'total')::integer <> 12
+     or jsonb_array_length(v_attendance->0->'terms') <> 1 then
+    raise exception 'Student attendance summary has an unexpected shape or totals: %', v_attendance;
+  end if;
+  raise notice 'PASS student attendance summary returns expected subject, term, and status totals';
 
   v_leaderboard_data := get_engagement_leaderboard(v_ids.student_one, array[v_ids.subject_id], '1st');
   if jsonb_array_length(v_leaderboard_data->'leaderboard') <> 3
@@ -293,6 +310,13 @@ begin
   exception when sqlstate '42501' then v_denied := true;
   end;
   if not v_denied then raise exception 'Leaderboard accepted a subject the student is not enrolled in'; end if;
+
+  v_denied := false;
+  begin
+    perform get_student_attendance_summary(v_ids.student_two);
+  exception when sqlstate '42501' then v_denied := true;
+  end;
+  if not v_denied then raise exception 'Cross-student attendance summary RPC did not raise 42501'; end if;
 
   v_denied := false;
   begin

@@ -1225,6 +1225,22 @@ const StudentView = {
       </div>`;
   },
 
+  attendanceError(message) {
+    return `
+      <div class="section-header">
+        <div class="section-header-left">
+          <h2>${lmsIcon('clipboard')} My Attendance</h2>
+          <p>Attendance could not be loaded.</p>
+        </div>
+      </div>
+      <div class="empty-state" style="margin-top:40px">
+        <div class="empty-state-icon">${lmsIcon('warning')}</div>
+        <div class="empty-state-title">Unable to load attendance</div>
+        <div class="empty-state-sub">${escHtml(message)}</div>
+        <button class="btn btn-primary" style="margin-top:16px" onclick="StudentController.loadAttendance()">Try again</button>
+      </div>`;
+  },
+
   // ── Attendance full view ───────────────────────────────────────────────────
   /**
    * @param {Array} data  - result of api.getMyAttendance()
