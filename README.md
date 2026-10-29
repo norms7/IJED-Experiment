@@ -210,7 +210,7 @@ Experiment/
     ├── 06_notifications_realtime.sql       # Notification triggers and Realtime publication
     ├── 07_activity_term.sql                # Activity term column and index
     ├── 08_performance_overview.sql         # Protected analytics/report RPCs, cache invalidation, notifications
-    ├── 09_student_attendance_summary.sql   # Repairs the student attendance summary RPC response
+    ├── 09_student_attendance_summary.sql   # Adds a secure signed-in student attendance summary RPC
     ├── edge_functions/admin-create-user/   # Secure admin account creation
     ├── edge_functions/admin-update-user/   # Secure admin email/password updates
     ├── FULL_SETUP_GUIDE.md

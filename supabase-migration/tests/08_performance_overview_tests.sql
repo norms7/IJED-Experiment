@@ -18,6 +18,10 @@ begin
      or pg_get_function_result(to_regprocedure('public.get_student_attendance_summary(integer)')) <> 'jsonb' then
     raise exception 'Student attendance summary must return the canonical JSON response';
   end if;
+  if to_regprocedure('public.get_my_attendance_summary(integer)') is null
+     or pg_get_function_result(to_regprocedure('public.get_my_attendance_summary(integer)')) <> 'jsonb' then
+    raise exception 'Signed-in student attendance summary RPC is missing or has the wrong return type';
+  end if;
   raise notice 'PASS analytics RPCs have one canonical term signature';
 end;
 $$;
@@ -215,7 +219,7 @@ begin
   end if;
   raise notice 'PASS normalized term variants return identical results';
 
-  v_attendance := get_student_attendance_summary(v_ids.student_one);
+  v_attendance := get_my_attendance_summary();
   if jsonb_array_length(v_attendance) <> 1
      or (v_attendance->0->'totals'->>'present')::integer <> 7
      or (v_attendance->0->'totals'->>'late')::integer <> 2
@@ -225,7 +229,10 @@ begin
      or jsonb_array_length(v_attendance->0->'terms') <> 1 then
     raise exception 'Student attendance summary has an unexpected shape or totals: %', v_attendance;
   end if;
-  raise notice 'PASS student attendance summary returns expected subject, term, and status totals';
+  if get_student_attendance_summary(v_ids.student_one) is distinct from v_attendance then
+    raise exception 'Legacy student attendance RPC does not match signed-in summary: %', v_attendance;
+  end if;
+  raise notice 'PASS signed-in attendance RPC returns expected subject, term, and status totals';
 
   v_leaderboard_data := get_engagement_leaderboard(v_ids.student_one, array[v_ids.subject_id], '1st');
   if jsonb_array_length(v_leaderboard_data->'leaderboard') <> 3

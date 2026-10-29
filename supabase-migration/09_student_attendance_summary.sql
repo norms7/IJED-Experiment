@@ -1,50 +1,6 @@
--- Repair the student attendance RPC. Older deployments return a table shape
--- that no longer matches the query and raise "structure of query does not
--- match function result type". Return the view's expected JSON shape instead.
-create or replace function public._student_attendance_rows(p_student_id integer)
-returns table (
-  subject_id integer,
-  subject_name text,
-  class_id integer,
-  class_name text,
-  term text,
-  session_date date,
-  status text
-)
-language plpgsql
-stable
-security definer
-set search_path = public
-as $$
-begin
-  if not is_admin()
-     and (auth_student_id() is null or auth_student_id() <> p_student_id) then
-    raise exception 'Not authorized' using errcode = '42501';
-  end if;
-
-  return query
-    select
-      ats.subject_id,
-      coalesce(sub.name::text, 'General / Homeroom')::text,
-      ats.class_id,
-      cls.name::text,
-      normalize_term(ats.term)::text,
-      ats.session_date,
-      lower(trim(ar.status))::text
-    from public.attendance_records ar
-    join public.attendance_sessions ats on ats.id = ar.session_id
-    join public.classes cls on cls.id = ats.class_id
-    left join public.subjects sub on sub.id = ats.subject_id
-    where ar.student_id = p_student_id
-      and ats.has_class = true;
-end;
-$$;
-
-revoke all on function public._student_attendance_rows(integer) from public, anon, authenticated;
-
-drop function if exists public.get_student_attendance_summary(integer);
-
-create function public.get_student_attendance_summary(p_student_id integer)
+-- Return the signed-in student's attendance summary without relying on the
+-- recursive attendance table policies or the legacy RPC's return signature.
+create or replace function public.get_my_attendance_summary(p_student_id integer default null)
 returns jsonb
 language plpgsql
 stable
@@ -52,16 +8,31 @@ security definer
 set search_path = public
 as $$
 declare
+  v_student_id integer := coalesce(p_student_id, auth_student_id());
   v_result jsonb;
 begin
+  if v_student_id is null then
+    raise exception 'Student account required' using errcode = '42501';
+  end if;
   if not is_admin()
-     and (auth_student_id() is null or auth_student_id() <> p_student_id) then
+     and (auth_student_id() is null or auth_student_id() <> v_student_id) then
     raise exception 'Not authorized' using errcode = '42501';
   end if;
 
   with attendance_rows as (
-    select *
-    from public._student_attendance_rows(p_student_id)
+    select
+      ats.subject_id,
+      coalesce(sub.name::text, 'General / Homeroom') as subject_name,
+      ats.class_id,
+      cls.name::text as class_name,
+      coalesce(normalize_term(ats.term), 'Unspecified') as term,
+      lower(trim(ar.status))::text as status
+    from public.attendance_records ar
+    join public.attendance_sessions ats on ats.id = ar.session_id
+    join public.classes cls on cls.id = ats.class_id
+    left join public.subjects sub on sub.id = ats.subject_id
+    where ar.student_id = v_student_id
+      and ats.has_class = true
   ),
   term_totals as (
     select
@@ -69,14 +40,14 @@ begin
       subject_name,
       class_id,
       class_name,
-      coalesce(term, 'Unspecified') as term,
+      term,
       count(*) filter (where status = 'present')::integer as present,
       count(*) filter (where status = 'absent')::integer as absent,
       count(*) filter (where status = 'late')::integer as late,
       count(*) filter (where status = 'excused')::integer as excused,
       count(*)::integer as total
     from attendance_rows
-    group by subject_id, subject_name, class_id, class_name, coalesce(term, 'Unspecified')
+    group by subject_id, subject_name, class_id, class_name, term
   ),
   subject_totals as (
     select
@@ -130,6 +101,33 @@ begin
   from subject_totals s;
 
   return v_result;
+end;
+$$;
+
+revoke all on function public.get_my_attendance_summary(integer) from public, anon;
+grant execute on function public.get_my_attendance_summary(integer) to authenticated;
+
+-- Keep the parameterized RPC compatible for any older frontend clients.
+drop function if exists public.get_student_attendance_summary(integer);
+
+create function public.get_student_attendance_summary(p_student_id integer)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin()
+     and (auth_student_id() is null or auth_student_id() <> p_student_id) then
+    raise exception 'Not authorized' using errcode = '42501';
+  end if;
+
+  if auth_student_id() is null then
+    raise exception 'Student account required' using errcode = '42501';
+  end if;
+
+  return public.get_my_attendance_summary(p_student_id);
 end;
 $$;
 

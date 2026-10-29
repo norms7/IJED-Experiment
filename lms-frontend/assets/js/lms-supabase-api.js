@@ -1798,100 +1798,12 @@ class LMSAdminAPI {
 
   async getMyAttendance() {
     return this._cached("student:attendance", 30_000, async () => {
-      const studentId = await this._myStudentId();
       const { data, error } = await this.sb.rpc(
-        "get_student_attendance_summary",
-        {
-          p_student_id: studentId,
-        },
+        "get_my_attendance_summary",
       );
-      if (error) {
-        if (!error.message?.toLowerCase().includes("structure of query does not match function result type")) {
-          throw new Error(error.message);
-        }
-        console.warn("[LMS] Attendance summary RPC has an outdated return type; loading the student's own attendance records directly.");
-        return this._getMyAttendanceFromTables(studentId);
-      }
+      if (error) throw new Error(error.message);
       return data; // Already in the required format
     });
-  }
-
-  async _getMyAttendanceFromTables(studentId) {
-    const recordsResult = await this.sb
-      .from("attendance_records")
-      .select("session_id, status")
-      .eq("student_id", studentId);
-    if (recordsResult.error) throw new Error(recordsResult.error.message);
-    if (!recordsResult.data?.length) return [];
-
-    const sessionIds = [...new Set(recordsResult.data.map(row => row.session_id))];
-    const sessionsResult = await this.sb
-      .from("attendance_sessions")
-      .select("id, subject_id, class_id, term")
-      .in("id", sessionIds)
-      .eq("has_class", true);
-    if (sessionsResult.error) throw new Error(sessionsResult.error.message);
-    if (!sessionsResult.data?.length) return [];
-
-    const subjectIds = [...new Set(sessionsResult.data.map(row => row.subject_id).filter(id => id != null))];
-    const classIds = [...new Set(sessionsResult.data.map(row => row.class_id))];
-    const [subjectsResult, classesResult] = await Promise.all([
-      subjectIds.length
-        ? this.sb.from("subjects").select("id, name").in("id", subjectIds)
-        : Promise.resolve({ data: [], error: null }),
-      classIds.length
-        ? this.sb.from("classes").select("id, name").in("id", classIds)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-    if (subjectsResult.error) throw new Error(subjectsResult.error.message);
-    if (classesResult.error) throw new Error(classesResult.error.message);
-
-    const subjectNames = new Map((subjectsResult.data || []).map(row => [row.id, row.name]));
-    const classNames = new Map((classesResult.data || []).map(row => [row.id, row.name]));
-    const recordsBySession = new Map();
-    for (const record of recordsResult.data) {
-      const current = recordsBySession.get(record.session_id) || [];
-      current.push(record);
-      recordsBySession.set(record.session_id, current);
-    }
-
-    const summaryBySubject = new Map();
-    for (const session of sessionsResult.data) {
-      const subjectKey = session.subject_id ?? "general";
-      const key = `${subjectKey}:${session.class_id}`;
-      let summary = summaryBySubject.get(key);
-      if (!summary) {
-        summary = {
-          subject_id: session.subject_id,
-          subject_name: session.subject_id == null
-            ? "General / Homeroom"
-            : subjectNames.get(session.subject_id) || "Subject",
-          class_name: classNames.get(session.class_id) || "Class",
-          terms: new Map(),
-          totals: { present: 0, absent: 0, late: 0, excused: 0, total: 0 },
-        };
-        summaryBySubject.set(key, summary);
-      }
-
-      const termName = String(session.term || "Unspecified").trim() || "Unspecified";
-      let term = summary.terms.get(termName);
-      if (!term) {
-        term = { term: termName, present: 0, absent: 0, late: 0, excused: 0, total: 0 };
-        summary.terms.set(termName, term);
-      }
-      for (const record of recordsBySession.get(session.id) || []) {
-        const status = String(record.status || "").toLowerCase();
-        if (!Object.prototype.hasOwnProperty.call(term, status)) continue;
-        term[status] += 1;
-        term.total += 1;
-        summary.totals[status] += 1;
-        summary.totals.total += 1;
-      }
-    }
-
-    return [...summaryBySubject.values()]
-      .map(summary => ({ ...summary, terms: [...summary.terms.values()] }))
-      .filter(summary => summary.totals.total > 0);
   }
 
   // ── Notifications ─────────────────────────────────────────────────────────
