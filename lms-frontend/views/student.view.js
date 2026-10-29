@@ -707,21 +707,7 @@ const StudentView = {
 
       let gradeCell = '';
       if (sub && sub.grade) {
-        // Show grade — works for both numeric (1.00–5.00) and letter grades
-        const numGrade = parseFloat(sub.grade);
-        const isPassing = !isNaN(numGrade) ? numGrade <= 3.00 : ['A','B','C','Excellent','Very Good','Good','Passing'].includes(sub.grade);
-        const gradeColor = isPassing ? '#2e6b3e' : '#c0392b';
-        const gradeBg    = isPassing ? '#e6f4ea' : '#fde8ec';
-        gradeCell = `<td style="padding:14px 12px;text-align:center"><span style="display:inline-block;padding:3px 10px;border-radius:6px;background:${gradeBg};color:${gradeColor};font-weight:700;font-size:13px">${escHtml(String(sub.grade))}</span></td>`;
-      } else if (sub?.is_graded && sub.score != null && effectiveMaxScore > 0) {
-        // Backend did not return a grade string — compute it from score
-        const pct = Math.round(sub.score / effectiveMaxScore * 100);
-        const gradeColor = pct >= 75 ? '#2e6b3e' : '#c0392b';
-        const gradeBg    = pct >= 75 ? '#e6f4ea' : '#fde8ec';
-        const gradeLabel = pct >= 97 ? '1.00' : pct >= 94 ? '1.25' : pct >= 91 ? '1.50'
-                        : pct >= 88 ? '1.75' : pct >= 85 ? '2.00' : pct >= 82 ? '2.25'
-                        : pct >= 79 ? '2.50' : pct >= 76 ? '2.75' : pct >= 75 ? '3.00' : '5.00';
-        gradeCell = `<td style="padding:14px 12px;text-align:center"><span style="display:inline-block;padding:3px 10px;border-radius:6px;background:${gradeBg};color:${gradeColor};font-weight:700;font-size:13px">${gradeLabel}</span></td>`;
+        gradeCell = `<td style="padding:14px 12px;text-align:center">${escHtml(String(sub.grade))}</td>`;
       } else if (sub && !sub.is_graded) {
         gradeCell = `<td style="padding:14px 12px;text-align:center;font-size:13px;color:var(--gray-400)">Pending</td>`;
       } else {
@@ -1033,9 +1019,8 @@ const StudentView = {
       }
     });
     const overallPct  = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
-    const overallGrade = overallPct !== null ? StudentView._toPhGrade(overallPct) : '—';
     const gradeColor  = overallPct === null ? 'var(--gray-400)'
-      : overallPct >= 75 ? '#16a34a' : overallPct >= 60 ? '#d97706' : '#dc2626';
+      : overallPct >= 75 ? '#16a34a' : '#dc2626';
 
     if (countEl) countEl.textContent = `${graded.length} submission(s) · ${gradedCount} graded`;
 
@@ -1066,11 +1051,7 @@ const StudentView = {
             ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${pct}%</span>`
             : `<span class="badge badge-gray" style="font-size:11px">Pending</span>`;
 
-          const phGrade = pct !== null ? StudentView._toPhGrade(pct) : '—';
-          const phColor = phGrade === '—' ? 'var(--gray-400)'
-            : parseFloat(phGrade) <= 1.75 ? '#16a34a'
-            : parseFloat(phGrade) <= 2.75 ? '#d97706'
-            : '#dc2626';
+          const gradeLabel = sub.grade == null ? '—' : String(sub.grade);
 
           const remarks = sub.remarks || '—';
 
@@ -1092,7 +1073,7 @@ const StudentView = {
               ${sub.is_graded && score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
             </td>
             <td style="text-align:center">${pctBadge}</td>
-            <td style="text-align:center;font-weight:700;color:${phColor};font-size:14px">${escHtml(String(phGrade))}</td>
+            <td style="text-align:center;font-weight:700;font-size:14px">${escHtml(gradeLabel)}</td>
             <td>${gradedBadge}</td>
             <td style="font-size:12px;color:var(--gray-500)">${escHtml(remarks)}</td>
             <td style="font-size:12px;color:var(--gray-500)">${escHtml(dateStr)}</td>
@@ -1123,14 +1104,10 @@ const StudentView = {
           <div style="font-size:clamp(16px,4vw,22px);font-weight:700;color:var(--maroon)">${gradedCount}</div>
         </div>
         <div class="stat-card" style="flex:1;min-width:0;padding:clamp(10px,2vw,16px)">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Overall Score</div>
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Graded Activity Average</div>
           <div style="font-size:clamp(16px,4vw,22px);font-weight:700;color:${gradeColor}">
             ${overallPct !== null ? overallPct + '%' : '—'}
           </div>
-        </div>
-        <div class="stat-card" style="flex:1;min-width:0;padding:clamp(10px,2vw,16px)">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Overall Grade</div>
-          <div style="font-size:clamp(16px,4vw,22px);font-weight:700;color:${gradeColor}">${escHtml(String(overallGrade))}</div>
         </div>
       </div>
 
@@ -1175,8 +1152,7 @@ const StudentView = {
             const score       = sub.score;
             const maxScore    = sub.max_score > 0 ? sub.max_score : a.max_score;
             const pct         = sub.is_graded && score != null && maxScore > 0 ? Math.round(score / maxScore * 100) : null;
-            const phGrade     = pct !== null ? StudentView._toPhGrade(pct) : '—';
-            const phColor     = phGrade === '—' ? 'var(--gray-400)' : parseFloat(phGrade) <= 1.75 ? '#16a34a' : parseFloat(phGrade) <= 2.75 ? '#d97706' : '#dc2626';
+            const gradeLabel  = sub.grade == null ? '—' : String(sub.grade);
             const dateStr     = sub.submitted_at
               ? new Date(sub.submitted_at).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' })
               : '—';
@@ -1207,8 +1183,8 @@ const StudentView = {
                   <span>${pctBadge}</span>
                 </div>
                 <div style="${rowStyle}">
-                  <span style="${labelStyle}">Final Grade</span>
-                  <span style="font-weight:700;font-size:16px;color:${phColor}">${escHtml(String(phGrade))}</span>
+                  <span style="${labelStyle}">Recorded Grade</span>
+                  <span style="font-weight:700;font-size:16px">${escHtml(gradeLabel)}</span>
                 </div>
                 <div style="${rowStyle}">
                   <span style="${labelStyle}">Status</span>
@@ -1231,26 +1207,7 @@ const StudentView = {
         return `<div style="display:flex;flex-direction:column;gap:10px">${subjectCards}</div>`;
       })()}
 
-      <!-- Grade scale legend -->
-      <div style="margin-top:14px;padding:12px 16px;background:var(--gray-50);border-radius:var(--radius);border:1px solid var(--gray-100);font-size:11px;color:var(--gray-500)">
-        <strong style="color:var(--gray-600)">Grade Scale (DepEd):</strong>
-        1.00 (97-100%) · 1.25 (93-96%) · 1.50 (89-92%) · 1.75 (85-88%) · 2.00 (81-84%) ·
-        2.25 (77-80%) · 2.50 (73-76%) · 2.75 (69-72%) · 3.00 (65-68%) · 5.00 (&lt;65%)
-      </div>`;
-  },
-
-  // ── DepEd grade transmutation (reused from teacher side) ─────────────────
-  _toPhGrade(pct) {
-    if (pct >= 97) return '1.00';
-    if (pct >= 93) return '1.25';
-    if (pct >= 89) return '1.50';
-    if (pct >= 85) return '1.75';
-    if (pct >= 81) return '2.00';
-    if (pct >= 77) return '2.25';
-    if (pct >= 73) return '2.50';
-    if (pct >= 69) return '2.75';
-    if (pct >= 65) return '3.00';
-    return '5.00';
+    `;
   },
 
   // ── Attendance loading skeleton ────────────────────────────────────────────

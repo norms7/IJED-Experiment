@@ -761,19 +761,6 @@ const TeacherController = {
         return;
       }
 
-      const computeGrade = (pct) => {
-        if (pct >= 100) return '1.00';
-        if (pct >= 97)  return '1.25';
-        if (pct >= 94)  return '1.50';
-        if (pct >= 91)  return '1.75';
-        if (pct >= 88)  return '2.00';
-        if (pct >= 85)  return '2.25';
-        if (pct >= 82)  return '2.50';
-        if (pct >= 79)  return '2.75';
-        if (pct >= 75)  return '3.00';
-        return '5.00';
-      };
-
       const isManual = activity.grading_mode === 'manual';
 
       // ── Section map from submitted students ──────────────────────────────
@@ -849,19 +836,16 @@ const TeacherController = {
         const sectionBadge = s.section_name
           ? `<br><span style="font-size:11px;color:#6b7280">${escHtml(s.section_name)}</span>` : '';
         const submittedAt  = s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : '—';
-        let scoreCell = '— Pending —', pctCell = '—', gradeCell = '—';
+        let scoreCell = '— Pending —', pctCell = '—', gradeCell = s.grade == null ? '—' : escHtml(String(s.grade));
 
         const maxScore = submissionMaxScore(s);
         if (s.is_graded && s.score != null && maxScore > 0) {
           const pct   = Math.round(s.score / maxScore * 100);
-          const grade = s.grade || computeGrade(pct);
-          const cls   = parseFloat(grade) <= 3.00 ? 'badge-green' : 'badge-danger';
           scoreCell = `${s.score}/${maxScore}`;
           pctCell   = `${pct}%`;
-          gradeCell = `<span class="badge ${cls}">${escHtml(grade)}</span>`;
+          gradeCell = s.grade == null ? '—' : escHtml(String(s.grade));
         } else if (s.is_graded) {
           scoreCell = s.score != null ? `${s.score}/${maxScore ?? '—'}` : '—';
-          gradeCell = s.grade ? `<span class="badge badge-green">${escHtml(s.grade)}</span>` : '—';
         }
 
         const gradeBtn = isManual && !s.is_graded
@@ -882,7 +866,7 @@ const TeacherController = {
       }).join('');
 
       // Store submissions on controller for filter re-render
-      TeacherController._submissionsCache = { activity, submissions, notSubmitted, computeGrade, isManual, buildRows };
+      TeacherController._submissionsCache = { activity, submissions, notSubmitted, isManual, buildRows };
 
       Modal.show(
         `${lmsIcon('chart')} ${escHtml(activity.title)} — Submissions`,

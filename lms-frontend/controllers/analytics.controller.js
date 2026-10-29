@@ -401,12 +401,18 @@ const AnalyticsController = {
           datasets: [
             {
               label: 'My Score (%)',
-              data: items.map(d => d.my_score_pct ?? 0),
+              data: items.map(d =>
+                ['missing', 'awaiting_grade'].includes(d.status)
+                  || d.my_score_pct == null
+                  || !Number.isFinite(Number(d.my_score_pct))
+                  ? null
+                  : Number(d.my_score_pct)
+              ),
               backgroundColor: 'rgba(109,0,25,0.8)',
               borderRadius: 5,
             },
             {
-              label: 'Class Average (%)',
+              label: 'Class average (graded submissions)',
               data: items.map(d => d.class_avg_pct),
               backgroundColor: 'rgba(212,160,23,0.75)',
               borderRadius: 5,
@@ -424,7 +430,13 @@ const AnalyticsController = {
                 afterBody(ctx) {
                   const idx  = ctx[0]?.dataIndex;
                   const item = items[idx];
-                  if (!item || item.diff_pct === null) return [];
+                  if (!item) return [];
+                  if (item.status === 'awaiting_grade') return ['Awaiting grade'];
+                  if (item.status === 'missing') {
+                    const sign = item.diff_pct != null && item.diff_pct >= 0 ? '+' : '';
+                    return item.diff_pct != null ? [`Missing (counts as 0)`, `Difference: ${sign}${item.diff_pct}%`] : ['Missing (counts as 0)'];
+                  }
+                  if (item.diff_pct == null) return [];
                   const sign = item.diff_pct >= 0 ? '+' : '';
                   return [`Difference: ${sign}${item.diff_pct}%`];
                 },
@@ -453,19 +465,14 @@ const AnalyticsController = {
       const axes = subject_radar.axes;
       const subjectColors = ['#8B1E3F', '#1B998B', '#2D6CDF', '#F28E2B', '#7B2CBF', '#0081A7', '#C99700', '#D1495B', '#3A5A40', '#6A4C93', '#E76F51', '#264653'];
       const isDarkMode = document.body.classList.contains('dark-mode');
-      const demoSubjectChart = new URLSearchParams(window.location.search).has('demo-subject-chart');
-      const chartAxes = demoSubjectChart
-        ? axes.map((axis, index) => ({ ...axis, avg_pct: [92, 76, 84, 63, 88, 71, 95, 68, 81, 74, 89, 66][index % 12] }))
-        : axes;
-
       this._charts['subject-radar'] = new Chart(radarCanvas, {
         type: 'polarArea',
         data: {
           labels: axes.map(a => a.subject_name),
           datasets: [{
             label: 'Average Performance (%)',
-            data: chartAxes.map(a => a.avg_pct),
-            backgroundColor: chartAxes.map((_, index) => `${subjectColors[index % subjectColors.length]}${isDarkMode ? 'dd' : 'cc'}`),
+            data: axes.map(a => a.avg_pct),
+            backgroundColor: axes.map((_, index) => `${subjectColors[index % subjectColors.length]}${isDarkMode ? 'dd' : 'cc'}`),
             borderColor: '#fff',
             borderWidth: 2,
           }],

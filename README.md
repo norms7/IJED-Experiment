@@ -43,7 +43,7 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - Track module reading progress
 - Create attendance sessions and record present, late, absent, or excused status
 - View attendance summaries and gradebook data
-- Gradebook ACT% is earned points divided by possible points; graded submissions count immediately, pending submissions do not count, and due unsubmitted activities count as zero.
+- Gradebook ACT% is earned points divided by possible points; graded submissions count immediately, pending submissions do not count, and due unsubmitted activities count as zero. The term's shared 75/15/10 current-standing percentage is shown as the Initial Grade and converted to the DepEd Transmuted Grade, with 75 as the passing mark.
 
 ### Student
 
@@ -57,7 +57,9 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 
 ## Performance Analytics
 
-Analytics are available in the student Performance Analytics area. Results are filtered by subject and term and cached in Supabase for faster repeat loads. Row Level Security (RLS) ensures that students receive their own records and aggregate comparisons only.
+Analytics are available in the student Performance Analytics area. Results are filtered by subject and term and cached in Supabase for faster repeat loads. Students receive their own records and authorized aggregate comparisons; cross-student information is computed by protected PostgreSQL RPCs.
+
+Teachers can open **Class Performance** for their assigned subjects and sections; administrators can select across the available subjects and sections. The report includes rating-band counts, a needs-attention list, per-student component scores, and a drill-down of activities, attendance, and module reading. The Excel export contains Summary, Activities, Attendance, Modules, and Formulas sheets. Weekly reports retain current-standing summary scores while limiting activity and attendance details to the previous seven days; term reports include the selected term.
 
 ### Descriptive analysis
 
@@ -70,7 +72,7 @@ Analytics are available in the student Performance Analytics area. Results are f
 The underlying academic measures use the following formulas:
 
 - Academic score = `(total earned points / total possible points) * 100`
-- Attendance score = `((present + late * 0.5) / total meetings) * 100`
+- Attendance score = `((present + late * 0.5) / non-excused meetings) * 100`
 - Module score = `(modules read / total published modules) * 100`
 
 The calculation process is:
@@ -88,48 +90,41 @@ For class comparisons, the browser does not read other students' raw rows. Supab
 - **Predicted final grade:** combines academic performance, attendance, and module completion using the school weighting of 75%, 15%, and 10%. Missing components have their available weights redistributed rather than being treated as zero.
 - **Estimated range:** reports a transparent uncertainty range that narrows as more graded activities are recorded.
 - **Probability of reaching a target grade:** uses a Beta-Binomial posterior instead of a fixed lookup table. The prior is centered on the class success rate at the selected target and has a strength of four pseudo-observations; the student's own successes and failures update that prior.
-- **Credible interval:** reports a 90% approximate credible interval for the probability of meeting the target.
-- **Comparison with class performance:** estimates the probability that the student's underlying success rate is above the class rate using the posterior distribution and a normal CDF approximation.
-- **Students Like You:** computes an engagement index and peer percentile from attendance and module completion inside a protected PostgreSQL RPC. Peer identities and raw peer scores are never sent to the browser.
+- **Credible interval:** reports a 90% credible interval computed from exact Beta-distribution quantiles.
+- **Comparison with class performance:** computes the exact Beta posterior probability that the student's underlying success rate is above the class rate.
+- **Engagement leaderboard:** ranks section-mates using attendance (40%) and module reading (60%) only; academic scores are excluded. It shows the top five plus the current student's row when outside the top five, using the selected subject and term filters. The protected RPC returns no student IDs or raw attendance/module records.
 - **Performance rating:** classifies the weighted score as Excellent, Very Good, Good, Fair, Needs Improvement, or At Risk and explains the indicators that affect it.
 
 #### Bayesian computation
 
-The Bayesian target model answers: "Given the available evidence, how likely is this student to reach the selected target percentage on a future activity?"
+##### In plain language
 
-1. A graded activity is marked a **success** when `score / max_score * 100 >= target_grade`; otherwise it is a failure.
-2. The class success rate at that same target supplies an empirical prior. If `peer_successes` and `peer_failures` are the class evidence, then:
+The Bayesian card estimates the chance that the student's **next graded activity** will reach the selected target. It is not a prediction of the final course grade.
 
-  ```text
-  class_rate = peer_successes / (peer_successes + peer_failures)
-  alpha0 = class_rate * 4
-  beta0  = (1 - class_rate) * 4
-  ```
+The estimate starts with a small class-based starting point, then adjusts it using the student's own graded activities:
 
-  When no class evidence exists, the prior defaults to a neutral 50/50 split. The value `4` is the prior strength, or four pseudo-observations.
+1. Pick a target, such as **90%**. Each graded activity is a success if its score percentage meets or exceeds the target; otherwise it is a failure. A past-due, unsubmitted activity counts as a failure. Ungraded work is not counted yet.
+2. Count the other students' successes and failures at that target. The student is left out of this class count. Their success rate becomes the starting estimate.
+3. Give that starting estimate the weight of four imaginary results. This keeps a small class sample from dominating the estimate. For example, if the class has 3 successes and 7 failures, its rate is 3/10 = 30%. The four imaginary results become 1.2 successes and 2.8 failures.
+4. Add the student's real results to those starting counts. If the student has 3 successes and 2 failures, the updated counts are 4.2 successes and 4.8 failures.
+5. Divide updated successes by all updated counts: 4.2 / (4.2 + 4.8) = **46.7%**. That is the estimated chance the next graded activity reaches 90%.
 
-3. The student's own results update the prior. With `student_successes = s` and `student_failures = f`, the posterior is:
+The displayed 90% range describes uncertainty around that estimate; it is not a guaranteed range for the next score. In the example above, the range is about **21% to 73%**. More graded evidence usually makes this range narrower. If there is no class evidence, the starting point is neutral (50%).
 
-  ```text
-  theta | data ~ Beta(alpha0 + s, beta0 + f)
-  ```
+##### The calculation
 
-4. The reported probability is the posterior mean, which is also the Beta-Binomial posterior-predictive probability of success on the next activity:
+For a selected target:
 
-  ```text
-  probability = (alpha0 + s) / (alpha0 + beta0 + s + f)
-  ```
+```text
+class_rate = peer_successes / (peer_successes + peer_failures)
+prior_alpha = class_rate * 4
+prior_beta  = (1 - class_rate) * 4
+posterior_alpha = prior_alpha + student_successes
+posterior_beta  = prior_beta + student_failures
+next_activity_probability = posterior_alpha / (posterior_alpha + posterior_beta)
+```
 
-5. The posterior standard deviation is calculated from:
-
-  ```text
-  variance = (alpha * beta) / ((alpha + beta)^2 * (alpha + beta + 1))
-  sd = sqrt(variance)
-  ```
-
-  The UI reports an approximate 90% credible interval using `mean +/- 1.645 * sd`, clipped to the range 0% to 100%. As the student's evidence grows, the posterior normally becomes narrower.
-
-6. To compare the student with the class context, the implementation calculates a z-score from the posterior mean and the class rate, then applies the standard normal CDF. This produces `above_class_average_probability` without exposing individual classmates.
+When no class results exist, `class_rate` is set to `0.5`. The engine computes the 90% uncertainty range from the Beta distribution and calculates the probability that the student's underlying success rate is above the class rate. These calculations use aggregate counts only; individual classmates' identities and grades are not exposed.
 
 The final-grade prediction is a separate weighted estimate using the shared component scores:
 
@@ -143,7 +138,21 @@ Only components with available data are included, and their weights are normaliz
 
 The performance rating uses the same 75/15/10 component weighting and six rating bands: 90+ Excellent, 85-89 Very Good, 80-84 Good, 75-79 Fair, 70-74 Needs Improvement, and below 70 At Risk.
 
-Analytics functions are defined in `lms-frontend/assets/js/analytics.engine.js` and the supporting secure RPCs are in `supabase-migration/03_functions.sql`.
+Pure analytics calculations live in `lms-frontend/assets/js/analytics.engine.js`. The core analytics RPCs include `_student_attendance_rows`, `get_beta_binomial_evidence`, `get_score_vs_class_average`, `get_engagement_percentile`, `get_engagement_leaderboard`, and `get_student_attendance_calendar`; the protected functions and report/notification RPCs are defined in `supabase-migration/08_performance_overview.sql`.
+
+### How the computations work
+
+The gradebook and student analytics use the same component calculations. Academic percentage is earned points divided by possible points; due or undated unsubmitted activities count as zero, while submitted work awaiting a grade is left out. Attendance gives full credit for present, half credit for late, and excludes excused meetings from the denominator. Module percentage is modules read divided by published modules. The 75/15/10 weights are redistributed across components that have data, and the per-subject result is rounded to two decimal places. The gradebook treats that result as the Initial Grade and applies DepEd Order No. 8, s. 2015 transmutation; 75 is passing.
+
+For transmutation, an Initial Grade of 60 or higher maps to `min(100, 75 + floor((Initial Grade - 60) / 1.6 + 1e-9))`; below 60 it maps to `min(100, 60 + floor(Initial Grade / 4 + 1e-9))`.
+
+The documented calculation decisions are:
+
+- **D1 — Excused attendance:** exclude excused meetings from the attendance denominator.
+- **D2 — All subjects:** calculate each subject separately, then give equal weight to subjects with data; Bayesian activity evidence is pooled across selected subjects.
+- **D3 — DepEd grade:** transmute the per-subject, per-term 75/15/10 overall percentage as the Initial Grade.
+
+Performance notifications are deduplicated in the database. This repository triggers the notification RPC once at admin/teacher login; no `pg_cron` schedule is configured here.
 
 ## Why the technology stack changed
 
@@ -200,12 +209,24 @@ Experiment/
     ├── 05_profile_settings.sql             # Profile details and avatar storage policies
     ├── 06_notifications_realtime.sql       # Notification triggers and Realtime publication
     ├── 07_activity_term.sql                # Activity term column and index
-    ├── 08_activity_file_uploads.sql        # Activity attachment metadata and private storage policies
+    ├── 08_performance_overview.sql         # Protected analytics/report RPCs, cache invalidation, notifications
     ├── edge_functions/admin-create-user/   # Secure admin account creation
     ├── edge_functions/admin-update-user/   # Secure admin email/password updates
     ├── FULL_SETUP_GUIDE.md
     └── MIGRATION_GUIDE.md
 ```
+
+The obsolete copies formerly under `supabase-migration/frontend_additions/` were removed; `lms-frontend/assets/js/` contains the canonical analytics engine and Supabase client.
+
+## Tests
+
+Run the dependency-free pure calculation suite with:
+
+```powershell
+node tests\performance.test.js
+```
+
+The Supabase integration assertions in `supabase-migration/tests/08_performance_overview_tests.sql` must be run in the Supabase SQL Editor after migrations 01-08. They run in a transaction and roll back their test users, classes, submissions, attendance, modules, and notifications.
 
 ## Setup
 
@@ -227,7 +248,7 @@ Run these files in the Supabase SQL Editor, in order:
 5. `supabase-migration/05_profile_settings.sql`
 6. `supabase-migration/06_notifications_realtime.sql`
 7. `supabase-migration/07_activity_term.sql`
-8. `supabase-migration/08_activity_file_uploads.sql` (after confirming the existing `Activity-files` bucket exists)
+8. `supabase-migration/08_performance_overview.sql`
 
 The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 
@@ -235,7 +256,7 @@ The migration guide explains account linking, storage policies, and deployment d
 
 Update the project URL and public anon key in `lms-frontend/assets/js/lms-supabase-api.js` if they are not already configured. The anon key is intended for browser use; database protection must come from the RLS policies. Never put the Supabase service-role key in frontend files.
 
-Create a public Storage bucket named `module-files` and apply the teacher upload and file read policies described in the setup guide. The `Activity-files` bucket must also exist before running migration 08; that migration makes it private and restricts access to enrolled students and the activity's teacher. Activity and student answer uploads are limited to 50 MB, and files are served with short-lived signed URLs.
+Create a public Storage bucket named `module-files` and apply the teacher upload and file read policies described in the setup guide. Configure any private activity-file bucket and policies separately according to your Supabase project's storage setup; the performance migration does not create that bucket.
 
 The profile settings migration creates the `profile-images` bucket, stores address/social details, and adds the avatar URL used by student and teacher profile settings. Profile identity, role, section, year level, employment, and account status remain read-only.
 
@@ -264,8 +285,8 @@ Open `http://localhost:5500` and sign in with a Supabase Auth account linked to 
 - Run SQL migrations in the documented order and review RLS policies whenever a table or RPC changes.
 - Keep service-role credentials inside Edge Functions or Supabase-managed secrets.
 - Use protected RPCs for aggregates that require access to other students' rows.
-- Analytics cache entries currently expire after 30 seconds for descriptive results and 60 seconds for Bayesian results (`DESCRIPTIVE_TTL_SECONDS` / `BAYESIAN_TTL_SECONDS` in `analytics.engine.js`). These were shortened from the original 5-minute / 10-minute design values for active testing/demoing; raise them back before running with real classes at scale, and update this line if you do.
-- Attendance treats present as 100%, late as 50%, and absent as 0%.
+- Analytics cache entries expire after 300 seconds for descriptive results and 600 seconds for Bayesian results (`DESCRIPTIVE_TTL_SECONDS` / `BAYESIAN_TTL_SECONDS` in `analytics.engine.js`); database triggers invalidate affected student entries after relevant changes.
+- Attendance treats present as 100%, late as 50%, absent as 0%, and excludes excused meetings from its denominator.
 - Past-due, unsubmitted activities count as zero earned points against their own maximum score; activities awaiting grading are not penalized.
 - The frontend has no package build step. Script order in `lms-frontend/index.html` is part of the runtime dependency order.
 

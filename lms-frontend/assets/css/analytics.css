@@ -216,10 +216,13 @@ body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
 .att-dot.att-no-class { background: var(--gray-200); }
 
 .att-months-wrapper {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 18px;
+  width: 100%;
 }
+.analytics-attendance-card { width: 100%; box-sizing: border-box; }
+.att-month { min-width: 0; }
 .att-month-label {
   font-size: 12px;
   font-weight: 700;
@@ -360,7 +363,10 @@ body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
 }
 .gauge-ci-label { font-size: 12px; color: var(--gray-400); }
 .gauge-ci-range { font-size: 14px; font-weight: 700; color: var(--gray-800); }
-.gauge-meta { font-size: 11px; color: var(--gray-400); text-align: center; }
+.gauge-meta { font-size: 12px; color: var(--gray-600); line-height: 1.5; text-align: center; }
+.analytics-explanation { margin-top: 8px; }
+.analytics-explanation summary { cursor: pointer; color: var(--gray-600); }
+.analytics-explanation-content { margin-top: 6px; }
 
 /* ══════════════════════════════════════════════════════════════
    BAYESIAN — IMPROVEMENT PROBABILITY
@@ -401,25 +407,90 @@ body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
 .improv-prob-label { font-size: 12px; color: var(--gray-600); text-align: center; }
 
 /* ══════════════════════════════════════════════════════════════
-   BAYESIAN — STUDENTS LIKE YOU
+   BAYESIAN — ENGAGEMENT LEADERBOARD
 ══════════════════════════════════════════════════════════════ */
-.peer-percentile {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0;
+.engagement-leaderboard {
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
-.peer-pct-ring {
-  width: 100px; height: 100px;
-  border-radius: 50%;
-  border: 5px solid;
+.engagement-leaderboard-heading {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  color: var(--gray-700);
+  background: var(--gray-50);
+  font-size: 12px;
+}
+.engagement-leaderboard-heading span { color: var(--gray-400); font-size: 10px; }
+.engagement-leaderboard-row {
+  display: grid;
+  grid-template-columns: 24px 34px minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: center;
-  gap: 0;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--gray-100);
 }
-.peer-pct-val { font-size: 26px; font-weight: 800; line-height: 1; }
-.peer-pct-sub { font-size: 10px; color: var(--gray-400); font-weight: 600; }
+.engagement-leaderboard-row:not(.is-current-student):hover { background: var(--gray-50); }
+.engagement-leaderboard-row.is-current-student {
+  background: #fff5f6;
+  box-shadow: inset 3px 0 0 var(--maroon);
+}
+.engagement-leaderboard-rank {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+.engagement-leaderboard-rank.rank-1 { color: #bf8a00; }
+.engagement-leaderboard-rank.rank-2 { color: #77828c; }
+.engagement-leaderboard-rank.rank-3 { color: #a66a42; }
+.engagement-leaderboard-avatar {
+  position: relative;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  place-items: center;
+  border: 2px solid var(--gold, #d4a017);
+  border-radius: 50%;
+  color: var(--maroon);
+  background: var(--gray-100);
+  font-size: 10px;
+  font-weight: 800;
+}
+.engagement-leaderboard-initials { line-height: 1; }
+.engagement-leaderboard-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.engagement-leaderboard-name {
+  overflow: hidden;
+  color: var(--gray-700);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.engagement-leaderboard-score {
+  color: var(--maroon);
+  font-size: 12px;
+  font-weight: 800;
+}
+.engagement-you-badge {
+  margin-left: 6px;
+  color: var(--maroon);
+  font-size: 9px;
+  font-weight: 700;
+}
+.engagement-leaderboard-divider { height: 4px; background: var(--gray-50); }
 .peer-message {
   font-size: 13px;
   color: var(--gray-600);
@@ -495,6 +566,13 @@ body.dark-mode .analytics-select  { background: #2a1a1e; color: #f5e8ea; border-
 body.dark-mode .att-cell.att-future { background: #2a1a1e; }
 body.dark-mode .mod-subject-name  { color: #f5e8ea; }
 body.dark-mode .peer-profile-item { background: #341f24; }
+body.dark-mode .engagement-leaderboard { border-color: #4a2d33; }
+body.dark-mode .engagement-leaderboard-heading { color: #f5e8ea; background: #2a1a1e; }
+body.dark-mode .engagement-leaderboard-row { border-color: #4a2d33; }
+body.dark-mode .engagement-leaderboard-row:not(.is-current-student):hover { background: #341f24; }
+body.dark-mode .engagement-leaderboard-row.is-current-student { background: #3a2027; }
+body.dark-mode .engagement-leaderboard-name { color: #f5e8ea; }
+body.dark-mode .engagement-leaderboard-avatar { color: #f5d0d8; background: #341f24; }
 body.dark-mode .risk-badge        { border-color: currentColor; }
 body.dark-mode .skeleton-title,
 body.dark-mode .skeleton-chart    {
@@ -507,6 +585,7 @@ body.dark-mode .skeleton-chart    {
   .analytics-grid { grid-template-columns: 1fr; }
   .analytics-module-progress-card { grid-column: 1; width: 100%; }
   .analytics-card-wide { grid-column: 1; }
+  .analytics-attendance-card { grid-column: 1; }
   .analytics-header { flex-direction: column; }
   .analytics-tabs { overflow-x: auto; }
   .analytics-tab  { white-space: nowrap; }

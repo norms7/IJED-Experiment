@@ -67,7 +67,26 @@ const TeacherView = {
     return {
       totalEarned,
       totalPossible,
-      percentage: totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null,
+      percentage: totalPossible > 0 ? totalEarned / totalPossible * 100 : null,
+    };
+  },
+
+  gradebookScores(student, activities, modules) {
+    const activityPct = this._activityScore(activities, student.id).percentage;
+    const moduleCount = student._modulesRead ?? 0;
+    const modulePct = modules.length > 0 ? (moduleCount / modules.length) * 100 : null;
+    const attendanceTotal = student._attTotal ?? 0;
+    const attendancePct = attendanceTotal > 0
+      ? ((student._attPresent ?? 0) + (student._attLate ?? 0) * 0.5) / attendanceTotal * 100
+      : null;
+    const initialGrade = AnalyticsEngine.weightedScore(activityPct, attendancePct, modulePct);
+
+    return {
+      activityPct,
+      attendancePct,
+      modulePct,
+      initialGrade,
+      transmutedGrade: AnalyticsEngine.transmute(initialGrade),
     };
   },
 
@@ -472,15 +491,6 @@ const TeacherView = {
     ).join('');
 
     // ── Per-student grade rows ─────────────────────────────────────────────
-    // Objective §4: Overall Score = Academic×75% + Attendance×15% + Module×10%
-    // (previously 60/30/10 — stale weights that predate the school standard
-    // being applied to the student-facing dashboard. A teacher viewing this
-    // table must see the same numbers a student sees on their own
-    // Performance Analytics page, or the two screens silently disagree.)
-    const WEIGHT_ACTIVITIES = 0.75;
-    const WEIGHT_ATTENDANCE = 0.15;
-    const WEIGHT_MODULES    = 0.10;
-
     const rows = loading
       ? `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">${LMS_ICONS.loading} Loading grades…</td></tr>`
       : (students.map(stu => {
@@ -495,44 +505,26 @@ const TeacherView = {
           }, []);
           const submittedCount = stuSubs.length;
 
-          const activityPct = TeacherView._activityScore(activities, studentId).percentage;
           const readCount     = stu._modulesRead ?? 0;
           const attPresent    = stu._attPresent  ?? 0;
           const attLate       = stu._attLate     ?? 0;
           const stuAttTotal   = stu._attTotal    ?? 0;
-          const modulePct     = totalModules > 0 ? Math.round((readCount / totalModules) * 100) : null;
-          // Objective §2: Attendance Score = (Present + Late×0.5) / Total × 100
-          const attendancePct = stuAttTotal  > 0 ? Math.round(((attPresent + attLate * 0.5) / stuAttTotal) * 100) : null;
-
-          let overallPct = null;
-          const components = [
-            { value: activityPct, weight: WEIGHT_ACTIVITIES },
-            { value: attendancePct, weight: WEIGHT_ATTENDANCE },
-            { value: modulePct, weight: WEIGHT_MODULES },
-          ].filter(component => component.value !== null);
-          const weightTotal = components.reduce((sum, component) => sum + component.weight, 0);
-          if (weightTotal) {
-            overallPct = Math.round(components.reduce(
-              (sum, component) => sum + component.value * (component.weight / weightTotal), 0
-            ));
-          }
-
-          const finalGrade = overallPct !== null ? TeacherView._toPhGrade(overallPct) : '—';
-          const gradeColor = finalGrade === '—' ? 'badge-gray'
-            : parseFloat(finalGrade) <= 1.75 ? 'badge-green'
-            : parseFloat(finalGrade) <= 2.50 ? 'badge-gold'
-            : 'badge-danger';
+          const { activityPct, initialGrade, transmutedGrade } =
+            TeacherView.gradebookScores(stu, activities, modules);
+          const gradeColor = transmutedGrade === null ? 'badge-gray'
+            : transmutedGrade >= 75 ? 'badge-green' : 'badge-danger';
+          const formatPct = value => value === null ? '—' : `${Number(value.toFixed(2))}%`;
 
           const actPctBadge = activityPct !== null
-            ? `<span class="badge ${activityPct >= 75 ? 'badge-green' : 'badge-danger'}" style="font-size:11px">${activityPct}%</span>`
+            ? `<span class="badge ${activityPct >= 75 ? 'badge-green' : 'badge-danger'}" style="font-size:11px">${formatPct(activityPct)}</span>`
             : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
           const attBadge = stuAttTotal > 0
             ? `<span style="font-weight:600">${attPresent}</span><span style="color:var(--gray-400)">${attLate > 0 ? ` +${attLate}L` : ''}/${stuAttTotal}</span>`
             : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
-          const overallBadge = overallPct !== null
-            ? `<span class="badge ${overallPct >= 75 ? 'badge-green' : overallPct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${overallPct}%</span>`
+          const initialBadge = initialGrade !== null
+            ? `<span class="badge ${transmutedGrade >= 75 ? 'badge-green' : 'badge-danger'}" style="font-size:11px">${formatPct(initialGrade)}</span>`
             : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
           return `<tr data-searchable>
@@ -546,9 +538,10 @@ const TeacherView = {
               <span style="font-weight:600">${readCount}</span>/<span style="color:var(--gray-400)">${totalModules}</span>
             </td>
             <td style="text-align:center">${attBadge}</td>
-            <td style="text-align:center">${overallBadge}</td>
+            <td style="text-align:center">${initialBadge}</td>
             <td style="text-align:center">
-              <span class="badge ${gradeColor}" style="font-size:12px;font-weight:700">${escHtml(String(finalGrade))}</span>
+              <span class="badge ${gradeColor}" style="font-size:12px;font-weight:700">${transmutedGrade ?? '—'}</span>
+              ${transmutedGrade !== null ? `<div style="font-size:10px;color:var(--gray-400)">${transmutedGrade >= 75 ? 'Passing' : 'Below passing'}</div>` : ''}
             </td>
             <td>
               <button class="btn btn-xs btn-outline" onclick="GradebookController.viewStudentBreakdown(${studentId}, '${escHtml(fullName)}')">${lmsIcon('search')} Details</button>
@@ -621,8 +614,8 @@ const TeacherView = {
                 <th style="text-align:center;white-space:nowrap">ACT% <span style="font-weight:400;font-size:10px;opacity:.75">(75%)</span></th>
                 <th style="text-align:center;white-space:nowrap">MODS <span style="font-weight:400;font-size:10px;opacity:.75">(READ/TOT)</span></th>
                 <th style="text-align:center;white-space:nowrap">ATT. <span style="font-weight:400;font-size:10px;opacity:.75">(PRES/TOT)</span></th>
-                <th style="text-align:center;white-space:nowrap">OVERALL %</th>
-                <th style="text-align:center;white-space:nowrap">FINAL GRADE</th>
+                <th style="text-align:center;white-space:nowrap">INITIAL GRADE</th>
+                <th style="text-align:center;white-space:nowrap">TRANSMUTED GRADE</th>
                 <th style="white-space:nowrap">BREAKDOWN</th>
               </tr>
             </thead>
@@ -631,19 +624,17 @@ const TeacherView = {
         </div>
       </div>
 
-      <!-- Grade Scale Legend -->
+      <!-- DepEd transmutation note -->
       <div style="margin-top:16px;padding:14px 18px;background:var(--gray-50);border-radius:var(--radius);border:1px solid var(--gray-100);font-size:12px;color:var(--gray-500)">
-        <strong style="color:var(--gray-600)">Grade Scale (DepEd Transmutation):</strong>
-        1.00 (97-100%) · 1.25 (93-96%) · 1.50 (89-92%) · 1.75 (85-88%) · 2.00 (81-84%) ·
-        2.25 (77-80%) · 2.50 (73-76%) · 2.75 (69-72%) · 3.00 (65-68%) · 5.00 (&lt;65% · Failed)
+        <strong style="color:var(--gray-600)">DepEd Transmutation (DepEd Order No. 8, s. 2015):</strong>
+        Initial Grade is the shared 75/15/10 current-standing percentage; Transmuted Grade is the DepEd grade.
+        A Transmuted Grade of 75 or higher is passing.
         <br><span style="color:var(--gray-400);margin-top:4px;display:block">
-          Formula: (Activity% × 75%) + (Attendance% × 15%) + (Module Read% × 10%)
+          Formula: if Initial Grade ≥ 60, 75 + floor((Initial Grade − 60) / 1.6 + 1e-9); otherwise 60 + floor(Initial Grade / 4 + 1e-9). Capped at 100.
         </span>
       </div>`;
   },
 
-  // ── PH Grade Transmutation (DepEd) ───────────────────────────────────────
-  // ══════════════════════════════════════════════════════════════════════════
   // ATTENDANCE VIEWS
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -1036,16 +1027,4 @@ const TeacherView = {
       </div>`;
   },
 
-  _toPhGrade(pct) {
-    if (pct >= 97) return '1.00';
-    if (pct >= 93) return '1.25';
-    if (pct >= 89) return '1.50';
-    if (pct >= 85) return '1.75';
-    if (pct >= 81) return '2.00';
-    if (pct >= 77) return '2.25';
-    if (pct >= 73) return '2.50';
-    if (pct >= 69) return '2.75';
-    if (pct >= 65) return '3.00';
-    return '5.00';
-  },
 };
