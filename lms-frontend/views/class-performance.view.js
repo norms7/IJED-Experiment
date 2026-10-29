@@ -77,6 +77,11 @@ const ClassPerformanceView = {
                 <strong class="class-performance-rate">${row.next_probability == null ? "Not enough data" : `${row.next_probability.toFixed(1)}%`}</strong>
               </button>`).join("")}
           </div>` : `<p class="class-performance-empty">No active students found for these filters.</p>`}
+        <div class="class-performance-formula">
+          <strong>How the success rate is estimated</strong>
+          <p><code>(4 × classmate success rate + your successes) ÷ (4 + your successes + your results below 75% or overdue missing work)</code></p>
+          <p>A success is a graded activity at or above 75%. The classmate rate excludes that student; if there is no classmate data, the estimate starts at 50%. This estimates the chance of meeting 75% on the next activity.</p>
+        </div>
       </section>`;
   },
 

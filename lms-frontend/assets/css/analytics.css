@@ -606,6 +606,23 @@ body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
 .class-performance-rate-track > span { display: block; height: 100%; border-radius: inherit; background: var(--maroon); }
 .class-performance-rate { grid-area: rate; color: var(--maroon); font-size: 15px; text-align: right; }
 .class-performance-empty { margin: 0; color: var(--gray-600); font-size: 13px; }
+.class-performance-formula {
+  padding: 14px 16px;
+  border-top: 1px solid var(--gray-100);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--gray-50);
+  color: var(--gray-600);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.class-performance-formula strong { color: var(--gray-800); font-size: 13px; }
+.class-performance-formula p { margin: 5px 0 0; }
+.class-performance-formula code {
+  color: var(--maroon);
+  font-family: var(--font-body);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
 
 /* ── Dark mode overrides ─────────────────────────────────────── */
 body.dark-mode .analytics-card {
@@ -616,6 +633,9 @@ body.dark-mode .analytics-title   { color: #f5d0d8; }
 body.dark-mode .analytics-tab     { color: #c9a0a8; }
 body.dark-mode .analytics-tab.active { color: #f5d0d8; border-bottom-color: #b5002a; }
 body.dark-mode .analytics-select  { background: #2a1a1e; color: #f5e8ea; border-color: #4a2d33; }
+body.dark-mode .class-performance-formula { background: #341f24; border-color: #4a2d33; color: #e3c9ce; }
+body.dark-mode .class-performance-formula strong { color: #f5e8ea; }
+body.dark-mode .class-performance-formula code { color: #f5d0d8; }
 body.dark-mode .att-cell.att-future { background: #2a1a1e; }
 body.dark-mode .mod-subject-name  { color: #f5e8ea; }
 body.dark-mode .peer-profile-item { background: #341f24; }
