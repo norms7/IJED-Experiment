@@ -989,6 +989,7 @@ begin
       'student_id', s.id,
       'name', u.first_name || ' ' || u.last_name,
       'student_number', s.student_number,
+      'avatar_url', u.avatar_url,
       'subject_id', p_subject_id,
       'academic_earned', comp.academic_earned,
       'academic_possible', comp.academic_possible,

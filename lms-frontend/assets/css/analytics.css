@@ -554,7 +554,7 @@ body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
 }
 .risk-factors-list li { font-size: 12px; color: var(--gray-600); line-height: 1.5; }
 
-/* ── Class performance success rates ─────────────────────────── */
+/* ── Class performance leaderboard ───────────────────────────── */
 .class-performance-filters {
   display: grid;
   grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 1fr) minmax(145px, .8fr) auto;
@@ -583,14 +583,27 @@ body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
 .class-performance-card-heading p { margin: 4px 0 0; color: var(--gray-600); font-size: 12px; }
 .class-performance-card-heading > span { flex: 0 0 auto; color: var(--gray-500); font-size: 12px; }
 .class-performance-list { display: grid; }
+.class-performance-leaderboard-header {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 100px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--gray-600);
+  background: var(--gray-50);
+  font-size: 11px;
+  font-weight: 700;
+}
+.class-performance-leaderboard-header span:last-child { text-align: right; }
 .class-performance-student {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(120px, 2fr) 120px;
-  grid-template-areas: "name track rate";
+  grid-template-columns: 38px minmax(0, 1fr) minmax(100px, 160px) 100px;
+  grid-template-areas: "rank identity track result";
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   width: 100%;
-  padding: 14px 10px;
+  padding: 13px 12px;
   border: 0;
   border-top: 1px solid var(--gray-100);
   color: inherit;
@@ -599,12 +612,41 @@ body.dark-mode .subject-radar-legend { color: var(--dm-text-secondary); }
   cursor: pointer;
 }
 .class-performance-student:hover { background: var(--gray-50); }
-.class-performance-student-name { grid-area: name; display: grid; gap: 3px; min-width: 0; }
+.class-performance-rank { grid-area: rank; color: var(--gray-500); font-size: 13px; font-weight: 800; text-align: center; }
+.class-performance-identity { grid-area: identity; display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.class-performance-avatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  place-items: center;
+  border: 2px solid var(--gold, #d4a017);
+  border-radius: 50%;
+  color: var(--maroon);
+  background: var(--gray-100);
+  font-size: 11px;
+  font-weight: 800;
+}
+.class-performance-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.class-performance-student-name { display: grid; gap: 3px; min-width: 0; }
 .class-performance-student-name strong { overflow: hidden; color: var(--gray-800); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .class-performance-student-name small { color: var(--gray-500); font-size: 11px; }
+.class-performance-factors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.class-performance-factors > span { display: flex; align-items: baseline; gap: 4px; padding: 4px 7px; border-radius: 6px; color: var(--gray-600); background: var(--gray-50); font-size: 10px; }
+.class-performance-factors b { color: var(--gray-800); font-size: 11px; }
+.class-performance-factors small { color: var(--gray-500); font-size: 9px; }
 .class-performance-rate-track { grid-area: track; height: 9px; overflow: hidden; border-radius: 9px; background: var(--gray-100); }
 .class-performance-rate-track > span { display: block; height: 100%; border-radius: inherit; background: var(--maroon); }
-.class-performance-rate { grid-area: rate; color: var(--maroon); font-size: 15px; text-align: right; }
+.class-performance-result { grid-area: result; display: grid; justify-items: end; gap: 4px; }
+.class-performance-rate { color: var(--maroon); font-size: 15px; }
+.class-performance-rating { padding: 3px 7px; border-radius: 12px; color: var(--gray-600); background: var(--gray-100); font-size: 9px; white-space: nowrap; }
+.class-performance-rating.rating-excellent, .class-performance-rating.rating-very_good { color: #17653b; background: #e6f4ea; }
+.class-performance-rating.rating-good { color: #1a4a8a; background: #e8f0fe; }
+.class-performance-rating.rating-fair { color: #8a6800; background: #fff8e1; }
+.class-performance-rating.rating-needs_improvement { color: #a05c00; background: #fff1df; }
+.class-performance-rating.rating-at_risk { color: #b42318; background: #fde8ec; }
 .class-performance-empty { margin: 0; color: var(--gray-600); font-size: 13px; }
 .class-performance-formula {
   padding: 14px 16px;
@@ -636,6 +678,11 @@ body.dark-mode .analytics-select  { background: #2a1a1e; color: #f5e8ea; border-
 body.dark-mode .class-performance-formula { background: #341f24; border-color: #4a2d33; color: #e3c9ce; }
 body.dark-mode .class-performance-formula strong { color: #f5e8ea; }
 body.dark-mode .class-performance-formula code { color: #f5d0d8; }
+body.dark-mode .class-performance-leaderboard-header { color: #e3c9ce; background: #341f24; }
+body.dark-mode .class-performance-student:hover { background: #341f24; }
+body.dark-mode .class-performance-avatar { color: #f5d0d8; background: #341f24; }
+body.dark-mode .class-performance-factors > span { color: #e3c9ce; background: #341f24; }
+body.dark-mode .class-performance-factors b { color: #f5e8ea; }
 body.dark-mode .att-cell.att-future { background: #2a1a1e; }
 body.dark-mode .mod-subject-name  { color: #f5e8ea; }
 body.dark-mode .peer-profile-item { background: #341f24; }
@@ -686,8 +733,25 @@ body.dark-mode .skeleton-chart    {
   .class-performance-filters { grid-template-columns: 1fr; }
   .class-performance-download { width: 100%; }
   .class-performance-student {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "name rate" "track track";
-    gap: 10px 12px;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas: "rank identity result" ". track track";
+    gap: 9px;
   }
+  .class-performance-leaderboard-header {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+  .class-performance-factors {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .class-performance-factors > span {
+    display: grid;
+    gap: 2px;
+    padding: 5px;
+  }
+  .class-performance-factors small { line-height: 1.3; }
+  .class-performance-result { min-width: 70px; }
+  .class-performance-rating { max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+  .class-performance-formula { padding: 12px; }
+  .class-performance-formula code { font-size: 11px; }
 }

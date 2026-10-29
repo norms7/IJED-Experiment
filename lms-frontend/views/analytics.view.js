@@ -326,7 +326,7 @@ const AnalyticsView = {
   },
 
   bayesianPanel(data) {
-    const { predicted_grade, improvement_probability, students_like_you, risk_assessment } = data;
+    const { predicted_grade, improvement_probability, risk_assessment } = data;
 
     return `
       <div class="analytics-grid">
@@ -349,16 +349,7 @@ const AnalyticsView = {
           ${AnalyticsView._improvementProb(improvement_probability)}
         </div>
 
-        <!-- 3. Engagement Leaderboard -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('users')}Engagement Leaderboard</div>
-            <div class="analytics-card-sub">Top section-mates by attendance and module reading.</div>
-          </div>
-          ${AnalyticsView._studentsLikeYou(students_like_you)}
-        </div>
-
-        <!-- 4. Overall Performance Rating -->
+        <!-- 3. Overall Performance Rating -->
         <div class="analytics-card">
           <div class="analytics-card-header">
             <div class="analytics-card-title">${analyticsIcon('rating')}Overall Performance Rating</div>
@@ -455,79 +446,6 @@ const AnalyticsView = {
         )
         : ''}
       ${data.recommendation ? `<p class="gauge-meta" style="margin-top:6px"><strong>Recommendation:</strong> ${escHtml(data.recommendation)}</p>` : ''}`;
-  },
-
-  _studentsLikeYou(data) {
-    if (data?.leaderboard_unavailable) {
-      const percentile = data.percentile == null
-        ? 'Not available'
-        : `${data.percentile}th percentile`;
-      return `
-        <div class="analytics-empty">
-          <div class="analytics-empty-icon">!</div>
-          <p>Leaderboard is waiting for a database update.</p>
-          <p class="gauge-meta">Your Bayesian analysis is available. To show ranked names, apply the latest <code>08_performance_overview.sql</code> migration in the connected Supabase project.</p>
-          <p class="gauge-meta">Your previous engagement comparison: ${escHtml(percentile)}.</p>
-        </div>`;
-    }
-
-    if (!data || !Array.isArray(data.leaderboard) || data.leaderboard.length === 0) {
-      return AnalyticsView.empty('Comparison data will appear once more activity is recorded.');
-    }
-
-    const leaderboard = data.leaderboard;
-    const profile = data.my_profile || {};
-    const scoreText = value => value == null || !Number.isFinite(Number(value))
-      ? '—'
-      : `${Number(value).toFixed(1)}%`;
-    const rows = leaderboard.map(entry => {
-      const name = String(entry.name || 'Student');
-      const initials = name.trim().split(/\s+/).slice(0, 2).map(part => part[0] || '').join('').toUpperCase();
-      const avatarUrl = /^https?:\/\//i.test(String(entry.avatar_url || ''))
-        ? String(entry.avatar_url)
-        : '';
-      const own = Boolean(entry.is_me);
-      const separated = own && Number(entry.rank) > 5;
-      return `
-        ${separated ? '<div class="engagement-leaderboard-divider" aria-hidden="true"></div>' : ''}
-        <div class="engagement-leaderboard-row${own ? ' is-current-student' : ''}">
-          <span class="engagement-leaderboard-rank rank-${Math.min(Number(entry.rank) || 0, 5)}">${entry.rank}</span>
-          <span class="engagement-leaderboard-avatar" aria-hidden="true">
-            <span class="engagement-leaderboard-initials">${escHtml(initials || 'S')}</span>
-            ${avatarUrl ? `<img src="${escHtml(avatarUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
-          </span>
-          <span class="engagement-leaderboard-name" title="${escHtml(name)}">${escHtml(name)}${own ? '<span class="engagement-you-badge">You</span>' : ''}</span>
-          <span class="engagement-leaderboard-score">${scoreText(entry.engagement_score)}</span>
-        </div>`;
-    }).join('');
-
-    return `
-      <div class="engagement-leaderboard">
-        <div class="engagement-leaderboard-heading">
-          <strong>Top 5 performers</strong>
-          <span>${data.peer_count + (data.engagement_score == null ? 0 : 1)} students with data</span>
-        </div>
-        <div class="engagement-leaderboard-list">${rows}</div>
-      </div>
-      <p class="peer-message">${escHtml(data.message)}</p>
-      <div class="peer-profile-grid">
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${scoreText(data.engagement_score)}</div>
-          <div class="peer-profile-key">Engagement Score</div>
-        </div>
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.attendance_rate !== null && profile.attendance_rate !== undefined ? profile.attendance_rate + '%' : 'No data yet'}</div>
-          <div class="peer-profile-key">Attendance</div>
-        </div>
-        <div class="peer-profile-item">
-          <div class="peer-profile-val">${profile.module_completion !== null && profile.module_completion !== undefined ? profile.module_completion + '%' : 'No data yet'}</div>
-          <div class="peer-profile-key">Modules Read</div>
-        </div>
-      </div>
-      <p class="gauge-meta">Ranked by Attendance × 40% + Modules Read × 60%. Academic scores are not included. Only the top five and your own rank are shown.</p>
-      ${AnalyticsView._howComputed(
-        `Your inputs: attendance ${profile.attendance_rate == null ? '—' : `${profile.attendance_rate}%`} and modules read ${profile.module_completion == null ? '—' : `${profile.module_completion}%`}. Score = attendance × 40% + modules × 60%. Ties share a rank; your row is included if you are outside the top five.`
-      )}`;
   },
 
   _riskAssessment(data) {

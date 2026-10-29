@@ -13,7 +13,7 @@ const ClassPerformanceView = {
     return `
       <section class="section-header">
         <div class="section-header-left">
-          <div><h2>Class Performance</h2><p>See each student’s estimated chance of meeting the 75% target on their next graded activity.</p></div>
+          <div><h2>Class Performance</h2><p>Compare students’ current performance and the recorded evidence behind each score.</p></div>
         </div>
       </section>
       <div class="class-performance-filters">
@@ -49,38 +49,72 @@ const ClassPerformanceView = {
 
   render(rows) {
     const sortedRows = [...rows].sort((a, b) => {
-      if (a.next_probability == null) return b.next_probability == null ? 0 : 1;
-      if (b.next_probability == null) return -1;
-      return b.next_probability - a.next_probability;
+      const nameOrder = String(a.name || "").localeCompare(String(b.name || ""));
+      if (a.overall_score == null) return b.overall_score == null ? nameOrder : 1;
+      if (b.overall_score == null) return -1;
+      return b.overall_score - a.overall_score || nameOrder;
+    });
+    let previousScore = null;
+    let currentRank = 0;
+    const rankedRows = sortedRows.map((row, index) => {
+      if (row.overall_score !== previousScore) currentRank = index + 1;
+      previousScore = row.overall_score;
+      return { ...row, rank: row.overall_score == null ? null : currentRank };
     });
 
     return `
       <section class="analytics-card class-performance-card">
         <div class="class-performance-card-heading">
           <div>
-            <h3>Student success rate</h3>
-            <p>Estimated chance of scoring at least 75% on the next graded activity.</p>
+            <h3>Class performance leaderboard</h3>
+            <p>Ranked by current performance; each result uses the student’s available recorded evidence.</p>
           </div>
-          <span>${sortedRows.length} student${sortedRows.length === 1 ? "" : "s"}</span>
+          <span>${rankedRows.length} student${rankedRows.length === 1 ? "" : "s"}</span>
         </div>
-        ${sortedRows.length ? `
+        <div class="class-performance-leaderboard-header" aria-hidden="true">
+          <span>Rank</span><span>Student and evidence</span><span>Overall</span>
+        </div>
+        ${rankedRows.length ? `
           <div class="class-performance-list">
-            ${sortedRows.map(row => `
+            ${rankedRows.map(row => {
+              const name = String(row.name || "Student");
+              const initials = name.trim().split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toUpperCase();
+              const avatarUrl = /^https?:\/\//i.test(String(row.avatar_url || "")) ? String(row.avatar_url) : "";
+              const score = row.overall_score;
+              const scoreWidth = score == null ? 0 : Math.max(0, Math.min(100, score));
+              const ratingText = row.rating === "Unknown" ? "Not enough data" : row.rating;
+              return `
               <button class="class-performance-student" type="button" onclick="ClassPerformanceController.openStudent(${row.student_id})">
-                <span class="class-performance-student-name">
-                  <strong>${escHtml(row.name)}</strong>
-                  ${row.student_number ? `<small>${escHtml(row.student_number)}</small>` : ""}
+                <span class="class-performance-rank">${row.rank ?? "—"}</span>
+                <span class="class-performance-identity">
+                  <span class="class-performance-avatar">
+                    <span>${escHtml(initials || "S")}</span>
+                    ${avatarUrl ? `<img src="${escHtml(avatarUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ""}
+                  </span>
+                  <span class="class-performance-student-name">
+                    <strong>${escHtml(name)}</strong>
+                    ${row.student_number ? `<small>${escHtml(row.student_number)}</small>` : ""}
+                    <span class="class-performance-factors">
+                      <span>Academic <b>${row.academic_pct == null ? "—" : `${row.academic_pct.toFixed(1)}%`}</b><small>${row.graded_count} graded${row.low_confidence ? " · low confidence" : ""}${row.missing_count ? ` · ${row.missing_count} missing` : ""}</small></span>
+                      <span>Attendance <b>${row.attendance_pct == null ? "—" : `${row.attendance_pct.toFixed(1)}%`}</b><small>${row.attendance_sessions} meetings</small></span>
+                      <span>Modules <b>${row.modules_pct == null ? "—" : `${row.modules_pct.toFixed(1)}%`}</b><small>${row.modules_read}/${row.modules_total} read</small></span>
+                    </span>
+                  </span>
                 </span>
                 <span class="class-performance-rate-track" aria-hidden="true">
-                  <span style="width:${row.next_probability == null ? 0 : Math.max(0, Math.min(100, row.next_probability))}%"></span>
+                  <span style="width:${scoreWidth}%"></span>
                 </span>
-                <strong class="class-performance-rate">${row.next_probability == null ? "Not enough data" : `${row.next_probability.toFixed(1)}%`}</strong>
-              </button>`).join("")}
+                <span class="class-performance-result">
+                  <strong class="class-performance-rate">${score == null ? "—" : `${score.toFixed(1)}%`}</strong>
+                  <span class="class-performance-rating rating-${escHtml(row.rating_color || "unknown")}">${escHtml(ratingText)}</span>
+                </span>
+              </button>`;
+            }).join("")}
           </div>` : `<p class="class-performance-empty">No active students found for these filters.</p>`}
         <div class="class-performance-formula">
-          <strong>How the success rate is estimated</strong>
-          <p><code>(4 × classmate success rate + your successes) ÷ (4 + your successes + your results below 75% or overdue missing work)</code></p>
-          <p>A success is a graded activity at or above 75%. The classmate rate excludes that student; if there is no classmate data, the estimate starts at 50%. This estimates the chance of meeting 75% on the next activity.</p>
+          <strong>How the performance score is calculated</strong>
+          <p><code>Academic × 75% + Attendance × 15% + Modules read × 10%</code></p>
+          <p>Academic uses recorded graded points and counts overdue missing work as zero. Attendance uses recorded meetings; late counts as half and excused meetings are excluded. Modules use published modules read. If a factor has no records, the remaining weights are shared proportionally. Rankings use the available evidence; ties share a rank.</p>
         </div>
       </section>`;
   },
