@@ -177,9 +177,21 @@ const TeacherController = {
 
     const typeOpts   = this._ACTIVITY_TYPES.map(t => `<option value="${t.value}" ${t.value === existingActivity?.activity_type ? 'selected' : ''}>${t.label}</option>`).join('');
     const formatOpts = this._FORMAT_TYPES.map(f => `<option value="${f.value}" ${f.value === existingActivity?.format_type ? 'selected' : ''}>${f.label}</option>`).join('');
-    const toLocalInput = value => value ? new Date(value).toISOString().slice(0, 16) : '';
+    const toLocalInput = value => {
+      if (!value) return '';
+      const date = new Date(value);
+      date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+      return date.toISOString().slice(0, 16);
+    };
     const selectedTerm = existingActivity?.term || '';
     const termOptions = ['1st', '2nd', '3rd', '4th'].map(term => `<option value="${term}" ${term === selectedTerm ? 'selected' : ''}>${term} Term</option>`).join('');
+    const activityClosed = Boolean(existingActivity && (
+      existingActivity.is_published === false ||
+      (existingActivity.due_date && new Date(existingActivity.due_date) < new Date())
+    ));
+    const reopenMinimum = existingActivity?.start_date && new Date(existingActivity.start_date) > new Date()
+      ? existingActivity.start_date
+      : new Date();
 
     Modal.show(existingActivity ? 'Edit Activity' : 'Create Activity', `
       <div class="activity-form">
@@ -187,7 +199,7 @@ const TeacherController = {
         <div class="form-row">
           <div class="form-group" style="flex:2">
             <label>Activity Title *</label>
-            <input class="form-control" id="act-title" value="${escHtml(existingActivity?.title || '')}" placeholder="e.g. Quiz 1 – Fractions" />
+            <input class="form-control" id="act-title" required value="${escHtml(existingActivity?.title || '')}" placeholder="e.g. Quiz 1 – Fractions" oninput="TeacherController._updateActivitySaveState()" />
           </div>
           <div class="form-group" style="flex:1">
             <label>Subject *</label>
@@ -204,23 +216,23 @@ const TeacherController = {
           </div>
           <div class="form-group">
             <label>Module *</label>
-            <select class="form-control" id="act-module"><option value="">— Select subject and term first —</option></select>
+            <select class="form-control" id="act-module" onchange="TeacherController._updateActivitySaveState()"><option value="">— Select subject and term first —</option></select>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label>Activity Type</label>
+            <label>Activity Type *</label>
             <select class="form-control" id="act-type" onchange="TeacherController._onTypeChange(this.value)">${typeOpts}</select>
           </div>
           <div class="form-group" id="act-custom-wrap" style="display:${existingActivity?.activity_type === 'other' ? '' : 'none'}">
             <label>Specify Type</label>
-            <input class="form-control" id="act-type-custom" value="${escHtml(existingActivity?.activity_type_custom || '')}" placeholder="e.g. Performance Task" />
+            <input class="form-control" id="act-type-custom" value="${escHtml(existingActivity?.activity_type_custom || '')}" placeholder="e.g. Performance Task" oninput="TeacherController._updateActivitySaveState()" />
           </div>
         </div>
 
         <div class="form-group">
-          <label>Question Format</label>
+          <label>Question Format *</label>
           <select class="form-control" id="act-format" onchange="TeacherController._onFormatChange(this.value)">${formatOpts}</select>
           <div id="act-grading-badge" style="margin-top:6px">${this._gradingBadge(existingActivity?.grading_mode || 'auto')}</div>
         </div>
@@ -235,25 +247,42 @@ const TeacherController = {
         <div class="form-group" id="act-points-wrap" style="display:none">
           <label>Total Points *</label>
           <input class="form-control" id="act-points" type="number" min="1" max="1000" step="1"
-                 value="${existingActivity?.max_score ?? ''}" placeholder="e.g. 50" />
+                 value="${existingActivity?.max_score ?? ''}" placeholder="e.g. 50" oninput="TeacherController._updateActivitySaveState()" />
           <small class="text-muted">Maximum score for this activity. You will grade each submission out of this number.</small>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label>Start Date / Time</label>
-            <input class="form-control" id="act-start" type="datetime-local" value="${toLocalInput(existingActivity?.start_date)}" />
+            <label>Start Date / Time *</label>
+            <input class="form-control" id="act-start" type="datetime-local" required value="${toLocalInput(existingActivity?.start_date)}" oninput="TeacherController._updateActivitySaveState();TeacherController._updateReopenState()" />
           </div>
           <div class="form-group">
-            <label>Due Date / Time</label>
-            <input class="form-control" id="act-due" type="datetime-local" value="${toLocalInput(existingActivity?.due_date)}" />
+            <label>Due Date / Time *</label>
+            <input class="form-control" id="act-due" type="datetime-local" required value="${toLocalInput(existingActivity?.due_date)}" oninput="TeacherController._updateActivitySaveState()" />
           </div>
         </div>
 
         <div class="form-group">
-          <label>Instructions to Students</label>
-          <textarea class="form-control" id="act-instructions" rows="3" placeholder="Write any special instructions, reminders, or rules for this activity…">${escHtml(existingActivity?.instructions || '')}</textarea>
+          <label><input id="act-allow-late" type="checkbox" ${existingActivity?.allow_late_submission ? 'checked' : ''} onchange="TeacherController._onLateSubmissionChange(this.checked)" /> Allow late submissions</label>
+          <div id="act-late-penalty-wrap" style="display:${existingActivity?.allow_late_submission ? '' : 'none'};margin-top:8px">
+            <label for="act-late-penalty">Minus points for late submission *</label>
+            <input class="form-control" id="act-late-penalty" type="number" min="0" max="1000" step="1" value="${existingActivity?.late_penalty_points ?? 0}" oninput="TeacherController._updateActivitySaveState()" />
+            <small class="text-muted">This many points will be deducted from the final score. The deduction cannot reduce a score below zero.</small>
+          </div>
         </div>
+
+        <div class="form-group">
+          <label>Instructions to Students *</label>
+          <textarea class="form-control" id="act-instructions" rows="3" placeholder="Write any special instructions, reminders, or rules for this activity…" oninput="TeacherController._updateActivitySaveState()">${escHtml(existingActivity?.instructions || '')}</textarea>
+        </div>
+
+        ${activityClosed ? `
+          <div class="form-group" style="padding:12px;border:1px solid var(--gray-200);border-radius:8px">
+            <strong>This activity is closed.</strong>
+            <label for="act-reopen-due" style="display:block;margin-top:8px">New due date / time *</label>
+            <input class="form-control" id="act-reopen-due" type="datetime-local" min="${toLocalInput(reopenMinimum)}" oninput="TeacherController._updateReopenState()" />
+            <small class="text-muted">Reopening makes the activity available again until this new deadline.</small>
+          </div>` : ''}
 
         <div id="act-questions-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px">
@@ -267,7 +296,8 @@ const TeacherController = {
 
       </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
-      <button class="btn btn-primary" onclick="TeacherController.saveActivity()">${lmsIcon('save')} ${existingActivity ? 'Update Activity' : 'Save Activity'}</button>`,
+      ${activityClosed ? '<button class="btn btn-outline" id="act-reopen-btn" disabled onclick="TeacherController.reopenActivity()">Re-open Activity</button>' : ''}
+      <button class="btn btn-primary" id="act-save-btn" disabled onclick="TeacherController.saveActivity()">${lmsIcon('save')} ${existingActivity ? 'Update Activity' : 'Save Activity'}</button>`,
       { closeOnBackdrop: false, wide: true }
     );
 
@@ -291,6 +321,9 @@ const TeacherController = {
         this._renderQuestions();
       }
       this._onFormatChange(document.getElementById('act-format')?.value || 'multiple_choice');
+      this._onLateSubmissionChange(Boolean(existingActivity?.allow_late_submission));
+      this._updateReopenState();
+      this._updateActivitySaveState();
     }, 80);
   },
 
@@ -320,8 +353,9 @@ const TeacherController = {
     const moduleMap = window._activityModuleMap || {};
     const modules   = (moduleMap[parseInt(subjectId)] || []).filter(m => m.term === term);
     moduleSel.innerHTML = modules.length
-      ? modules.map(m => `<option value="${m.id}">${escHtml(m.title)}</option>`).join('')
+      ? `<option value="">— Select module —</option>${modules.map(m => `<option value="${m.id}">${escHtml(m.title)}</option>`).join('')}`
       : `<option value="">No ${this._termLabel(term)} modules for this subject — create one first</option>`;
+    this._updateActivitySaveState();
   },
 
   _termLabel(term) {
@@ -331,6 +365,7 @@ const TeacherController = {
   _onTypeChange(val) {
     const wrap = document.getElementById('act-custom-wrap');
     if (wrap) wrap.style.display = val === 'other' ? '' : 'none';
+    this._updateActivitySaveState();
   },
 
   _onFormatChange(val) {
@@ -346,6 +381,128 @@ const TeacherController = {
     // total points directly. (Hybrid keeps per-question points; max = their sum.)
     const pointsWrap = document.getElementById('act-points-wrap');
     if (pointsWrap) pointsWrap.style.display = hideQ ? '' : 'none';
+    this._updateActivitySaveState();
+  },
+
+  _onLateSubmissionChange(checked) {
+    const wrap = document.getElementById('act-late-penalty-wrap');
+    if (wrap) wrap.style.display = checked ? '' : 'none';
+    this._updateActivitySaveState();
+  },
+
+  _activityValidationMessage() {
+    const value = id => document.getElementById(id)?.value?.trim() || '';
+    const title = value('act-title');
+    const subjectId = value('act-subject');
+    const term = value('act-term');
+    const moduleId = value('act-module');
+    const activityType = value('act-type');
+    const format = value('act-format');
+    const start = value('act-start');
+    const due = value('act-due');
+    const instructions = value('act-instructions');
+
+    if (!title) return 'Activity title is required.';
+    if (!subjectId) return 'Please select a subject.';
+    if (!term) return 'Please select a term.';
+    if (!moduleId) return 'Please select a module.';
+    if (!activityType) return 'Please select an activity type.';
+    if (activityType === 'other' && !value('act-type-custom')) return 'Please specify the activity type.';
+    if (!format) return 'Please select a question format.';
+    if (!start || !due) return 'Please provide both the start date and due date.';
+    if (Number.isNaN(Date.parse(start)) || Number.isNaN(Date.parse(due))) return 'Please enter valid start and due dates.';
+    if (new Date(start) > new Date(due)) return 'The start date must be before the due date.';
+    if (!instructions) return 'Instructions to students are required.';
+
+    if (document.getElementById('act-allow-late')?.checked) {
+      const penalty = value('act-late-penalty');
+      if (penalty === '' || !Number.isInteger(Number(penalty)) || Number(penalty) < 0 || Number(penalty) > 1000) {
+        return 'Enter a whole-number late deduction from 0 to 1000 points.';
+      }
+    }
+
+    if (this._isSinglePrompt(format)) {
+      const points = value('act-points');
+      if (!points || !Number.isInteger(Number(points)) || Number(points) < 1 || Number(points) > 1000) {
+        return 'Enter total points as a whole number from 1 to 1000.';
+      }
+      return '';
+    }
+    if (!this._questions.length) return 'Please add at least one question.';
+    for (const [index, question] of this._questions.entries()) {
+      const points = Number(document.querySelector(`.activity-question-builder[data-q="${index}"] input[type="number"]`)?.value);
+      if (!question.text.trim()) return `Question ${index + 1} is missing question text.`;
+      if (!Number.isInteger(points) || points < 1 || points > 1000) return `Question ${index + 1} needs valid whole-number points.`;
+      if (['multiple_choice', 'checkbox'].includes(question.type)) {
+        if (question.choices.length < 2 || question.choices.some(choice => !choice.text.trim())) {
+          return `Question ${index + 1} needs at least two completed choices.`;
+        }
+        if (question.type === 'multiple_choice') {
+          const correctIndex = Number(question.correct);
+          if (question.correct === null || question.correct === '' ||
+              !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= question.choices.length) {
+            return `Question ${index + 1} needs a valid correct answer selected.`;
+          }
+        }
+        if (question.type === 'checkbox') {
+          let correct = [];
+          try { correct = JSON.parse(question.correct || '[]'); } catch { correct = []; }
+          if (!correct.length || correct.some(choiceIndex =>
+            !Number.isInteger(choiceIndex) || choiceIndex < 0 || choiceIndex >= question.choices.length
+          )) {
+            return `Question ${index + 1} needs valid correct choices selected.`;
+          }
+        }
+      }
+      if (['fill_blank', 'enumeration'].includes(question.type) && !String(question.correct || '').trim()) {
+        return `Question ${index + 1} needs an expected answer.`;
+      }
+    }
+    return '';
+  },
+
+  _updateActivitySaveState() {
+    const button = document.getElementById('act-save-btn');
+    if (button) button.disabled = Boolean(this._activityValidationMessage());
+  },
+
+  _updateReopenState() {
+    const button = document.getElementById('act-reopen-btn');
+    const dueInput = document.getElementById('act-reopen-due');
+    if (!button || !dueInput) return;
+    const dueDate = dueInput.value ? new Date(dueInput.value) : null;
+    const start = document.getElementById('act-start')?.value;
+    const startDate = start ? new Date(start) : null;
+    button.disabled = !dueDate || Number.isNaN(dueDate.getTime()) ||
+      dueDate <= new Date() || (startDate && dueDate < startDate);
+  },
+
+  async reopenActivity() {
+    const dueInput = document.getElementById('act-reopen-due');
+    const newDueDate = dueInput?.value ? new Date(dueInput.value) : null;
+    const start = document.getElementById('act-start')?.value;
+    const startDate = start ? new Date(start) : null;
+    if (!this._editingActivityId || !newDueDate || Number.isNaN(newDueDate.getTime()) ||
+        newDueDate <= new Date() || (startDate && newDueDate < startDate)) {
+      Toast.show('Choose a new due date after the start date and in the future before reopening.', 'error');
+      return;
+    }
+    const button = document.getElementById('act-reopen-btn');
+    if (button) { button.disabled = true; button.textContent = 'Re-opening…'; }
+    try {
+      await api.updateTeacherActivity(this._editingActivityId, {
+        due_date: newDueDate.toISOString(),
+        is_published: true,
+      });
+      this._editingActivityId = null;
+      this._editingActivityFilePath = null;
+      Modal.close();
+      Toast.show('Activity reopened with the new due date.', 'success');
+      DashboardController.loadSection('activities');
+    } catch (error) {
+      if (button) { button.disabled = false; button.textContent = 'Re-open Activity'; }
+      Toast.show(error.message || 'Could not reopen the activity.', 'error');
+    }
   },
 
   /** Formats that are a single manually-graded prompt (no question builder). */
@@ -371,11 +528,13 @@ const TeacherController = {
       this._questions[idx].choices = ['', '', '', ''].map((_, i) => ({ id: `c${idx}_${i}`, text: '' }));
     }
     this._renderQuestions();
+    this._updateActivitySaveState();
   },
 
   _removeQuestion(idx) {
     this._questions.splice(idx, 1);
     this._renderQuestions();
+    this._updateActivitySaveState();
   },
 
   _renderQuestions() {
@@ -399,14 +558,14 @@ const TeacherController = {
             <strong style="font-size:13px">Q${idx + 1}</strong>
             <div style="display:flex;gap:6px;align-items:center">
               <label style="font-size:12px;margin:0">Pts:</label>
-              <input type="number" min="1" value="${q.points}" style="width:52px" class="form-control form-control-sm" onchange="TeacherController._qSetPoints(${idx}, this.value)" />
+              <input type="number" min="1" max="1000" step="1" value="${q.points}" style="width:52px" class="form-control form-control-sm" oninput="TeacherController._qSetPoints(${idx}, this.value)" />
               <button class="btn btn-xs btn-danger" onclick="TeacherController._removeQuestion(${idx})">${lmsIcon('trash')}</button>
             </div>
           </div>
           <div class="form-row" style="margin-bottom:8px">
             <div class="form-group" style="flex:2;margin-bottom:0">
               <input class="form-control" placeholder="Question text *" value="${escHtml(q.text)}"
-                onchange="TeacherController._qSetText(${idx}, this.value)" />
+                oninput="TeacherController._qSetText(${idx}, this.value)" />
             </div>
             <div class="form-group" style="flex:1;margin-bottom:0">
               <select class="form-control" onchange="TeacherController._qSetType(${idx}, this.value)">${typeOpts}</select>
@@ -430,7 +589,7 @@ const TeacherController = {
           <input type="radio" name="correct_${idx}" value="${ci}" ${String(q.correct) === String(ci) ? 'checked' : ''}
             onchange="TeacherController._qSetCorrect(${idx}, '${ci}')" title="Mark as correct" />
           <input class="form-control form-control-sm" placeholder="Choice ${ci + 1}" value="${escHtml(c.text)}"
-            onchange="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
+            oninput="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
           ${choices.length > 2 ? `<button class="btn btn-xs btn-ghost" onclick="TeacherController._qRemoveChoice(${idx}, ${ci})">✕</button>` : ''}
         </div>`).join('');
       return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (select the correct one)</div>${rows}<button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">${lmsIcon('plus')} Add Choice</button></div>`;
@@ -447,21 +606,21 @@ const TeacherController = {
           <input type="checkbox" ${correctSet.includes(ci) ? 'checked' : ''}
             onchange="TeacherController._qToggleCheckbox(${idx}, ${ci}, this.checked)" title="Mark as correct" />
           <input class="form-control form-control-sm" placeholder="Choice ${ci + 1}" value="${escHtml(c.text)}"
-            onchange="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
+            oninput="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
           ${choices.length > 2 ? `<button class="btn btn-xs btn-ghost" onclick="TeacherController._qRemoveChoice(${idx}, ${ci})">✕</button>` : ''}
         </div>`).join('');
       return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (check all correct answers)</div>${rows}<button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">${lmsIcon('plus')} Add Choice</button></div>`;
     }
 
     if (q.type === 'fill_blank') {
-      return `<div style="margin-top:8px"><label style="font-size:12px;color:var(--gray-500)">Expected Answer (exact text match, case-insensitive)</label><input class="form-control form-control-sm" placeholder="e.g. Photosynthesis" value="${escHtml(q.correct || '')}" onchange="TeacherController._qSetCorrect(${idx}, this.value)" /></div>`;
+      return `<div style="margin-top:8px"><label style="font-size:12px;color:var(--gray-500)">Expected Answer (exact text match, case-insensitive)</label><input class="form-control form-control-sm" placeholder="e.g. Photosynthesis" value="${escHtml(q.correct || '')}" oninput="TeacherController._qSetCorrect(${idx}, this.value)" /></div>`;
     }
     return `<div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:6px;background:var(--gray-100);border-radius:4px">${lmsIcon('file')} Essay — teacher grades manually after submission.</div>`;
   },
 
   // ── Question mutation helpers ─────────────────────────────
 
-  _qSetText(idx, val)   { this._questions[idx].text   = val; },
+  _qSetText(idx, val)   { this._questions[idx].text   = val; this._updateActivitySaveState(); },
   _qSetPoints(idx, val) {
     this._questions[idx].points = val === '' ? 0 : Number(val);
     const total = document.getElementById('act-question-total');
@@ -471,6 +630,7 @@ const TeacherController = {
         ? `Total: ${points.reduce((sum, value) => sum + value, 0)} points`
         : 'Total: Enter valid whole-number points for every question';
     }
+    this._updateActivitySaveState();
   },
 
   _qSetType(idx, val) {
@@ -483,9 +643,10 @@ const TeacherController = {
       this._questions[idx].choices = [];
     }
     this._renderQuestions();
+    this._updateActivitySaveState();
   },
 
-  _qSetCorrect(idx, val) { this._questions[idx].correct = val; },
+  _qSetCorrect(idx, val) { this._questions[idx].correct = val; this._updateActivitySaveState(); },
 
   _qToggleCheckbox(idx, ci, checked) {
     let current = [];
@@ -493,27 +654,58 @@ const TeacherController = {
     if (checked && !current.includes(ci)) current.push(ci);
     if (!checked) current = current.filter(x => x !== ci);
     this._questions[idx].correct = JSON.stringify(current.sort());
+    this._updateActivitySaveState();
   },
 
   _qSetChoice(idx, ci, val) {
-    if (!this._questions[idx].choices[ci]) this._questions[idx].choices[ci] = { id: `c${ci}`, text: '' };
+    if (!this._questions[idx].choices.length) {
+      const count = this._questions[idx].type === 'multiple_choice' ? 4 : 2;
+      this._questions[idx].choices = Array.from({ length: count }, (_, index) => ({
+        id: `c${index}`,
+        text: '',
+      }));
+    }
     this._questions[idx].choices[ci].text = val;
+    this._updateActivitySaveState();
   },
 
   _qAddChoice(idx) {
     const ci = this._questions[idx].choices.length;
     this._questions[idx].choices.push({ id: `c${ci}`, text: '' });
     this._renderQuestions();
+    this._updateActivitySaveState();
   },
 
   _qRemoveChoice(idx, ci) {
-    this._questions[idx].choices.splice(ci, 1);
+    const question = this._questions[idx];
+    question.choices.splice(ci, 1);
+    if (question.type === 'multiple_choice') {
+      const correctIndex = Number(question.correct);
+      question.correct = question.correct === null || question.correct === ''
+        ? null
+        : correctIndex === ci
+          ? null
+          : String(correctIndex > ci ? correctIndex - 1 : correctIndex);
+    } else if (question.type === 'checkbox') {
+      let correct = [];
+      try { correct = JSON.parse(question.correct || '[]'); } catch { correct = []; }
+      question.correct = JSON.stringify(correct
+        .filter(choiceIndex => choiceIndex !== ci)
+        .map(choiceIndex => choiceIndex > ci ? choiceIndex - 1 : choiceIndex));
+    }
     this._renderQuestions();
+    this._updateActivitySaveState();
   },
 
   // ── Save Activity ─────────────────────────────────────────
 
   async saveActivity() {
+    const validationMessage = this._activityValidationMessage();
+    if (validationMessage) {
+      Toast.show(validationMessage, 'error');
+      return;
+    }
+
     const title        = document.getElementById('act-title')?.value.trim();
     const subjectId    = parseInt(document.getElementById('act-subject')?.value);
     const term         = document.getElementById('act-term')?.value;
@@ -525,6 +717,8 @@ const TeacherController = {
     const startRaw     = document.getElementById('act-start')?.value;
     const dueRaw       = document.getElementById('act-due')?.value;
     const instructions = document.getElementById('act-instructions')?.value.trim();
+    const allowLate    = Boolean(document.getElementById('act-allow-late')?.checked);
+    const latePenalty  = allowLate ? Number(document.getElementById('act-late-penalty')?.value) : 0;
 
     if (!title)     { Toast.show('Activity title is required.', 'error'); return; }
     if (!subjectId) { Toast.show('Please select a subject.', 'error'); return; }
@@ -611,6 +805,8 @@ const TeacherController = {
       instructions:         instructions || null,
       start_date:           startRaw ? new Date(startRaw).toISOString() : null,
       due_date:             dueRaw   ? new Date(dueRaw).toISOString()   : null,
+      allow_late_submission: allowLate,
+      late_penalty_points:   latePenalty,
       max_score,
       is_published:         true,
     };
@@ -685,7 +881,10 @@ const TeacherController = {
         try { await api.deleteTeacherActivity(createdActivityId); }
         catch (cleanupError) { cleanupErrors.push(`activity cleanup failed: ${cleanupError.message}`); }
       }
-      if (btn) { btn.disabled = false; btn.innerHTML = `${lmsIcon('save')} Save Activity`; }
+      if (btn) {
+        btn.innerHTML = `${lmsIcon('save')} ${wasEditing ? 'Update Activity' : 'Save Activity'}`;
+        this._updateActivitySaveState();
+      }
       Toast.show(
         [err.message || 'Failed to save activity.', ...cleanupErrors].join(' — '),
         'error',
@@ -849,7 +1048,7 @@ const TeacherController = {
         }
 
         const gradeBtn = isManual && !s.is_graded
-          ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score ?? 0})">${lmsIcon('pen')} Grade</button>`
+          ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score ?? 0}, ${Boolean(s.is_late)}, ${Number(s.late_penalty_points || 0)})">${lmsIcon('pen')} Grade</button>`
           : (s.is_graded ? `<span class="badge badge-green">✓ Graded</span>` : `<span class="badge badge-gray">Auto</span>`);
 
         return `<tr data-class-id="${s.class_id || ''}" data-searchable
@@ -1026,7 +1225,7 @@ const TeacherController = {
             ${lmsIcon('loading')} <strong>Pending grade</strong>
             ${activity.grading_mode === 'manual'
               ? `<button class="btn btn-xs btn-primary" style="margin-left:12px"
-                   onclick="TeacherController.openManualGrade(${activityId}, ${submissionId}, ${activity.max_score ?? 0})">
+                   onclick="TeacherController.openManualGrade(${activityId}, ${submissionId}, ${activity.max_score ?? 0}, ${Boolean(submission.is_late)}, ${Number(submission.late_penalty_points || 0)})">
                    ${lmsIcon('pen')} Grade Now</button>`
               : ''}
           </div>`;
@@ -1050,12 +1249,13 @@ const TeacherController = {
     }
   },
 
-  openManualGrade(activityId, submissionId, maxScore) {
+  openManualGrade(activityId, submissionId, maxScore, isLate = false, latePenalty = 0) {
     if (!maxScore || maxScore <= 0) {
       Toast.show('This activity has no total points yet. Click Edit on the activity and set the points first.', 'error');
       return;
     }
     Modal.show(`${lmsIcon('pen')} Enter Grade`, `
+      ${isLate && latePenalty > 0 ? `<p class="text-sm" style="padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412">Late submission: ${latePenalty} point${latePenalty === 1 ? '' : 's'} will be deducted from the score entered here.</p>` : ''}
       <div class="form-group">
         <label>Score <span class="text-muted">/ ${maxScore}</span></label>
         <input class="form-control" id="mg-score" type="number" min="0" max="${maxScore}" placeholder="0–${maxScore}" />

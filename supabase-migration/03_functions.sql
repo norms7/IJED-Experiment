@@ -310,6 +310,7 @@ declare
   v_remarks        text;
   v_teacher_user_id integer;
   v_student_name   text;
+  v_is_late        boolean := false;
 begin
   if v_student_id is null then
     raise exception 'Not a student account' using errcode = '42501';
@@ -329,8 +330,14 @@ begin
     raise exception 'Not enrolled in this activity''s subject' using errcode = '42501';
   end if;
 
+  if v_activity.start_date is not null and now() < v_activity.start_date then
+    raise exception 'This activity is not open yet.'
+      using errcode = '42501';
+  end if;
+
   -- past-due check
-  if v_activity.due_date is not null and now() > v_activity.due_date then
+  v_is_late := v_activity.due_date is not null and now() > v_activity.due_date;
+  if v_is_late and not v_activity.allow_late_submission then
     raise exception 'This activity is past its due date. No late submissions are accepted.'
       using errcode = '42501';
   end if;
@@ -349,8 +356,13 @@ begin
   where activity_id = p_activity_id;
   update activities set max_score = v_max_score where id = p_activity_id;
 
-  insert into activity_submissions (activity_id, student_id, max_score, submitted_at)
-  values (p_activity_id, v_student_id, v_max_score, now())
+  insert into activity_submissions (
+    activity_id, student_id, max_score, submitted_at, is_late, late_penalty_points
+  )
+  values (
+    p_activity_id, v_student_id, v_max_score, now(), v_is_late,
+    case when v_is_late then v_activity.late_penalty_points else 0 end
+  )
   returning id into v_submission_id;
 
   for v_ans in select * from jsonb_array_elements(p_answers) loop
@@ -399,10 +411,13 @@ begin
   -- grade-letter scale (identical thresholds to the Python version)
   if v_activity.grading_mode = 'auto' then
     if v_all_auto then
-      v_score := v_total_earned;
+      v_score := greatest(
+        0,
+        v_total_earned - case when v_is_late then v_activity.late_penalty_points else 0 end
+      );
       v_is_graded := true;
       v_pct := case when v_max_score > 0
-                 then least((v_total_earned::numeric / v_max_score * 100), 100.0)
+                 then least((v_score::numeric / v_max_score * 100), 100.0)
                  else 0 end;
       v_grade := case
         when v_pct >= 100 then '1.00' when v_pct >= 97 then '1.25' when v_pct >= 94 then '1.50'
@@ -410,11 +425,17 @@ begin
         when v_pct >= 82 then '2.50' when v_pct >= 79 then '2.75' when v_pct >= 75 then '3.00'
         else '5.00' end;
       v_remarks := 'Auto-graded';
+      if v_is_late and v_activity.late_penalty_points > 0 then
+        v_remarks := v_remarks || ' Late penalty: ' || v_activity.late_penalty_points || ' points deducted.';
+      end if;
     else
       v_score := v_total_earned;
       v_is_graded := false;
       v_grade := null;
       v_remarks := 'Partial auto-grade — awaiting teacher review';
+      if v_is_late and v_activity.late_penalty_points > 0 then
+        v_remarks := v_remarks || ' Late penalty of ' || v_activity.late_penalty_points || ' points will apply after grading.';
+      end if;
     end if;
   else
     v_score := null;
@@ -484,6 +505,8 @@ declare
   v_submission activity_submissions%rowtype;
   v_pct        numeric;
   v_final_grade text;
+  v_score      integer;
+  v_remarks    text;
   v_student_user_id integer;
   v_student_name text;
   v_score_str  text;
@@ -504,9 +527,10 @@ begin
     raise exception 'Submission not found' using errcode = 'P0002';
   end if;
 
+  v_score := greatest(0, p_score - case when v_submission.is_late then v_submission.late_penalty_points else 0 end);
   v_final_grade := p_grade;
   if v_final_grade is null and v_activity.max_score is not null and v_activity.max_score > 0 then
-    v_pct := (p_score::numeric / v_activity.max_score * 100);
+    v_pct := (v_score::numeric / v_activity.max_score * 100);
     v_final_grade := case
       when v_pct >= 100 then '1.00' when v_pct >= 97 then '1.25' when v_pct >= 94 then '1.50'
       when v_pct >= 91 then '1.75' when v_pct >= 88 then '2.00' when v_pct >= 85 then '2.25'
@@ -514,9 +538,16 @@ begin
       else '5.00' end;
   end if;
 
+  v_remarks := p_remarks;
+  if v_submission.is_late and v_submission.late_penalty_points > 0 then
+    v_remarks := concat_ws(' ', nullif(trim(p_remarks), ''),
+      'Late penalty:', v_submission.late_penalty_points, 'points deducted.');
+  end if;
+
   update activity_submissions
-  set score = p_score, max_score = v_activity.max_score, grade = v_final_grade,
-      remarks = p_remarks, is_graded = true
+  set score = v_score, max_score = v_activity.max_score, grade = v_final_grade,
+      remarks = v_remarks,
+      is_graded = true
   where id = p_submission_id;
 
   select u.id, (u.first_name || ' ' || u.last_name)
@@ -524,7 +555,7 @@ begin
   from users u join students s on s.user_id = u.id
   where s.id = v_submission.student_id;
 
-  v_score_str := p_score || coalesce('/' || v_activity.max_score, '');
+  v_score_str := v_score || coalesce('/' || v_activity.max_score, '');
 
   perform _notify(v_student_user_id, (select user_id from teachers where id = v_teacher_id),
     'activity_graded', 'Activity Graded',
@@ -540,8 +571,8 @@ begin
   delete from analytics_cache where student_id = v_submission.student_id;
 
   return jsonb_build_object(
-    'id', p_submission_id, 'score', p_score, 'max_score', v_activity.max_score,
-    'grade', v_final_grade, 'remarks', p_remarks, 'is_graded', true
+    'id', p_submission_id, 'score', v_score, 'max_score', v_activity.max_score,
+    'grade', v_final_grade, 'remarks', v_remarks, 'is_graded', true
   );
 end;
 $$;

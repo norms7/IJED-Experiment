@@ -1666,41 +1666,46 @@ class LMSAdminAPI {
         return activities.map((a) => {
           const sub = subByActivity.get(a.id) || null;
           const isPastDue = !!(a.due_date && now > new Date(a.due_date));
+          const isLateSubmission = isPastDue && Boolean(a.allow_late_submission);
           const isStarted = !a.start_date || now >= new Date(a.start_date);
           const alreadySub = !!sub;
 
           let status;
           if (alreadySub) {
             status = sub.is_graded ? "graded" : "submitted";
-          } else if (isPastDue) {
+          } else if (isPastDue && !isLateSubmission) {
             status = "past_due";
           } else if (!isStarted) {
             status = "not_open";
+          } else if (isLateSubmission) {
+            status = "late_allowed";
           } else {
             status = "open";
           }
 
-          // can_answer = true only when activity is open, student hasn't submitted,
-          // not past due, and not before start_date
-          const canAnswer = status === "open";
+          const canAnswer = status === "open" || status === "late_allowed";
+          const label = status === "open"
+            ? "Open"
+            : status === "late_allowed"
+              ? `Late submission allowed${a.late_penalty_points ? ` (${a.late_penalty_points} point${a.late_penalty_points === 1 ? "" : "s"} deducted)` : ""}`
+              : status === "graded"
+                ? "Graded"
+                : status === "submitted"
+                  ? "Submitted – Pending Grade"
+                  : status === "past_due"
+                    ? "Past Due – No Submission"
+                    : "Not Yet Open";
 
           return {
             ...a,
             submission: sub,
             my_submission: sub,
             status,
-            label:
-              status === "open"
-                ? "Open"
-                : status === "graded"
-                  ? "Graded"
-                  : status === "submitted"
-                    ? "Submitted – Pending Grade"
-                    : status === "past_due"
-                      ? "Past Due – No Submission"
-                      : "Not Yet Open",
+            label,
+            status_label: label,
             can_answer: canAnswer,
-            is_past_due: isPastDue,
+            is_past_due: isPastDue && !isLateSubmission,
+            is_late_submission: isLateSubmission,
             already_submitted: alreadySub,
           };
         });
@@ -1737,15 +1742,17 @@ class LMSAdminAPI {
     const isPastDue = !!(
       activity.due_date && now > new Date(activity.due_date)
     );
+    const isLateSubmission = isPastDue && Boolean(activity.allow_late_submission);
     const isStarted =
       !activity.start_date || now >= new Date(activity.start_date);
     const canAnswer =
-      !existingSub && !isPastDue && isStarted && activity.is_published;
+      !existingSub && (!isPastDue || isLateSubmission) && isStarted && activity.is_published;
     return {
       ...activity,
       questions,
       can_answer: canAnswer,
-      is_past_due: isPastDue,
+      is_past_due: isPastDue && !isLateSubmission,
+      is_late_submission: isLateSubmission,
       my_submission: existingSub || null,
     };
   }

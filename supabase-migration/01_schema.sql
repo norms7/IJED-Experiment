@@ -149,6 +149,8 @@ create table if not exists activities (
     max_score             integer,
     start_date            timestamptz,
     due_date              timestamptz,
+    allow_late_submission boolean not null default false,
+    late_penalty_points   integer not null default 0 check (late_penalty_points between 0 and 1000),
     is_published          boolean default false,
     created_at            timestamptz default now()
 );
@@ -186,6 +188,8 @@ create table if not exists activity_submissions (
     grade         varchar(10),
     remarks       text,
     is_graded     boolean default false,
+    is_late       boolean not null default false,
+    late_penalty_points integer not null default 0 check (late_penalty_points between 0 and 1000),
     constraint uq_submission_activity_student unique (activity_id, student_id)
 );
 create index if not exists ix_submissions_student_id  on activity_submissions(student_id);

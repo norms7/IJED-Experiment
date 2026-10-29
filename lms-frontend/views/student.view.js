@@ -416,7 +416,7 @@ const StudentView = {
 
         const actRows = activites.map(a => {
           const typeLabel   = TYPE_MAP[a.activity_type] || a.activity_type || 'Activity';
-          const statusColor = { open:'#2e6b3e', graded:'#1a4a8a', submitted:'#6a0dad', past_due:'#c00', not_open:'#888' }[a.status] || '#666';
+          const statusColor = { open:'#2e6b3e', late_allowed:'#9a5d00', graded:'#1a4a8a', submitted:'#6a0dad', past_due:'#c00', not_open:'#888' }[a.status] || '#666';
           const statusLabel = a.status_label || a.status || '';
           const submission  = a.submission || a.my_submission || null;
           const isAnswered  = !!submission || a.status === 'submitted' || a.status === 'graded';
@@ -426,7 +426,7 @@ const StudentView = {
           const action       = submission
             ? `<button class="btn btn-outline btn-xs" onclick="StudentController.viewResult(${a.id})">View</button>`
             : a.can_answer || a.is_past_due
-              ? `<button class="btn btn-primary btn-xs" onclick="StudentController.openActivity(${a.id})">${a.is_past_due ? 'Open' : 'Start'}</button>`
+              ? `<button class="btn btn-primary btn-xs" onclick="StudentController.openActivity(${a.id})">${a.is_late_submission ? 'Submit late' : a.is_past_due ? 'Open' : 'Start'}</button>`
               : '';
           const dueStr      = a.due_date
             ? new Date(a.due_date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})
@@ -646,6 +646,7 @@ const StudentView = {
         graded:    ['badge-green',  `${lmsIcon('check')} Graded`],
         submitted: ['badge-blue',   `${lmsIcon('send')} Submitted`],
         past_due:  ['badge-danger', `${lmsIcon('warning')} Past Due`],
+        late_allowed: ['badge-gold', `${lmsIcon('clock')} Late Submission Allowed`],
         not_open:  ['badge-gray',   `${lmsIcon('clock')} Not Yet Open`],
         open:      ['badge-maroon', `${lmsIcon('check')} Open`],
       };
@@ -862,6 +863,10 @@ const StudentView = {
         ${activity.instructions ? `
           <div style="padding:14px 16px;background:#fff9e6;border:1px solid #f0c040;border-radius:8px;margin-bottom:20px;font-size:13px;color:#7a5c00">
             <strong>📌 Instructions:</strong> ${escHtml(activity.instructions)}
+          </div>` : ''}
+         ${activity.is_late_submission ? `
+          <div style="padding:12px 16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;margin-bottom:20px;font-size:13px;color:#9a3412">
+            This is a late submission${activity.late_penalty_points ? `; ${activity.late_penalty_points} point${activity.late_penalty_points === 1 ? '' : 's'} will be deducted from your score` : ''}.
           </div>` : ''}
         ${activity.file_url ? `
           <div style="padding:12px 16px;background:#f8fafc;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:20px;font-size:13px">
