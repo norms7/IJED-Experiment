@@ -1,6 +1,47 @@
 -- Repair the student attendance RPC. Older deployments return a table shape
 -- that no longer matches the query and raise "structure of query does not
 -- match function result type". Return the view's expected JSON shape instead.
+create or replace function public._student_attendance_rows(p_student_id integer)
+returns table (
+  subject_id integer,
+  subject_name text,
+  class_id integer,
+  class_name text,
+  term text,
+  session_date date,
+  status text
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin()
+     and (auth_student_id() is null or auth_student_id() <> p_student_id) then
+    raise exception 'Not authorized' using errcode = '42501';
+  end if;
+
+  return query
+    select
+      ats.subject_id,
+      coalesce(sub.name::text, 'General / Homeroom')::text,
+      ats.class_id,
+      cls.name::text,
+      normalize_term(ats.term)::text,
+      ats.session_date,
+      lower(trim(ar.status))::text
+    from public.attendance_records ar
+    join public.attendance_sessions ats on ats.id = ar.session_id
+    join public.classes cls on cls.id = ats.class_id
+    left join public.subjects sub on sub.id = ats.subject_id
+    where ar.student_id = p_student_id
+      and ats.has_class = true;
+end;
+$$;
+
+revoke all on function public._student_attendance_rows(integer) from public, anon, authenticated;
+
 drop function if exists public.get_student_attendance_summary(integer);
 
 create function public.get_student_attendance_summary(p_student_id integer)
