@@ -8,6 +8,12 @@
 
 const AdminController = {
   _pendingTab: null,
+  _auditFilters: { search: '', action: '', area: '', fromDate: '', toDate: '' },
+  _auditLogs: [],
+  _auditStats: null,
+  _auditPageSize: 50,
+  _auditRequestId: 0,
+  _auditLoadingMore: false,
 
   /* ── Tab helpers ─────────────────────────────────────────── */
 
@@ -54,15 +60,149 @@ const AdminController = {
     });
   },
 
-  async loadAuditLog() {
+  _readAuditFilters() {
+    const pane = document.getElementById('um-pane-audit');
+    const value = id => pane?.querySelector(`#${id}`)?.value || '';
+    return {
+      search: value('audit-search').trim(),
+      action: value('audit-action'),
+      area: value('audit-area'),
+      fromDate: value('audit-from-date'),
+      toDate: value('audit-to-date'),
+    };
+  },
+
+  async loadAuditLog(filters = null) {
     const pane = document.getElementById('um-pane-audit');
     if (!pane) return;
-    pane.innerHTML = AdminView._auditPane(null);
+    const requestId = ++this._auditRequestId;
+    this._auditFilters = filters || this._readAuditFilters();
+    this._auditLogs = [];
+    pane.innerHTML = AdminView._auditPane({
+      loading: true,
+      logs: [],
+      stats: this._auditStats,
+      hasMore: false,
+    }, this._auditFilters);
     try {
-      const logs = await api.getAuditLogs(100);
-      pane.innerHTML = AdminView._auditPane(logs);
+      const [logs, stats] = await Promise.all([
+        api.getAuditLogs(this._auditPageSize, 0, this._auditFilters),
+        api.getAuditStats(),
+      ]);
+      if (requestId !== this._auditRequestId) return;
+      this._auditLogs = logs;
+      this._auditStats = stats;
+      pane.innerHTML = AdminView._auditPane({
+        logs,
+        stats,
+        hasMore: logs.length === this._auditPageSize,
+      }, this._auditFilters);
     } catch (err) {
-      pane.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.warning}</div><div class="empty-state-title">Could not load audit history</div><div class="empty-state-sub">${escHtml(err.message)}</div><button class="btn btn-primary mt-3" onclick="AdminController.loadAuditLog()">Retry</button></div>`;
+      if (requestId !== this._auditRequestId) return;
+      pane.innerHTML = AdminView._auditPane({
+        logs: [],
+        stats: this._auditStats,
+        error: err.message,
+        hasMore: false,
+      }, this._auditFilters);
+    }
+  },
+
+  applyAuditFilters() {
+    return this.loadAuditLog(this._readAuditFilters());
+  },
+
+  async loadMoreAuditLogs() {
+    const pane = document.getElementById('um-pane-audit');
+    if (!pane || this._auditLoadingMore) return;
+    const requestId = this._auditRequestId;
+    this._auditLoadingMore = true;
+    try {
+      const next = await api.getAuditLogs(
+        this._auditPageSize,
+        this._auditLogs.length,
+        this._auditFilters,
+      );
+      if (requestId !== this._auditRequestId) return;
+      this._auditLogs = this._auditLogs.concat(next);
+      pane.innerHTML = AdminView._auditPane({
+        logs: this._auditLogs,
+        stats: this._auditStats,
+        hasMore: next.length === this._auditPageSize,
+      }, this._auditFilters);
+    } catch (err) {
+      if (requestId === this._auditRequestId) {
+        Toast.show(`Could not load more audit history: ${err.message}`, 'error');
+      }
+    } finally {
+      this._auditLoadingMore = false;
+    }
+  },
+
+  showAuditDetails(index) {
+    const log = this._auditLogs[index];
+    if (!log) return;
+    const fields = Object.entries(log.changed_fields || {});
+    const details = fields.length
+      ? `<div class="audit-detail-fields">${fields.map(([name, values]) => `
+          <div class="audit-detail-field">
+            <strong>${escHtml(name.replace(/_/g, ' '))}</strong>
+            <div><span class="text-muted">Before:</span> ${escHtml(values?.old == null ? '—' : JSON.stringify(values.old))}</div>
+            <div><span class="text-muted">After:</span> ${escHtml(values?.new == null ? '—' : JSON.stringify(values.new))}</div>
+          </div>`).join('')}</div>`
+      : '<p class="text-muted">No safe field-level changes were recorded.</p>';
+    Modal.show('Audit event details', `
+      <dl class="audit-detail-meta">
+        <dt>When</dt><dd>${escHtml(fmtDate(log.created_at))}</dd>
+        <dt>Administrator</dt><dd>${escHtml(log.actor_name || 'Administrator')}</dd>
+        <dt>Action</dt><dd>${escHtml(log.action)}</dd>
+        <dt>Area</dt><dd>${escHtml(log.area)}</dd>
+        <dt>Record</dt><dd>${escHtml(log.record_label || `Record #${log.record_id || '—'}`)}</dd>
+        <dt>Summary</dt><dd>${escHtml(log.summary)}</dd>
+      </dl>
+      <h4>Changed fields</h4>${details}`,
+    '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>',
+    { wide: true });
+  },
+
+  _auditCsvCell(value) {
+    let text = value == null
+      ? ''
+      : (typeof value === 'string' ? value : JSON.stringify(value));
+    if (/^\s*[=+\-@]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  },
+
+  async exportAuditLog() {
+    try {
+      const rows = [];
+      const filters = { ...this._auditFilters };
+      let offset = 0;
+      let batch;
+      do {
+        batch = await api.getAuditLogs(500, offset, filters);
+        rows.push(...batch);
+        offset += batch.length;
+      } while (batch.length === 500);
+
+      const columns = [
+        ['Time', 'created_at'], ['Action', 'action'], ['Area', 'area'],
+        ['Table', 'table_name'], ['Administrator', 'actor_name'],
+        ['Record', 'record_label'], ['Summary', 'summary'],
+        ['Changed fields', 'changed_fields'],
+      ];
+      const csv = [
+        columns.map(([label]) => this._auditCsvCell(label)).join(','),
+        ...rows.map(row => columns.map(([, key]) => this._auditCsvCell(row[key])).join(',')),
+      ].join('\r\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      Toast.show(`Could not export audit history: ${err.message}`, 'error');
     }
   },
 
@@ -1404,12 +1544,22 @@ const AdminController = {
     let klass = allClasses.find(classLooselyMatches);
 
     if (!klass) {
-      const { data, error } = await api.sb.from('classes')
-        .insert({ name: className, grade_level: gradeLabel, school_year: g.schoolYear, is_active: true })
-        .select().single();
-      if (error) throw new Error(error.message);
-      klass = data;
+      const sectionRow = await api.createSection({
+        name: g.section,
+        class_name: className,
+        grade_level: gradeLabel,
+        school_year: g.schoolYear,
+      });
+      klass = {
+        id: sectionRow.class_id,
+        name: className,
+        grade_level: gradeLabel,
+        school_year: g.schoolYear,
+        is_active: true,
+      };
       allClasses.push(klass);
+      allSections.push(sectionRow);
+      return sectionRow.id;
     }
 
     const { data, error } = await api.sb.from('sections')

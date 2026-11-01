@@ -50,12 +50,21 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 9. `08_performance_overview.sql` — adds the performance analytics and authorized class-report RPCs.
 10. `09_student_attendance_summary.sql` — adds the student-scoped attendance summary RPC.
 11. `10_activity_late_submissions.sql` — adds late-submission settings and submission penalty snapshots, and updates the student submission and teacher grading RPCs to enforce them.
+12. `11_audit_logs.sql` — adds the immutable admin audit table, admin-only reporting RPCs, safe change capture, and atomic section/enrollment auditing.
 
 For an existing database, apply `10_activity_late_submissions.sql` after the
 current migrations. It is safe to rerun and installs the updated submission
 and grading RPCs as well as the new columns. Apply it before rerunning the
 updated `03_functions.sql` on an existing database, because that file now
 references these new columns.
+
+For an existing database, run `11_audit_logs.sql` after migrations 01-10 and
+before deploying the updated `admin-create-user` and `admin-update-user` Edge
+Functions. It is safe to rerun. It creates audit records only for changes
+made after installation; it does not fabricate a history of older changes.
+The audit table is readable only by admins and has no client update/delete
+permission. Personal identifiers and contact details are redacted from
+recorded before/after values.
 
 For an existing project receiving these scoring and analytics fixes, also
 rerun the updated `03_functions.sql` in the SQL Editor. It synchronizes each

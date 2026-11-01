@@ -101,6 +101,12 @@ exact order**, from `supabase-migration/` in your unzipped folder:
 9. `08_performance_overview.sql` — adds performance analytics and authorized class-report RPCs.
 10. `09_student_attendance_summary.sql` — adds the student-scoped attendance summary RPC.
 11. `10_activity_late_submissions.sql` — adds late-submission settings and updates submission and grading RPCs.
+12. `11_audit_logs.sql` — installs the admin-only, immutable audit history and reporting RPCs.
+
+For an existing project, run `11_audit_logs.sql` after migrations 01-10 and
+before deploying the updated Edge Functions. Audit history starts at install
+time; prior activity is not backfilled. Contact and other sensitive profile
+values are redacted from field-level change details.
 
 Deploy both admin Edge Functions when account management is enabled:
 

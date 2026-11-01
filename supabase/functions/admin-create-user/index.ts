@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
 
     const { data: profile } = await admin
       .from("users")
-      .select("role_id, roles(name)")
+      .select("id, first_name, last_name, role_id, roles(name)")
       .eq("auth_uid", callerUser.user.id)
       .single();
 
@@ -82,6 +82,36 @@ Deno.serve(async (req) => {
       // Roll back the auth account so we don't leave an orphaned login
       await admin.auth.admin.deleteUser(created.user.id);
       return jsonResponse({ error: insertErr.message }, 400);
+    }
+
+    const actorName = `${profile.first_name} ${profile.last_name}`.trim() || "Administrator";
+    const recordName = `${first_name} ${last_name}`.trim();
+    const { error: auditErr } = await admin.from("audit_logs").insert({
+      actor_user_id: profile.id,
+      actor_auth_uid: callerUser.user.id,
+      actor_name: actorName,
+      action: "CREATE",
+      area: "Users",
+      table_name: "users",
+      record_id: String(userRow.id),
+      record_label: recordName,
+      summary: `Created user account: ${recordName}`,
+      changed_fields: {
+        first_name: { old: null, new: first_name },
+        last_name: { old: null, new: last_name },
+        role_id: { old: null, new: role_id },
+      },
+      metadata: { source: "admin-create-user" },
+    });
+
+    if (auditErr) {
+      const { error: authRollbackError } = await admin.auth.admin.deleteUser(created.user.id);
+      if (authRollbackError) {
+        return jsonResponse({
+          error: `Audit logging failed (${auditErr.message}) and the created account could not be rolled back (${authRollbackError.message}).`,
+        }, 500);
+      }
+      return jsonResponse({ error: `Audit logging failed; user creation was rolled back (${auditErr.message}).` }, 500);
     }
 
     return jsonResponse(userRow, 201);

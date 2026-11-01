@@ -403,6 +403,24 @@ class LMSAdminAPI {
     );
   }
 
+  async getAuditLogs(limit = 50, offset = 0, filters = {}) {
+    return this._throwIfError(
+      await this.sb.rpc("get_admin_audit_logs", {
+        p_limit: limit,
+        p_offset: offset,
+        p_search: filters.search || null,
+        p_action: filters.action || null,
+        p_area: filters.area || null,
+        p_from_date: filters.fromDate || null,
+        p_to_date: filters.toDate || null,
+      }),
+    );
+  }
+
+  async getAuditStats() {
+    return this._throwIfError(await this.sb.rpc("get_admin_audit_stats"));
+  }
+
   // ── Teachers (admin) ──────────────────────────────────────────────────────
 
   async getTeachers() {
@@ -751,31 +769,16 @@ class LMSAdminAPI {
     };
   }
 
-  async createSection({ name, grade_level, school_year, room, adviser_id }) {
-    // Auto-create the backing class row — invisible to the admin.
-    const classRow = this._throwIfError(
-      await this.sb
-        .from("classes")
-        .insert({
-          name,
-          grade_level,
-          school_year: school_year || null,
-          is_active: true,
-        })
-        .select()
-        .single(),
-    );
+  async createSection({ name, class_name, grade_level, school_year, room, adviser_id }) {
     const result = this._throwIfError(
-      await this.sb
-        .from("sections")
-        .insert({
-          name,
-          class_id: classRow.id,
-          room: room || null,
-          adviser_id: adviser_id || null,
-        })
-        .select()
-        .single(),
+      await this.sb.rpc("create_admin_section", {
+        p_name: name,
+        p_class_name: class_name || name,
+        p_grade_level: grade_level,
+        p_school_year: school_year || null,
+        p_room: room || null,
+        p_adviser_id: adviser_id || null,
+      }),
     );
     this.clearCache("sections");
     this.clearCache("classes");
@@ -786,24 +789,15 @@ class LMSAdminAPI {
     id,
     { name, grade_level, school_year, room, adviser_id },
   ) {
-    const existing = this._throwIfError(
-      await this.sb.from("sections").select("class_id").eq("id", id).single(),
-    );
-    if (existing.class_id) {
-      this._throwIfError(
-        await this.sb
-          .from("classes")
-          .update({ name, grade_level, school_year: school_year || null })
-          .eq("id", existing.class_id),
-      );
-    }
     const result = this._throwIfError(
-      await this.sb
-        .from("sections")
-        .update({ name, room: room || null, adviser_id: adviser_id || null })
-        .eq("id", id)
-        .select()
-        .single(),
+      await this.sb.rpc("update_admin_section", {
+        p_section_id: id,
+        p_name: name,
+        p_grade_level: grade_level,
+        p_school_year: school_year || null,
+        p_room: room || null,
+        p_adviser_id: adviser_id || null,
+      }),
     );
     this.clearCache("sections");
     this.clearCache("classes");
@@ -1577,6 +1571,39 @@ class LMSAdminAPI {
         teacher_name: row.teacher_name || "",
       }));
     });
+  }
+
+  async getAdminCalendarSchedule() {
+    const data = this._throwIfError(
+      await this.sb
+        .from("teacher_class_assignments")
+        .select(
+          "id, teacher_id, class_id, section_id, subject_id, schedule, subjects(name), classes(name, grade_level), sections(name), teachers(users(first_name, last_name))",
+        ),
+    );
+    return data.map(row => ({
+      ...row,
+      subject_name: row.subjects?.name || "Class",
+      class_name: row.classes?.name || "",
+      grade_level: row.classes?.grade_level || "",
+      section_name: row.sections?.name || row.classes?.name || "",
+      teacher_name: [
+        row.teachers?.users?.first_name,
+        row.teachers?.users?.last_name,
+      ].filter(Boolean).join(" "),
+    }));
+  }
+
+  async getCalendarActivities(role) {
+    if (role === "teacher") return this.getTeacherActivities();
+    if (role === "student") return this.getStudentActivities();
+    if (role !== "admin") return [];
+    return this._throwIfError(
+      await this.sb
+        .from("activities")
+        .select("id, title, start_date, due_date, is_published")
+        .order("due_date", { ascending: true, nullsFirst: false }),
+    );
   }
 
   // Used to set the default tab in the My Subjects view.

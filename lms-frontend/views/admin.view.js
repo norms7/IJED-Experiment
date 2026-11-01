@@ -24,6 +24,7 @@ const ADMIN_ICONS = {
   school: adminSvg('<path d="M4 20V5.5h16V20M2.5 20h19M8 9h2M14 9h2M8 13h2M14 13h2M8 17h2M14 17h2" ' + adminStroke + '/>'),
   transfer: adminSvg('<path d="M4 7h15M15 3l4 4-4 4M20 17H5M9 13l-4 4 4 4" ' + adminStroke + '/>'),
   audit: adminSvg('<rect x="4" y="4" width="16" height="16" rx="2" ' + adminStroke + '/><path d="M8 9h8M8 13h8M8 17h5" ' + adminStroke + '/>'),
+  warning: adminSvg('<path d="M12 3.5 22 20.5H2L12 3.5Z" ' + adminStroke + '/><path d="M12 9v5M12 17.5h.01" ' + adminStroke + '/>'),
   trash: adminSvg('<path d="M5 7h14M10 11v5M14 11v5M8 7l1 13h6l1-13M9 7l1-3h4l1 3" ' + adminStroke + '/>'),
   search: adminSvg('<circle cx="11" cy="11" r="5.5" ' + adminStroke + '/><path d="m16 16 4 4" ' + adminStroke + '/>'),
   edit: adminSvg('<path d="m4 16.5-.7 3.7 3.7-.7L19 7.5 16.5 5 4 16.5ZM15 6.5l2.5 2.5" ' + adminStroke + '/>'),
@@ -539,11 +540,71 @@ const AdminView = {
   },
 
   /* ── Audit Log pane ── */
-  _auditPane(logs = null) {
-    if (logs === null) return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.loading}</div><div class="empty-state-title">Loading audit history…</div></div>`;
-    if (!logs.length) return `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.audit}</div><div class="empty-state-title">No audit activity yet</div><div class="empty-state-sub">Administrative changes will appear here.</div></div>`;
-    const rows = logs.map(log => `<tr data-searchable><td class="text-sm">${fmtDate(log.created_at)}</td><td><span class="badge badge-maroon">${escHtml(log.action)}</span></td><td>${escHtml(log.table_name)}</td><td>${escHtml(log.actor_name || 'System')}</td><td class="text-sm">${escHtml(log.summary || `Record #${log.record_id || '—'}`)}</td></tr>`).join('');
-    return `<div class="um-toolbar"><div class="search-box"><span>${ADMIN_ICONS.search}</span><input type="text" id="audit-search" placeholder="Search audit history…" oninput="AdminController._filterTable(this.value,'audit-table-body')" /></div><button class="btn btn-outline btn-sm" onclick="AdminController.loadAuditLog()">${ADMIN_ICONS.audit} Refresh</button></div><div class="card table-card"><div class="table-wrap"><table class="data-table"><thead><tr><th>Time</th><th>Action</th><th>Area</th><th>Actor</th><th>Summary</th></tr></thead><tbody id="audit-table-body">${rows}</tbody></table></div></div>`;
+  _auditPane(data = null, filters = {}) {
+    const logs = data?.logs || [];
+    const stats = data?.stats || {};
+    const actions = [
+      'CREATE', 'UPDATE', 'DEACTIVATE', 'REACTIVATE', 'DELETE',
+      'ASSIGN', 'UNASSIGN', 'ENROLL', 'UNENROLL', 'TRANSFER',
+    ];
+    const areas = ['Users', 'Teachers', 'Students', 'Sections', 'Subjects'];
+    const rows = logs.map((log, index) => `
+      <tr>
+        <td class="text-sm">${escHtml(fmtDate(log.created_at))}</td>
+        <td><span class="audit-action audit-action-${escHtml(log.action.toLowerCase())}">${escHtml(log.action)}</span></td>
+        <td>${escHtml(log.area)}</td>
+        <td>${escHtml(log.actor_name || 'Administrator')}</td>
+        <td class="text-sm">${escHtml(log.summary || `Record #${log.record_id || '—'}`)}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="AdminController.showAuditDetails(${index})">Details</button></td>
+      </tr>`).join('');
+    let resultContent;
+    if (data?.error) {
+      resultContent = `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.warning}</div><div class="empty-state-title">Could not load audit history</div><div class="empty-state-sub">${escHtml(data.error)}</div><button class="btn btn-primary mt-3" onclick="AdminController.loadAuditLog()">Retry</button></div>`;
+    } else if (data?.loading) {
+      resultContent = `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.loading}</div><div class="empty-state-title">Loading audit history…</div></div>`;
+    } else if (!logs.length) {
+      resultContent = `<div class="empty-state"><div class="empty-state-icon">${ADMIN_ICONS.audit}</div><div class="empty-state-title">${filters.search || filters.action || filters.area || filters.fromDate || filters.toDate ? 'No matching activity' : 'No audit activity yet'}</div><div class="empty-state-sub">Administrative changes will appear here.</div></div>`;
+    } else {
+      resultContent = `
+        <div class="card table-card">
+          <div class="table-wrap"><table class="data-table">
+            <thead><tr><th>Time</th><th>Action</th><th>Area</th><th>Administrator</th><th>Activity</th><th></th></tr></thead>
+            <tbody id="audit-table-body">${rows}</tbody>
+          </table></div>
+        </div>
+        ${data.hasMore ? '<div class="audit-load-more"><button class="btn btn-outline" onclick="AdminController.loadMoreAuditLogs()">Load more</button></div>' : ''}
+      `;
+    }
+
+    return `
+      <div class="audit-metrics">
+        <div class="card audit-metric"><span class="text-muted">Total activities</span><strong>${Number(stats.total_activities || 0).toLocaleString()}</strong></div>
+        <div class="card audit-metric"><span class="text-muted">Today’s activities</span><strong>${Number(stats.today_activities || 0).toLocaleString()}</strong></div>
+        <div class="card audit-metric"><span class="text-muted">Administrators with activity</span><strong>${Number(stats.admins_with_activities || 0).toLocaleString()}</strong></div>
+      </div>
+      <div class="card audit-filter-card">
+        <div class="audit-filters">
+          <div class="audit-search search-box">
+            <span>${ADMIN_ICONS.search}</span>
+            <input type="search" id="audit-search" value="${escHtml(filters.search || '')}" placeholder="Search activity…" onkeydown="if(event.key==='Enter'){event.preventDefault();AdminController.applyAuditFilters()}" />
+          </div>
+          <select class="form-control" id="audit-action" aria-label="Filter by action" onchange="AdminController.applyAuditFilters()">
+            <option value="">All actions</option>
+            ${actions.map(action => `<option value="${action}" ${filters.action === action ? 'selected' : ''}>${action}</option>`).join('')}
+          </select>
+          <select class="form-control" id="audit-area" aria-label="Filter by area" onchange="AdminController.applyAuditFilters()">
+            <option value="">All areas</option>
+            ${areas.map(area => `<option value="${area}" ${filters.area === area ? 'selected' : ''}>${area}</option>`).join('')}
+          </select>
+          <label class="audit-date-filter"><span>From</span><input class="form-control" type="date" id="audit-from-date" value="${escHtml(filters.fromDate || '')}" onchange="AdminController.applyAuditFilters()" /></label>
+          <label class="audit-date-filter"><span>To</span><input class="form-control" type="date" id="audit-to-date" value="${escHtml(filters.toDate || '')}" onchange="AdminController.applyAuditFilters()" /></label>
+          <button class="btn btn-primary btn-sm" onclick="AdminController.applyAuditFilters()">Search</button>
+          <button class="btn btn-outline btn-sm" onclick="AdminController.loadAuditLog()">${ADMIN_ICONS.audit} Refresh</button>
+          <button class="btn btn-outline btn-sm" onclick="AdminController.exportAuditLog()">${ADMIN_ICONS.download} Export CSV</button>
+        </div>
+      </div>
+      ${resultContent}
+    `;
   },
 
   /* ── Redirect helpers (for legacy nav items) ── */

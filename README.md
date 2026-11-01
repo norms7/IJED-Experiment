@@ -44,6 +44,7 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - Track module reading progress
 - Create attendance sessions and record present, late, absent, or excused status
 - View attendance summaries and gradebook data
+- Use a responsive calendar with month, week, and agenda views for class schedules, activity dates, and events
 - Gradebook ACT% is earned points divided by possible points; graded submissions count immediately, pending submissions do not count, and due unsubmitted activities count as zero. The term's shared 75/15/10 current-standing percentage is shown as the Initial Grade and converted to the DepEd Transmuted Grade, with 75 as the passing mark.
 
 ### Student
@@ -54,7 +55,8 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - Preview module files and submitted attachments in the LMS
 - Submit activities and view grades and submission results
 - View subject and term attendance summaries
-- Use the calendar and notification inbox
+- Use a responsive calendar to see class schedules, activity dates, events, and todos; switch between month, week, and agenda views
+- Use the notification inbox
 - Explore Performance Analytics with descriptive and Bayesian analysis
 
 ## Performance Analytics
@@ -211,8 +213,11 @@ Experiment/
     ├── 05_profile_settings.sql             # Profile details and avatar storage policies
     ├── 06_notifications_realtime.sql       # Notification triggers and Realtime publication
     ├── 07_activity_term.sql                # Activity term column and index
+    ├── 08_activity_file_uploads.sql         # Private activity attachment storage policies
     ├── 08_performance_overview.sql         # Protected analytics/report RPCs, cache invalidation, notifications
     ├── 09_student_attendance_summary.sql   # Adds a secure signed-in student attendance summary RPC
+    ├── 10_activity_late_submissions.sql    # Late-submission policy and score snapshots
+    ├── 11_audit_logs.sql                   # Immutable admin audit history, policies, and reporting RPCs
     ├── edge_functions/admin-create-user/   # Secure admin account creation
     ├── edge_functions/admin-update-user/   # Secure admin email/password updates
     ├── FULL_SETUP_GUIDE.md
@@ -226,6 +231,9 @@ The obsolete copies formerly under `supabase-migration/frontend_additions/` were
 Run the dependency-free pure calculation suite with:
 
 ```powershell
+node tests\calendar.test.js
+node tests\audit-log.test.js
+node tests\file-preview.test.js
 node tests\performance.test.js
 ```
 
@@ -255,6 +263,7 @@ Run these files in the Supabase SQL Editor, in order:
 9. `supabase-migration/08_performance_overview.sql`
 10. `supabase-migration/09_student_attendance_summary.sql`
 11. `supabase-migration/10_activity_late_submissions.sql`
+12. `supabase-migration/11_audit_logs.sql`
 
 The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 

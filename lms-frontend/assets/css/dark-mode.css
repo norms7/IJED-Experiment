@@ -560,3 +560,39 @@ body.dark-mode .mod-remaining svg {
   height: 14px !important;
   vertical-align: -2px;
 }
+
+body.dark-mode .cal-page-heading h2,
+body.dark-mode .cal-month-label,
+body.dark-mode .cal-day-empty strong,
+body.dark-mode .cal-agenda-date {
+  color: var(--dm-text) !important;
+}
+body.dark-mode .cal-page-heading p,
+body.dark-mode .cal-legend,
+body.dark-mode .cal-day-empty,
+body.dark-mode .cal-agenda-empty {
+  color: var(--dm-text-muted) !important;
+}
+body.dark-mode .cal-page-icon,
+body.dark-mode .cal-view-switch,
+body.dark-mode .cal-calendar-shell,
+body.dark-mode .cal-day-card,
+body.dark-mode .cal-cell,
+body.dark-mode .cal-agenda-day {
+  background: var(--dm-surface-raised) !important;
+  border-color: var(--dm-border) !important;
+}
+body.dark-mode .cal-dow { background: var(--dm-surface-soft) !important; color: var(--dm-text-muted) !important; }
+body.dark-mode .cal-cell.cal-other-month { background: #211a1e !important; }
+body.dark-mode .cal-cell.cal-today { background: var(--dm-surface-raised) !important; }
+body.dark-mode .cal-cell.cal-today .cal-day-num { background: #8b1a36 !important; color: #fff !important; }
+body.dark-mode .cal-cell.cal-selected { box-shadow: inset 0 0 0 2px #f08098 !important; }
+body.dark-mode .cal-day-num { color: var(--dm-text) !important; }
+body.dark-mode .cal-event-chip { background: #3a3024 !important; color: #f0d7a8 !important; }
+body.dark-mode .cal-event-activity { background: #252f49 !important; color: #c5d6ff !important; }
+body.dark-mode .cal-event-class { background: #23392d !important; color: #b7e5c7 !important; }
+body.dark-mode .cal-event-overflow { color: var(--dm-text-muted) !important; }
+body.dark-mode .cal-view-button { color: var(--dm-text-secondary) !important; }
+body.dark-mode .cal-view-button.active { background: #8b1a36 !important; color: #fff !important; }
+body.dark-mode .cal-agenda-day:hover,
+body.dark-mode .cal-cell:hover { background: #34242b !important; }
