@@ -190,7 +190,7 @@ const TeacherView = {
     const card = (m) => {
       const hasFile = !!m.file_url;
       const fileBtn = hasFile
-        ? `<a class="btn btn-xs btn-primary" href="${escHtml(m.file_url)}" target="_blank" rel="noopener">${lmsIcon('fileOpen')} Open PDF</a>`
+        ? FilePreview.button(m.file_url, m.file_name || m.title, `${lmsIcon('fileOpen')} Preview`, 'btn btn-xs btn-primary')
         : `<span class="btn btn-xs btn-outline" style="opacity:.5;cursor:default">No file</span>`;
       const meta = m.file_name ? `${lmsIcon('attachment')} ${escHtml(m.file_name)}` : '';
       return `<div class="module-card" data-searchable>

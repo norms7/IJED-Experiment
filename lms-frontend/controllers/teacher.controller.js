@@ -1161,7 +1161,7 @@ const TeacherController = {
         let resultBadge   = '';
 
         if (attachment) {
-          answerDisplay = `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-top:4px;white-space:pre-wrap;font-size:13px;line-height:1.6">${answered ? `${escHtml(String(answered))}<br>` : ''}<a href="${escHtml(attachment.file_url)}" target="_blank" rel="noopener noreferrer">${escHtml(attachment.file_name || 'Download submitted file')}</a></div>`;
+          answerDisplay = `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-top:4px;white-space:pre-wrap;font-size:13px;line-height:1.6">${answered ? `${escHtml(String(answered))}<br>` : ''}${FilePreview.button(attachment.file_url, attachment.file_name || 'Submitted file', escHtml(attachment.file_name || 'Preview submitted file'))}</div>`;
         } else if (answered !== null && answered !== undefined && answered !== '') {
           if (type === 'multiple_choice' || type === 'fill_blank') {
             const isCorrect = ans?.is_correct;
@@ -1235,7 +1235,7 @@ const TeacherController = {
         `<div style="font-size:13px;color:#6b7280;margin-bottom:6px">
           Submitted: ${submittedDate} &nbsp;|&nbsp; Activity: <strong>${escHtml(activity.title)}</strong>
         </div>
-        ${activityFileUrl ? `<div style="margin-bottom:12px;font-size:13px">Activity file: <a href="${escHtml(activityFileUrl)}" target="_blank" rel="noopener noreferrer">${escHtml(activity.file_name || 'Download activity file')}</a></div>` : ''}
+        ${activityFileUrl ? `<div style="margin-bottom:12px;font-size:13px">Activity file: ${FilePreview.button(activityFileUrl, activity.file_name || 'Activity file', escHtml(activity.file_name || 'Preview activity file'))}</div>` : ''}
         ${gradeSection}
         <div>${questionRows || '<p style="color:#9ca3af;text-align:center">No questions found.</p>'}</div>`,
         `<button class="btn btn-ghost" onclick="TeacherController.openGradeActivity(${activityId})">← Back to Submissions</button>

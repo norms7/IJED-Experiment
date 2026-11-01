@@ -41,8 +41,20 @@ const Toast = {
    ────────────────────────────────────────────────────────── */
 const Modal = {
   show(title, bodyHTML, footerHTML = '', opts = {}) {
+    if (this._escHandler) {
+      document.removeEventListener('keydown', this._escHandler);
+      this._escHandler = null;
+    }
+    if (this._onClose) {
+      const onClose = this._onClose;
+      this._onClose = null;
+      onClose();
+    }
     const container = document.getElementById('modal-container');
-    const wideStyle = opts.wide ? 'width:min(96%,860px);max-width:calc(100vw - 24px);' : '';
+    const wideStyle = opts.full
+      ? 'width:min(96%,1200px);max-width:calc(100vw - 24px);'
+      : opts.wide ? 'width:min(96%,860px);max-width:calc(100vw - 24px);' : '';
+    this._onClose = opts.onClose || null;
     container.innerHTML = `
       <div class="modal-overlay" id="modal-overlay">
         <div class="modal" style="${wideStyle}">
@@ -71,8 +83,298 @@ const Modal = {
       document.removeEventListener('keydown', this._escHandler);
       this._escHandler = null;
     }
+    if (this._onClose) {
+      const onClose = this._onClose;
+      this._onClose = null;
+      onClose();
+    }
   },
 };
+
+/* ── Uploaded file preview ────────────────────────────────── */
+const FilePreview = {
+  _activeObjectUrl: null,
+  _abortController: null,
+  _scriptPromises: new Map(),
+
+  button(url, fileName, label, className = 'file-preview-link', onClick = '') {
+    const clickAttribute = onClick ? ` onclick="${escHtml(onClick)}"` : '';
+    return `<button type="button" class="${className}" data-file-preview data-file-url="${escHtml(url)}" data-file-name="${escHtml(fileName || 'Uploaded file')}"${clickAttribute}>${label}</button>`;
+  },
+
+  _kind(fileName, mimeType = '') {
+    const extension = String(fileName || '').split('.').pop().toLowerCase();
+    const byExtension = {
+      pdf: 'pdf', docx: 'docx', pptx: 'pptx',
+      xlsx: 'spreadsheet', xls: 'spreadsheet', csv: 'spreadsheet',
+      txt: 'text', md: 'text',
+      png: 'image', jpg: 'image', jpeg: 'image', gif: 'image',
+      webp: 'image', bmp: 'image', avif: 'image', svg: 'image',
+      mp4: 'video', webm: 'video', ogv: 'video', mov: 'video',
+      mp3: 'audio', wav: 'audio', ogg: 'audio', m4a: 'audio',
+    };
+    if (byExtension[extension]) return byExtension[extension];
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'pptx';
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType === 'text/csv') return 'spreadsheet';
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType.startsWith('text/')) return 'text';
+    return 'unsupported';
+  },
+
+  async open(url, fileName) {
+    this.close();
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url, window.location.href);
+    } catch {
+      Toast.show('This file has an invalid preview URL.', 'error');
+      return;
+    }
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      Toast.show('This file has an invalid preview URL.', 'error');
+      return;
+    }
+
+    const name = fileName || 'Uploaded file';
+    const request = new AbortController();
+    Modal.show(
+      escHtml(name),
+      '<div id="file-preview-content" class="file-preview-content" aria-live="polite">Loading preview…</div>',
+      '<button type="button" class="btn btn-ghost" onclick="Modal.close()">Close</button>',
+      {
+        full: true,
+        onClose: () => {
+          if (this._abortController === request) this.close();
+        },
+      },
+    );
+    this._abortController = request;
+
+    const content = document.getElementById('file-preview-content');
+    try {
+      const response = await fetch(parsedUrl.href, { signal: request.signal });
+      if (!response.ok) throw new Error(`File request failed (${response.status}).`);
+      const blob = await response.blob();
+      if (request.signal.aborted) return;
+      const objectUrl = URL.createObjectURL(blob);
+      this._activeObjectUrl = objectUrl;
+
+      switch (this._kind(name, blob.type)) {
+        case 'pdf':
+          content.innerHTML = `<iframe class="file-preview-frame" src="${escHtml(objectUrl)}" title="${escHtml(name)}"></iframe>`;
+          break;
+        case 'image':
+          content.innerHTML = `<img class="file-preview-image" src="${escHtml(objectUrl)}" alt="${escHtml(name)}">`;
+          break;
+        case 'video':
+          content.innerHTML = `<video class="file-preview-video" src="${escHtml(objectUrl)}" controls playsinline preload="metadata">Your browser cannot play this video format.</video>`;
+          break;
+        case 'audio':
+          content.innerHTML = `<audio class="file-preview-audio" src="${escHtml(objectUrl)}" controls>Your browser cannot play this audio format.</audio>`;
+          break;
+        case 'docx':
+          await this._renderDocx(blob, content, request.signal);
+          break;
+        case 'pptx':
+          await this._renderPptx(blob, name, content, request.signal);
+          break;
+        case 'spreadsheet':
+          await this._renderSpreadsheet(blob, content);
+          break;
+        case 'text':
+          content.innerHTML = `<pre class="file-preview-text">${escHtml(await blob.text())}</pre>`;
+          break;
+        default:
+          content.innerHTML = '<p>This file type cannot be previewed in the browser. Download it to view it.</p>';
+      }
+
+      if (request.signal.aborted) return;
+      const footer = document.querySelector('#modal-container .modal-footer');
+      if (footer) {
+        footer.innerHTML = `
+          <a class="btn btn-outline" href="${escHtml(objectUrl)}" download="${escHtml(name)}">Download</a>
+          <button type="button" class="btn btn-ghost" onclick="Modal.close()">Close</button>`;
+      }
+    } catch (error) {
+      if (request.signal.aborted) return;
+      console.error('[LMS] file preview failed:', error);
+      if (content?.isConnected) {
+        content.innerHTML = `<p role="alert">Could not preview this file: ${escHtml(error.message || 'An unexpected error occurred.')}</p>`;
+      }
+    }
+  },
+
+  async _renderDocx(blob, container, signal) {
+    if (!window.mammoth) {
+      await this._loadScript('https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js');
+    }
+    if (signal.aborted) return;
+    if (!window.mammoth) throw new Error('The Word document preview library did not load.');
+    const result = await window.mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() });
+    if (!signal.aborted) await this._renderHtml(container, result.value, 'file-preview-document');
+  },
+
+  async _renderSpreadsheet(blob, container) {
+    if (!window.XLSX) throw new Error('The spreadsheet preview library did not load.');
+    const workbook = window.XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: 'array' });
+    const html = workbook.SheetNames.map((sheetName) =>
+      `<h2>${escHtml(sheetName)}</h2>${window.XLSX.utils.sheet_to_html(workbook.Sheets[sheetName])}`,
+    ).join('');
+    await this._renderHtml(container, html, 'file-preview-spreadsheet');
+  },
+
+  async _renderHtml(container, html, className) {
+    if (!window.DOMPurify) {
+      await this._loadScript('https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js');
+    }
+    if (!window.DOMPurify) throw new Error('The safe document preview library did not load.');
+    const safeHtml = window.DOMPurify.sanitize(html, {
+      USE_PROFILES: { html: true },
+      FORBID_TAGS: ['iframe', 'object', 'embed', 'form'],
+    });
+    const frame = document.createElement('iframe');
+    frame.className = 'file-preview-frame';
+    frame.title = 'Uploaded document preview';
+    frame.setAttribute('sandbox', '');
+    frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><style>
+      body{font:16px/1.6 Arial,sans-serif;color:#222;margin:24px;overflow-wrap:anywhere}
+      img{max-width:100%;height:auto}table{max-width:100%;border-collapse:collapse}
+      td,th{border:1px solid #bbb;padding:6px}pre{white-space:pre-wrap}
+    </style></head><body class="${className}">${safeHtml}</body></html>`;
+    container.replaceChildren(frame);
+  },
+
+  async _renderPptx(blob, fileName, container, signal) {
+    const revision = '1a9260b2062f89ba822aeb54da792236780af8e7';
+    const base = `https://cdn.jsdelivr.net/gh/meshesha/pptxjs@${revision}/`;
+    const nonce = crypto.randomUUID();
+    const frame = document.createElement('iframe');
+    frame.className = 'file-preview-frame file-preview-pptx-frame';
+    frame.title = `${fileName} presentation preview`;
+    frame.setAttribute('sandbox', 'allow-scripts');
+    const buffer = await blob.arrayBuffer();
+    if (signal.aborted) return;
+    const libraries = [
+      'https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js',
+      'https://cdn.jsdelivr.net/npm/jszip@2.6.1/dist/jszip.min.js',
+      `${base}js/filereader.js`,
+      `${base}js/d3.min.js`,
+      `${base}js/nv.d3.min.js`,
+      `${base}js/dingbat.js`,
+      `${base}js/pptxjs.js`,
+    ];
+    const libraryTags = libraries.map((url) => `<script src="${url}"></script>`).join('');
+    frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8">
+      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+      <link rel="stylesheet" href="${base}css/pptxjs.css">
+      <style>body{margin:16px;background:#e5e7eb}.slide{max-width:100%;height:auto;margin:0 auto 24px}</style>
+      </head><body><div id="pptx-preview"></div><input id="pptx-file" type="file" hidden>
+      ${libraryTags}
+      <script nonce="${nonce}">
+        const preview=document.getElementById('pptx-preview');
+        let finished=false;
+        const observer=new MutationObserver(()=>{
+          if(finished||!preview.querySelector('.slide'))return;
+          finished=true;observer.disconnect();
+          parent.postMessage({type:'pptx-preview-ready'},'*');
+        });
+        observer.observe(preview,{childList:true,subtree:true});
+        window.addEventListener('error',()=>{
+          if(!finished){finished=true;parent.postMessage({type:'pptx-preview-error'},'*');}
+        });
+        window.addEventListener('message',(event)=>{
+          if(event.source!==parent||event.data?.type!=='pptx-preview-file'||finished)return;
+          try{
+            const input=document.getElementById('pptx-file');
+            const transfer=new DataTransfer();
+            transfer.items.add(new File([event.data.buffer],event.data.name,{
+              type:'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            }));
+            input.files=transfer.files;
+            window.jQuery(preview).pptxToHtml({
+              pptxFileUrl:'',fileInputId:input.id,slideMode:false,
+              keyBoardShortCut:false,mediaProcess:true,jsZipV2:false,themeProcess:true
+            });
+            input.dispatchEvent(new Event('change',{bubbles:true}));
+          }catch(error){
+            finished=true;parent.postMessage({type:'pptx-preview-error'},'*');
+          }
+        });
+        parent.postMessage({type:'pptx-preview-loaded'},'*');
+      </script></body></html>`;
+
+    container.replaceChildren(frame);
+    await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+        signal.removeEventListener('abort', onAbort);
+      };
+      const onAbort = () => {
+        cleanup();
+        resolve();
+      };
+      const onMessage = (event) => {
+        if (event.source !== frame.contentWindow) return;
+        if (event.data?.type === 'pptx-preview-loaded') {
+          frame.contentWindow.postMessage({
+            type: 'pptx-preview-file',
+            name: fileName,
+            buffer,
+          }, '*', [buffer]);
+        } else if (event.data?.type === 'pptx-preview-ready') {
+          cleanup();
+          resolve();
+        } else if (event.data?.type === 'pptx-preview-error') {
+          cleanup();
+          reject(new Error('The presentation could not be rendered.'));
+        }
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('The presentation could not be rendered.'));
+      }, 60000);
+      window.addEventListener('message', onMessage);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+    container.replaceChildren(frame);
+  },
+
+  _loadScript(url) {
+    if (this._scriptPromises.has(url)) return this._scriptPromises.get(url);
+    const promise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = url;
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('A preview library could not be loaded.'));
+      document.head.appendChild(script);
+    });
+    this._scriptPromises.set(url, promise);
+    promise.catch(() => this._scriptPromises.delete(url));
+    return promise;
+  },
+
+  close() {
+    this._abortController?.abort();
+    this._abortController = null;
+    if (this._activeObjectUrl) URL.revokeObjectURL(this._activeObjectUrl);
+    this._activeObjectUrl = null;
+  },
+};
+
+document.addEventListener('click', (event) => {
+  const trigger = event.target instanceof Element
+    ? event.target.closest('[data-file-preview]')
+    : null;
+  if (!trigger) return;
+  event.preventDefault();
+  FilePreview.open(trigger.dataset.fileUrl, trigger.dataset.fileName);
+});
 
 /* ── HTML Escape ────────────────────────────────────────────
    Prevents XSS when rendering user-supplied data into HTML.

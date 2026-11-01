@@ -39,6 +39,7 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - Upload PDF module files to Supabase Storage
 - Create and manage multiple-choice, freeform, hybrid, and assignment activities, including activity files for manually graded work
 - Review student-uploaded files alongside written answers and manually grade submissions
+- Preview uploaded documents, presentations, images, and videos in the LMS without opening a new tab
 - Review submissions and manually grade activities when required
 - Track module reading progress
 - Create attendance sessions and record present, late, absent, or excused status
@@ -50,6 +51,7 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - Role-based dashboard with progress, upcoming activities, and notifications
 - View enrolled subjects and published modules
 - Read modules and track reading progress
+- Preview module files and submitted attachments in the LMS
 - Submit activities and view grades and submission results
 - View subject and term attendance summaries
 - Use the calendar and notification inbox
@@ -249,8 +251,10 @@ Run these files in the Supabase SQL Editor, in order:
 5. `supabase-migration/05_profile_settings.sql`
 6. `supabase-migration/06_notifications_realtime.sql`
 7. `supabase-migration/07_activity_term.sql`
-8. `supabase-migration/08_performance_overview.sql`
-9. `supabase-migration/09_student_attendance_summary.sql`
+8. `supabase-migration/08_activity_file_uploads.sql`
+9. `supabase-migration/08_performance_overview.sql`
+10. `supabase-migration/09_student_attendance_summary.sql`
+11. `supabase-migration/10_activity_late_submissions.sql`
 
 The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 
@@ -258,7 +262,7 @@ The migration guide explains account linking, storage policies, and deployment d
 
 Update the project URL and public anon key in `lms-frontend/assets/js/lms-supabase-api.js` if they are not already configured. The anon key is intended for browser use; database protection must come from the RLS policies. Never put the Supabase service-role key in frontend files.
 
-Create a public Storage bucket named `module-files` and apply the teacher upload and file read policies described in the setup guide. Configure any private activity-file bucket and policies separately according to your Supabase project's storage setup; the performance migration does not create that bucket.
+Create a public Storage bucket named `module-files` and apply the teacher upload and file read policies described in the setup guide. Run `08_activity_file_uploads.sql` to create/configure the private `Activity-files` bucket and install its scoped upload, read, and delete policies.
 
 The profile settings migration creates the `profile-images` bucket, stores address/social details, and adds the avatar URL used by student and teacher profile settings. Profile identity, role, section, year level, employment, and account status remain read-only.
 

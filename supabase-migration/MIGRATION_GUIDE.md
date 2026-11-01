@@ -46,9 +46,10 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 6. `06_notifications_realtime.sql` — publishes notification changes through
    Supabase Realtime and creates notifications for published activities and modules.
 7. `07_activity_term.sql` — adds the activity term column and index.
-8. `08_performance_overview.sql` — adds the performance analytics and authorized class-report RPCs.
-9. `09_student_attendance_summary.sql` — adds the student-scoped attendance summary RPC.
-10. `10_activity_late_submissions.sql` — adds late-submission settings and submission penalty snapshots, and updates the student submission and teacher grading RPCs to enforce them.
+8. `08_activity_file_uploads.sql` — adds activity attachment fields, creates/configures the private `Activity-files` bucket, and scopes uploads, signed reads, and deletes to the appropriate student, teacher, or admin.
+9. `08_performance_overview.sql` — adds the performance analytics and authorized class-report RPCs.
+10. `09_student_attendance_summary.sql` — adds the student-scoped attendance summary RPC.
+11. `10_activity_late_submissions.sql` — adds late-submission settings and submission penalty snapshots, and updates the student submission and teacher grading RPCs to enforce them.
 
 For an existing database, apply `10_activity_late_submissions.sql` after the
 current migrations. It is safe to rerun and installs the updated submission
@@ -157,11 +158,9 @@ on storage.objects for select
 using (bucket_id = 'module-files');
 ```
 
-The activity upload feature uses the existing `Activity-files` bucket. Run
-`08_activity_file_uploads.sql` after confirming that bucket exists. The
-migration makes the bucket private and permits access only to the activity's
-teacher and enrolled students. Activity materials and student answers support
-files up to 50 MB and use signed URLs.
+The activity upload feature uses the private `Activity-files` bucket created
+and configured by `08_activity_file_uploads.sql`. Activity materials and
+student answers support files up to 50 MB and use signed URLs.
 
 ---
 

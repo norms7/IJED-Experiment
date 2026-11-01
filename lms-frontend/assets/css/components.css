@@ -191,6 +191,58 @@
 }
 .modal-close:hover { background: var(--surface-hover); color: var(--maroon); }
 .modal-close:focus-visible { outline: 2px solid var(--maroon-light); outline-offset: 2px; }
+.file-preview-content {
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  color: var(--text-primary);
+}
+.file-preview-frame {
+  display: block;
+  width: 100%;
+  height: min(72vh, 850px);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.file-preview-pptx-renderer { display: none; }
+.file-preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+}
+.file-preview-video {
+  display: block;
+  width: 100%;
+  max-height: 72vh;
+  background: #111;
+}
+.file-preview-audio { width: min(100%, 640px); }
+.file-preview-text {
+  width: 100%;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+}
+.file-preview-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--maroon);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.file-preview-link:hover { color: var(--maroon-dark); }
+.file-preview-link:focus-visible { outline: 2px solid var(--maroon-light); outline-offset: 2px; }
 .modal-footer {
   display: flex;
   gap: 10px;

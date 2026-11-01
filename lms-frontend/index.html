@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="assets/css/main.css" />
   <link rel="stylesheet" href="assets/css/layout.css" />
-  <link rel="stylesheet" href="assets/css/components.css" />
+  <link rel="stylesheet" href="assets/css/components.css?v=20261101-1" />
   <link rel="stylesheet" href="assets/css/notifications.css">
   <link rel="stylesheet" href="assets/css/analytics.css?v=20261029-7">
   <link rel="stylesheet" href="assets/css/loading.css" />
@@ -433,7 +433,7 @@
 <!-- API layer — load order matters: supabase SDK → utils → analytics engine → api client -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script defer src="utils/utils.js?v=20260921"></script>
+<script defer src="utils/utils.js?v=20261101-1"></script>
 <script defer src="utils/session-guard.js?v=20261021-2"></script>
 <script defer src="utils/loader.js?v=20260921"></script>
 <script defer src="assets/js/lms-icons.js?v=20260921"></script>
@@ -443,8 +443,8 @@
 
 <!-- Views (role-scoped) -->
 <script defer src="views/admin.view.js?v=20260921"></script>
-<script defer src="views/teacher.view.js?v=20261029-2"></script>
-<script defer src="views/student.view.js?v=20261029-4"></script>
+<script defer src="views/teacher.view.js?v=20261101-1"></script>
+<script defer src="views/student.view.js?v=20261101-1"></script>
 <script defer src="views/analytics.view.js?v=20261029-6"></script>
 <script defer src="views/class-performance.view.js?v=20261029-4"></script>
 <script defer src="views/calendar.view.js?v=20261029-1"></script>
@@ -455,7 +455,7 @@
 <script defer src="controllers/app.controller.js?v=20261021"></script>
 <script defer src="controllers/auth.controller.js?v=20261021"></script>
 <script defer src="controllers/admin.controller.js?v=20261021"></script>
-<script defer src="controllers/teacher.controller.js?v=20261029-3"></script>
+<script defer src="controllers/teacher.controller.js?v=20261101-1"></script>
 <script defer src="controllers/gradebook.controller.js?v=20261029-2"></script>
 <script defer src="controllers/attendance.controller.js?v=20260921"></script>
 <script defer src="controllers/student.controller.js?v=20261029-4"></script>

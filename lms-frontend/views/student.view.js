@@ -409,7 +409,7 @@ const StudentView = {
             <span class="acc-item-icon">${LMS_ICONS.file}</span>
             <span class="acc-item-label">${escHtml(m.title)}${m.is_read ? `<span data-module-read-indicator="${m.id}" style="display:inline-flex;align-items:center;gap:3px;margin-left:7px;color:#2e6b3e;font-size:11px;font-weight:700">${lmsIcon('check')} Read</span>` : `<span data-module-read-indicator="${m.id}"></span>`}${m.description ? '<span class="acc-item-desc">' + escHtml(m.description) + '</span>' : ''}</span>
             ${hasFile
-              ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">${lmsIcon('fileOpen')} Open</a>`
+              ? FilePreview.button(resolvedUrl, m.file_name || m.title, `${lmsIcon('fileOpen')} Open`, 'btn btn-xs btn-primary', `StudentController.trackModuleRead(${Number(m.id)})`)
               : `<span class="btn btn-xs btn-outline" style="opacity:.45;cursor:default;pointer-events:none">No file</span>`}
           </div>`;
         }).join('');
@@ -543,7 +543,7 @@ const StudentView = {
         <div class="module-card-footer">
           <span class="module-card-meta">${meta || 'No attachment'}</span>
           ${hasFile
-              ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">${lmsIcon('fileOpen')} Open</a>`
+              ? FilePreview.button(resolvedUrl, m.file_name || m.title, `${lmsIcon('fileOpen')} Open`, 'btn btn-xs btn-primary', `StudentController.trackModuleRead(${Number(m.id)})`)
             : `<span class="btn btn-xs btn-outline" style="opacity:.5;cursor:default">No file</span>`}
         </div>
       </div>`;
@@ -870,7 +870,7 @@ const StudentView = {
           </div>` : ''}
         ${activity.file_url ? `
           <div style="padding:12px 16px;background:#f8fafc;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:20px;font-size:13px">
-            <strong>Activity file:</strong> <a href="${escHtml(activity.file_url)}" target="_blank" rel="noopener noreferrer">${escHtml(activity.file_name || 'Open attached file')}</a>
+            <strong>Activity file:</strong> ${FilePreview.button(activity.file_url, activity.file_name || 'Activity file', escHtml(activity.file_name || 'Preview attached file'))}
           </div>` : ''}
         <div id="answer-sheet-questions">${questions || '<div class="empty-state"><div class="empty-state-title">No questions found.</div></div>'}</div>
         ${activity.questions && activity.questions.length ? `
@@ -908,7 +908,7 @@ const StudentView = {
         if (parsedAttachment) {
           answerDisplay = parsedAttachment.text || 'File submitted';
           answerFileHtml = ans.file_url
-            ? `<a href="${escHtml(ans.file_url)}" target="_blank" rel="noopener noreferrer">${escHtml(ans.file_name || parsedAttachment.file_name || 'Download submitted file')}</a>`
+            ? FilePreview.button(ans.file_url, ans.file_name || parsedAttachment.file_name, escHtml(ans.file_name || parsedAttachment.file_name || 'Preview submitted file'))
             : escHtml(ans.file_name || parsedAttachment.file_name || 'Submitted file');
         } else if (q.question_type === 'multiple_choice' || q.question_type === 'checkbox') {
           try {
