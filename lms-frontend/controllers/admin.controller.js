@@ -646,7 +646,7 @@ const AdminController = {
               return (matchStrand || matchCore) && matchSem;
             });
             if (strandSubjects.length > 0) {
-              await api.enrollStudentSubjects(studentProfile.id, strandSubjects.map(s => s.id));
+              await api.addStudentSubjects(studentProfile.id, strandSubjects.map(s => s.id));
               const semLabel = semester || '';
               Toast.show(`Enrolled in ${strandSubjects.length} subject(s) for ${strand} Grade ${grade}${semLabel ? ' ' + semLabel + ' Sem' : ''}.`, 'info');
             }
@@ -1019,7 +1019,29 @@ const AdminController = {
   async openEditSection(id) {
     try {
       const section     = await api.getSection(id);
-      const teacherOpts = await this._teacherOpts(section.adviser_id);
+      const [teacherOpts, subjects, enrollmentState] = await Promise.all([
+        this._teacherOpts(section.adviser_id),
+        api.getSubjects(),
+        api.getSectionSubjectEnrollmentState(id),
+      ]);
+      const assignedSubjectIds = new Set(enrollmentState.assignedSubjectIds);
+      const enrolledCounts = enrollmentState.enrolledCounts;
+      const subjectOptions = subjects.map(subject => {
+        const enrolledCount = enrolledCounts[subject.id] || 0;
+        const isSelected = assignedSubjectIds.has(subject.id) || enrolledCount > 0;
+        const countLabel = enrollmentState.studentCount
+          ? `${enrolledCount}/${enrollmentState.studentCount} students enrolled`
+          : 'No students in this section yet';
+        return `
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-100);cursor:pointer">
+            <input type="checkbox" class="section-enroll-subject" value="${subject.id}" ${isSelected ? 'checked' : ''} ${enrollmentState.studentCount ? '' : 'disabled'} style="margin-top:3px;accent-color:var(--maroon);width:16px;height:16px;flex-shrink:0">
+            <span style="display:flex;flex-direction:column;gap:3px;min-width:0">
+              <strong>${escHtml(subject.name)}</strong>
+              <small class="text-muted">${escHtml(countLabel)}${assignedSubjectIds.has(subject.id) ? ' · Teacher assigned' : ''}</small>
+              ${subject.description ? `<small class="text-muted">${escHtml(subject.description)}</small>` : ''}
+            </span>
+          </label>`;
+      }).join('');
       Modal.show('Edit Section', `
         <div class="form-row">
           <div class="form-group">
@@ -1044,6 +1066,13 @@ const AdminController = {
         <div class="form-group">
           <label class="form-label">Adviser</label>
           <select class="form-control" id="edit-section-adviser">${teacherOpts}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-weight:600">${ADMIN_ICONS.book} Enroll Subjects in Section</label>
+          <p class="text-sm text-muted" style="margin:0 0 8px">${enrollmentState.studentCount ? 'Selected subjects are added to every student currently in this section. Existing enrollments are kept. Teacher assignments are managed in the Teachers tab.' : 'There are no students in this section yet. Teacher-assigned subjects will be enrolled automatically when students are added.'}</p>
+          <div style="max-height:240px;overflow-y:auto;padding:0 8px;border:1px solid var(--gray-200);border-radius:8px">
+            ${subjectOptions || '<p class="text-muted">No subjects found. Create subjects first.</p>'}
+          </div>
         </div>`,
         `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
          <button class="btn btn-primary" onclick="AdminController.saveEditSection(${id})">Save Changes</button>`
@@ -1071,8 +1100,15 @@ const AdminController = {
         room: room || null,
         adviser_id: adviserId ? parseInt(adviserId) : null,
       });
+      const subjectIds = [...document.querySelectorAll('.section-enroll-subject:checked')]
+        .map(checkbox => parseInt(checkbox.value))
+        .filter(Number.isInteger);
+      const enrollmentResult = await api.enrollSectionStudentsInSubjects(id, subjectIds);
       Modal.close();
-      Toast.show('Section updated!', 'success');
+      const enrollmentMessage = enrollmentResult.studentCount
+        ? ` ${enrollmentResult.subjectCount} subject(s) enrolled for ${enrollmentResult.studentCount} student(s).`
+        : ' No students are currently in the section, so subject enrollments could not be applied yet.';
+      Toast.show(`Section updated!${enrollmentMessage}`, 'success');
       DashboardController.loadSection('manage-users');
     } catch (err) {
       Toast.show(`Error: ${err.message}`, 'error');
@@ -1441,7 +1477,7 @@ const AdminController = {
           await api.assignStudentToSection({ student_id: studentId, section_id: sectionId });
 
           const subjectIds = this._matchStrandSubjects(allSubjects, row.strand, row.grade, row.semester);
-          if (subjectIds.length) await api.enrollStudentSubjects(studentId, subjectIds);
+          if (subjectIds.length) await api.addStudentSubjects(studentId, subjectIds);
 
           updated.push({ row: row._rowNum, name: `${row.firstName} ${row.lastName}`, email: row.email });
         } else {
@@ -1466,7 +1502,7 @@ const AdminController = {
           await api.assignStudentToSection({ student_id: studentProfile.id, section_id: sectionId });
 
           const subjectIds = this._matchStrandSubjects(allSubjects, row.strand, row.grade, row.semester);
-          if (subjectIds.length) await api.enrollStudentSubjects(studentProfile.id, subjectIds);
+          if (subjectIds.length) await api.addStudentSubjects(studentProfile.id, subjectIds);
 
           created.push({ row: row._rowNum, name: `${row.firstName} ${row.lastName}`, email: row.email, password });
         }

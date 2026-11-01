@@ -502,6 +502,13 @@ class LMSAdminAPI {
         .single(),
     );
     this.clearCache("teachers");
+    try {
+      await this.enrollSectionStudentsInSubjects(section_id, [subject_id]);
+    } catch (err) {
+      throw new Error(
+        `Teacher assignment was saved, but student enrollment failed: ${err.message}`,
+      );
+    }
     return result;
   }
 
@@ -567,6 +574,16 @@ class LMSAdminAPI {
         .single(),
     );
     this.clearCache("teachers");
+    try {
+      await this.enrollSectionStudentsInSubjects(
+        data.section_id,
+        [data.subject_id],
+      );
+    } catch (err) {
+      throw new Error(
+        `Teacher assignment was saved, but student enrollment failed: ${err.message}`,
+      );
+    }
     return result;
   }
 
@@ -667,7 +684,107 @@ class LMSAdminAPI {
         .single(),
     );
     this.clearCache("students");
+    try {
+      const assignments = this._throwIfError(
+        await this.sb
+          .from("teacher_class_assignments")
+          .select("subject_id")
+          .eq("section_id", section_id),
+      );
+      await this.addStudentSubjects(
+        student_id,
+        [...new Set((assignments || []).map((assignment) => assignment.subject_id))],
+      );
+    } catch (err) {
+      throw new Error(
+        `Section assignment was saved, but subject enrollment failed: ${err.message}`,
+      );
+    }
     return result;
+  }
+
+  async addStudentSubjects(studentId, subjectIds) {
+    const uniqueSubjectIds = [...new Set(
+      (subjectIds || []).map(Number).filter(id => Number.isInteger(id) && id > 0),
+    )];
+    if (!uniqueSubjectIds.length) return { enrolled: 0 };
+    const rows = uniqueSubjectIds.map(subject_id => ({
+      student_id: studentId,
+      subject_id,
+    }));
+    this._throwIfError(
+      await this.sb
+        .from("student_subject_enrollments")
+        .upsert(rows, {
+          onConflict: "student_id,subject_id",
+          ignoreDuplicates: true,
+        }),
+    );
+    this.clearCache("students");
+    return { enrolled: uniqueSubjectIds.length };
+  }
+
+  async getSectionSubjectEnrollmentState(sectionId) {
+    const roster = this._throwIfError(
+      await this.sb
+        .from("student_section_assignments")
+        .select("student_id")
+        .eq("section_id", sectionId),
+    );
+    const studentIds = [...new Set((roster || []).map(row => row.student_id))];
+    const [assignments, enrollments] = await Promise.all([
+      this.sb
+        .from("teacher_class_assignments")
+        .select("subject_id")
+        .eq("section_id", sectionId),
+      studentIds.length
+        ? this.sb
+            .from("student_subject_enrollments")
+            .select("student_id, subject_id")
+            .in("student_id", studentIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    const assignedSubjects = this._throwIfError(assignments);
+    const enrolledRows = this._throwIfError(enrollments);
+    const enrolledCounts = {};
+    (enrolledRows || []).forEach(row => {
+      enrolledCounts[row.subject_id] = (enrolledCounts[row.subject_id] || 0) + 1;
+    });
+    return {
+      studentCount: studentIds.length,
+      assignedSubjectIds: [...new Set(
+        (assignedSubjects || []).map(row => row.subject_id),
+      )],
+      enrolledCounts,
+    };
+  }
+
+  async enrollSectionStudentsInSubjects(sectionId, subjectIds) {
+    const uniqueSubjectIds = [...new Set(
+      (subjectIds || []).map(Number).filter(id => Number.isInteger(id) && id > 0),
+    )];
+    if (!uniqueSubjectIds.length) return { studentCount: 0, subjectCount: 0 };
+    const roster = this._throwIfError(
+      await this.sb
+        .from("student_section_assignments")
+        .select("student_id")
+        .eq("section_id", sectionId),
+    );
+    const studentIds = [...new Set((roster || []).map(row => row.student_id))];
+    if (!studentIds.length) return { studentCount: 0, subjectCount: 0 };
+    const rows = studentIds.flatMap(student_id =>
+      uniqueSubjectIds.map(subject_id => ({ student_id, subject_id })),
+    );
+    this._throwIfError(
+      await this.sb
+        .from("student_subject_enrollments")
+        .upsert(rows, {
+          onConflict: "student_id,subject_id",
+          ignoreDuplicates: true,
+        }),
+    );
+    this.clearCache("students");
+    return { studentCount: studentIds.length, subjectCount: uniqueSubjectIds.length };
   }
 
   async getStudentSubjectEnrollments(studentId) {

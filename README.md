@@ -232,6 +232,7 @@ Run the dependency-free pure calculation suite with:
 
 ```powershell
 node tests\calendar.test.js
+node tests\section-enrollment.test.js
 node tests\audit-log.test.js
 node tests\file-preview.test.js
 node tests\performance.test.js
