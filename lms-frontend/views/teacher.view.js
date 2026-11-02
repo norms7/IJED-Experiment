@@ -126,8 +126,14 @@ const TeacherView = {
     const subjectHTML = subjects.length
       ? subjects.map((subject, index) => {
           const style = TEACHER_SUBJECT_STYLES[subject.subject_name] || { color: ['#7b1830', '#39717a', '#9a6a12', '#76506a'][index % 4], icon: LMS_ICONS.bookOpen };
-          const subjectModules = modules.filter(module => module.subject_id === subject.subject_id);
-          const subjectActivities = activities.filter(activity => activity.subject_id === subject.subject_id);
+          const subjectModules = modules.filter(module =>
+            module.subject_id === subject.subject_id &&
+            module.section_id === subject.section_id,
+          );
+          const subjectActivities = activities.filter(activity =>
+            activity.subject_id === subject.subject_id &&
+            activity.section_id === subject.section_id,
+          );
           return `<article class="teacher-dashboard-subject"><div class="teacher-dashboard-subject-icon" style="--teacher-accent:${style.color}">${style.icon}</div><div class="teacher-dashboard-subject-main"><strong>${escHtml(subject.subject_name || 'Untitled subject')}</strong><span>${escHtml(subject.section_name || subject.class_name || 'Assigned section')} · ${escHtml(subject.schedule || 'No schedule')}</span><div class="teacher-dashboard-subject-meta"><span>${subjectModules.length} module${subjectModules.length === 1 ? '' : 's'}</span><span>${subjectActivities.length} activit${subjectActivities.length === 1 ? 'y' : 'ies'}</span></div></div><button class="btn btn-xs btn-outline" onclick="DashboardController.loadSection('activities')">Open activities</button></article>`;
         }).join('')
       : `<div class="teacher-dashboard-empty"><span>${LMS_ICONS.bookOpen}</span><div><strong>No subjects assigned</strong><p>Contact your administrator to get teaching assignments.</p></div></div>`;
@@ -158,8 +164,8 @@ const TeacherView = {
           <div class="subject-teacher">${escHtml(sub.section_name)} · ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
         </div>
         <div class="subject-actions">
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.class_id}, '${escHtml(sub.subject_name)}')">${lmsIcon('users')} Students</button>
-          <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.subject_id}, ${sub.class_id})">${lmsIcon('upload')} Upload</button>
+          <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.section_id}, '${escHtml(sub.subject_name)}')">${lmsIcon('users')} Students</button>
+          <button class="btn btn-xs btn-outline" onclick="TeacherController.openAddModuleForSubject(${sub.id})">${lmsIcon('upload')} Upload</button>
           <button class="btn btn-xs btn-primary" onclick="DashboardController.loadSection('modules')">${lmsIcon('clipboard')} Activities</button>
         </div>
       </div>
@@ -200,26 +206,28 @@ const TeacherView = {
         </div>
         <div class="module-card-footer">
           <span class="module-card-meta">${meta || 'No file attached'}</span>
-          <div class="flex gap-1">${fileBtn}<button class="btn btn-xs btn-danger" onclick="TeacherController.deleteModule(${m.id})">${lmsIcon('trash')}</button></div>
+          <div class="flex gap-1">${fileBtn}<button class="btn btn-xs btn-outline" onclick="TeacherController.openEditModule(${m.id})">${lmsIcon('edit')} Section</button><button class="btn btn-xs btn-danger" onclick="TeacherController.deleteModule(${m.id})">${lmsIcon('trash')}</button></div>
         </div>
       </div>`;
     };
 
-    // ── Group: subject_name -> semester -> term -> [modules] ──
+    // ── Group: subject_name + section -> semester -> term -> [modules] ──
     const bySubject = {};
     apiModules.forEach(m => {
       const subj = m._subject_name || 'Unknown';
-      bySubject[subj] = bySubject[subj] || {};
+      const section = m._section_name || 'Section not assigned';
+      const groupKey = `${subj} — ${section}`;
+      bySubject[groupKey] = bySubject[groupKey] || {};
       const sem = semesterLabel(m._semester);
-      bySubject[subj][sem] = bySubject[subj][sem] || {};
+      bySubject[groupKey][sem] = bySubject[groupKey][sem] || {};
       const term = m.term || null;
-      bySubject[subj][sem][term] = bySubject[subj][sem][term] || [];
-      bySubject[subj][sem][term].push(m);
+      bySubject[groupKey][sem][term] = bySubject[groupKey][sem][term] || [];
+      bySubject[groupKey][sem][term].push(m);
     });
 
     const subjectNames = Object.keys(bySubject).sort();
     const groupsHTML = subjectNames.map(subj => {
-      const style = SUBJECT_STYLES[subj] || { color: 'var(--maroon)', icon: LMS_ICONS.book };
+      const style = SUBJECT_STYLES[subj.split(' — ')[0]] || { color: 'var(--maroon)', icon: LMS_ICONS.book };
       const semesterKeys = Object.keys(bySubject[subj]).sort(); // "1st Semester" < "2nd Semester" < "No Semester Set" alphabetically works here
       const semestersHTML = semesterKeys.map(sem => {
         const termKeys = Object.keys(bySubject[subj][sem]).sort((a, b) => {

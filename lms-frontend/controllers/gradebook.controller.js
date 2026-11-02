@@ -11,7 +11,6 @@ const GradebookController = {
 
   // ── State ─────────────────────────────────────────────────────────────────
   _subjects:          [],   // all subjects for this teacher
-  _currentClassId:    null, // parent class — still needed: modules are class-scoped by design
   _currentSectionId:  null, // the actual section being graded — never mixed with sibling sections
   _currentSubjectId:  null, // active subject filter
   _currentName:       '',
@@ -70,7 +69,6 @@ const GradebookController = {
   // ── Open a section → show first subject by default ────────────────────────
   async openSection(sectionId, sectionName) {
     this._currentSectionId = sectionId;
-    this._currentClassId   = null; // resolved below, once we know the section's subjects
     this._currentName      = sectionName;
     this._subjectCache     = {};   // clear cache on new section
     this._allStudents      = [];
@@ -98,11 +96,6 @@ const GradebookController = {
         sectionSubjects     = allSubjects.filter(s => s.section_id === sectionId);
       }
       this._classSubjects = sectionSubjects;
-      // Modules are class-scoped by design (shared across a class's sections),
-      // so we still need the parent class_id — derived from whichever subject
-      // row matched, since every row for this section shares the same class.
-      this._currentClassId = sectionSubjects[0]?.class_id ?? null;
-
       if (sectionSubjects.length === 0) {
         area.innerHTML = `<div class="empty-state">
           <div class="empty-state-icon">${LMS_ICONS.clipboard}</div>
@@ -179,10 +172,10 @@ const GradebookController = {
       let cached = this._subjectCache[cacheKey];
       if (!cached) {
         const [activities, modules, attendance, moduleReadsData] = await Promise.all([
-          api.getTeacherActivities({ subject_id: subjectId, term }),
-          api.getMyModules(subjectId, term),
+          api.getTeacherActivities({ subject_id: subjectId, section_id: this._currentSectionId, term }),
+          api.getMyModules(subjectId, term, this._currentSectionId),
           api.getAttendanceSectionStudents(this._currentSectionId, { subjectId, term }),
-          api.getClassModuleReads(subjectId, term),
+          api.getClassModuleReads(subjectId, this._currentSectionId, term),
         ]);
 
         // Fetch submissions per activity

@@ -405,10 +405,10 @@ const DashboardController = {
         ]);
         const subjectMap = {};
         subjects.forEach((s) => {
-          subjectMap[s.subject_id] = { name: s.subject_name, semester: s.subject_semester };
+          subjectMap[`${s.subject_id}:${s.section_id}`] = { name: s.subject_name, semester: s.subject_semester };
         });
         modules.forEach((m) => {
-          const info = subjectMap[m.subject_id];
+          const info = subjectMap[`${m.subject_id}:${m.section_id}`];
           m._subject_name = info?.name || "Unknown";
           m._semester = info?.semester ?? null;
         });

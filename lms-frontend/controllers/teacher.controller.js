@@ -14,15 +14,20 @@ const TeacherController = {
     try {
       const subjects = await api.getMySubjects();
       if (!subjects.length) subjectOpts = '<option value="">No subjects assigned yet</option>';
-      else subjectOpts = subjects.map(s =>
-        `<option value="${s.subject_id}" data-class="${s.class_id}">${escHtml(s.subject_name)} — ${escHtml(s.class_name)}</option>`
-      ).join('');
+      else {
+        window._teacherModuleAssignments = Object.fromEntries(
+          subjects.map(assignment => [assignment.id, assignment]),
+        );
+        subjectOpts = subjects.map(assignment =>
+          `<option value="${assignment.id}">${escHtml(assignment.subject_name)} — ${escHtml(assignment.section_name)}</option>`
+        ).join('');
+      }
     } catch (err) {
       subjectOpts = '<option value="">Failed to load subjects</option>';
     }
     Modal.show('Upload New Module', `
       <div class="form-group"><label>Module Title *</label><input class="form-control" id="m-title" placeholder="e.g. Introduction to Algebra" /></div>
-      <div class="form-group"><label>Subject *</label><select class="form-control" id="m-subject">${subjectOpts}</select></div>
+      <div class="form-group"><label>Subject & Section *</label><select class="form-control" id="m-subject"><option value="">— Select subject and section —</option>${subjectOpts}</select></div>
       <div class="form-group"><label>Description</label><textarea class="form-control" id="m-desc" placeholder="Brief description of the module…"></textarea></div>
       <div class="form-row">
         <div class="form-group"><label>Term</label><select class="form-control" id="m-term"><option value="">— Select Term —</option><option value="1st">1st Term</option><option value="2nd">2nd Term</option><option value="3rd">3rd Term</option><option value="4th">4th Term</option></select></div>
@@ -31,11 +36,11 @@ const TeacherController = {
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button><button class="btn btn-primary" onclick="TeacherController.saveModule()">Upload Module</button>`,
       { closeOnBackdrop: false }
     );
-    if (window._selectedSubjectId) {
+    if (window._selectedAssignmentId) {
       setTimeout(() => {
         const s = document.getElementById('m-subject');
-        if (s) s.value = window._selectedSubjectId;
-        delete window._selectedSubjectId;
+        if (s) s.value = window._selectedAssignmentId;
+        delete window._selectedAssignmentId;
       }, 100);
     }
     document.getElementById('m-file').addEventListener('change', function () {
@@ -46,12 +51,13 @@ const TeacherController = {
 
   async saveModule() {
     const title     = document.getElementById('m-title').value.trim();
-    const subject   = document.getElementById('m-subject').value;
+    const assignmentId = document.getElementById('m-subject').value;
+    const assignment = window._teacherModuleAssignments?.[assignmentId];
     const term      = document.getElementById('m-term').value;
     const fileInput = document.getElementById('m-file');
     const file      = fileInput?.files?.[0];
     if (!Validate.required(title, 'Module title')) return;
-    if (!subject) { Toast.show('Please select a subject.', 'error'); return; }
+    if (!assignment) { Toast.show('Please select a subject and section.', 'error'); return; }
     const submitBtn = document.querySelector('#modal-container .btn-primary');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading…'; }
     try {
@@ -64,7 +70,9 @@ const TeacherController = {
       }
       await api.createMyModule({
         title,
-        subject_id:   parseInt(subject),
+        subject_id:   assignment.subject_id,
+        class_id:     assignment.class_id,
+        section_id:   assignment.section_id,
         description:  document.getElementById('m-desc').value.trim(),
         term:         term || null,
         file_url,
@@ -91,8 +99,58 @@ const TeacherController = {
     }
   },
 
-  openAddModuleForSubject(subjectId, classId) {
-    window._selectedSubjectId = subjectId;
+  async openEditModule(id) {
+    try {
+      const [module, assignments] = await Promise.all([
+        api.getModule(id),
+        api.getMySubjects(),
+      ]);
+      const options = assignments.map(assignment =>
+        `<option value="${assignment.id}" ${assignment.subject_id === module.subject_id && assignment.section_id === module.section_id ? 'selected' : ''}>${escHtml(assignment.subject_name)} — ${escHtml(assignment.section_name)}</option>`
+      ).join('');
+      window._teacherModuleAssignments = Object.fromEntries(
+        assignments.map(assignment => [assignment.id, assignment]),
+      );
+      Modal.show('Edit Module Section', `
+        <p class="text-sm text-muted">Choose the section that should receive this module and its activities.</p>
+        <div class="form-group">
+          <label class="form-label">Subject & Section *</label>
+          <select class="form-control" id="edit-module-assignment"><option value="">— Select subject and section —</option>${options}</select>
+        </div>`,
+        `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+         <button class="btn btn-primary" onclick="TeacherController.saveModuleAssignment(${id})">Save Section</button>`,
+      );
+    } catch (err) {
+      Toast.show(`Could not load module assignment: ${err.message}`, 'error');
+    }
+  },
+
+  async saveModuleAssignment(id) {
+    const assignmentId = document.getElementById('edit-module-assignment')?.value;
+    const assignment = window._teacherModuleAssignments?.[assignmentId];
+    if (!assignment) {
+      Toast.show('Select a subject and section.', 'error');
+      return;
+    }
+    const button = document.querySelector('#modal-container .btn-primary');
+    if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+    try {
+      await api.updateModule(id, {
+        subject_id: assignment.subject_id,
+        class_id: assignment.class_id,
+        section_id: assignment.section_id,
+      });
+      Modal.close();
+      Toast.show('Module section updated. Its activities now follow this section.', 'success');
+      DashboardController.loadSection('modules');
+    } catch (err) {
+      if (button) { button.disabled = false; button.textContent = 'Save Section'; }
+      Toast.show(`Could not update module section: ${err.message}`, 'error');
+    }
+  },
+
+  openAddModuleForSubject(assignmentId) {
+    window._selectedAssignmentId = assignmentId;
     this.openAddModule();
   },
 
@@ -163,12 +221,24 @@ const TeacherController = {
         api.getMyModules(),
       ]);
       if (!subjects.length) subjectOpts = '<option value="">No subjects assigned</option>';
-      else subjectOpts = subjects.map(s =>
-        `<option value="${s.subject_id}" ${s.subject_id === (existingActivity?.subject_id || presetSubjectId) ? 'selected' : ''}>${escHtml(s.subject_name)} — ${escHtml(s.class_name)}</option>`
-      ).join('');
+      else {
+        window._activityAssignments = subjects;
+        const existingModule = existingActivity
+          ? modules.find(module => module.id === existingActivity.module_id)
+          : null;
+        const matchingAssignment = subjects.find(assignment =>
+          assignment.subject_id === (existingActivity?.subject_id || presetSubjectId) &&
+          (!existingModule?.section_id || assignment.section_id === existingModule.section_id),
+        );
+        subjectOpts = subjects.map(assignment => {
+          const value = `${assignment.subject_id}:${assignment.section_id}`;
+          return `<option value="${value}" ${matchingAssignment?.id === assignment.id ? 'selected' : ''}>${escHtml(assignment.subject_name)} — ${escHtml(assignment.section_name)}</option>`;
+        }).join('');
+      }
       modules.forEach(m => {
-        if (!moduleMap[m.subject_id]) moduleMap[m.subject_id] = [];
-        moduleMap[m.subject_id].push(m);
+        const key = `${m.subject_id}:${m.section_id}`;
+        if (!moduleMap[key]) moduleMap[key] = [];
+        moduleMap[key].push(m);
       });
       window._activityModuleMap = moduleMap;
     } catch (err) {
@@ -202,8 +272,8 @@ const TeacherController = {
             <input class="form-control" id="act-title" required value="${escHtml(existingActivity?.title || '')}" placeholder="e.g. Quiz 1 – Fractions" oninput="TeacherController._updateActivitySaveState()" />
           </div>
           <div class="form-group" style="flex:1">
-            <label>Subject *</label>
-            <select class="form-control" id="act-subject" onchange="TeacherController._onSubjectChange(this.value)">${subjectOpts}</select>
+            <label>Subject & Section *</label>
+            <select class="form-control" id="act-subject" onchange="TeacherController._onSubjectChange(this.value)"><option value="">— Select subject and section —</option>${subjectOpts}</select>
           </div>
         </div>
 
@@ -336,12 +406,12 @@ const TeacherController = {
   },
 
   _refreshModuleOptions() {
-    const subjectId = document.getElementById('act-subject')?.value;
+    const assignmentKey = document.getElementById('act-subject')?.value;
     const term      = document.getElementById('act-term')?.value;
     const moduleSel = document.getElementById('act-module');
     if (!moduleSel) return;
 
-    if (!subjectId) {
+    if (!assignmentKey) {
       moduleSel.innerHTML = '<option value="">— Select subject and term first —</option>';
       return;
     }
@@ -351,7 +421,7 @@ const TeacherController = {
     }
 
     const moduleMap = window._activityModuleMap || {};
-    const modules   = (moduleMap[parseInt(subjectId)] || []).filter(m => m.term === term);
+    const modules   = (moduleMap[assignmentKey] || []).filter(m => m.term === term);
     moduleSel.innerHTML = modules.length
       ? `<option value="">— Select module —</option>${modules.map(m => `<option value="${m.id}">${escHtml(m.title)}</option>`).join('')}`
       : `<option value="">No ${this._termLabel(term)} modules for this subject — create one first</option>`;
@@ -707,7 +777,8 @@ const TeacherController = {
     }
 
     const title        = document.getElementById('act-title')?.value.trim();
-    const subjectId    = parseInt(document.getElementById('act-subject')?.value);
+    const assignmentKey = document.getElementById('act-subject')?.value || '';
+    const subjectId    = parseInt(assignmentKey.split(':')[0]);
     const term         = document.getElementById('act-term')?.value;
     const moduleId     = parseInt(document.getElementById('act-module')?.value);
     const actType      = document.getElementById('act-type')?.value;
@@ -910,30 +981,32 @@ const TeacherController = {
   async openGradeActivity(activityId) {
     Modal.show(`${lmsIcon('chart')} Submissions`, '<div class="text-center">Loading submissions…</div>', '', { wide: true });
     try {
-      const [activity, submissions] = await Promise.all([
-        api.getTeacherActivity(activityId),
-        api.getActivitySubmissions(activityId),
-      ]);
+      const activity = await api.getTeacherActivity(activityId);
+      const sectionId = activity.modules?.section_id || null;
+      const submissions = await api.getActivitySubmissions(activityId, sectionId);
 
       // Fetch enrolled students for this subject so we can show who hasn't submitted
       let enrolledStudents = [];
-      if (activity.subject_id) {
-        const { data: enrolled } = await api.sb
-          .from("student_subject_enrollments")
-          .select("students(id, student_number, users(first_name, last_name), student_section_assignments(sections(classes(id, name))))")
-          .eq("subject_id", activity.subject_id);
-        enrolledStudents = (enrolled || []).map(e => {
-          const s   = e.students;
-          const u   = s?.users;
-          const cls = s?.student_section_assignments?.[0]?.sections?.classes;
-          return {
-            id:           s?.id,
-            full_name:    u ? `${u.first_name} ${u.last_name}`.trim() : `Student #${s?.id}`,
-            student_number: s?.student_number,
-            class_name:   cls?.name || null,
-            class_id:     cls?.id   || null,
-          };
-        }).filter(s => s.id);
+      if (activity.subject_id && sectionId) {
+        const [enrollmentResult, sectionStudents] = await Promise.all([
+          api.sb
+            .from("student_subject_enrollments")
+            .select("student_id")
+            .eq("subject_id", activity.subject_id),
+          api.getSectionStudents(sectionId),
+        ]);
+        if (enrollmentResult.error) throw new Error(enrollmentResult.error.message);
+        const enrolledIds = new Set((enrollmentResult.data || []).map(row => row.student_id));
+        enrolledStudents = sectionStudents
+          .filter(student => enrolledIds.has(student.id))
+          .map(student => ({
+            id: student.id,
+            full_name: `${student.user?.first_name || ''} ${student.user?.last_name || ''}`.trim() || `Student #${student.id}`,
+            student_number: student.student_number,
+            class_name: null,
+            class_id: sectionId,
+            section_id: sectionId,
+          }));
       }
 
       const submittedIds = new Set(submissions.map(s => s.student_id));
@@ -965,7 +1038,7 @@ const TeacherController = {
       // ── Section map from submitted students ──────────────────────────────
       const sectionMap = new Map();
       submissions.forEach(s => {
-        if (s.class_id && s.section_name) sectionMap.set(s.class_id, s.section_name);
+        if (s.section_id && s.section_name) sectionMap.set(s.section_id, s.section_name);
       });
 
       // Section filter — always show if there's at least 1 section
@@ -977,7 +1050,7 @@ const TeacherController = {
             onchange="TeacherController._filterSubmissionRows()">
             <option value="">All Sections (${submissions.length} submitted)</option>
             ${[...sectionMap.entries()].map(([id, name]) =>
-              `<option value="${id}">${escHtml(name)} — ${submissions.filter(s => s.class_id === id).length} submitted</option>`
+              `<option value="${id}">${escHtml(name)} — ${submissions.filter(s => s.section_id === id).length} submitted</option>`
             ).join('')}
           </select>
         </div>`;
@@ -1051,7 +1124,7 @@ const TeacherController = {
           ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score ?? 0}, ${Boolean(s.is_late)}, ${Number(s.late_penalty_points || 0)})">${lmsIcon('pen')} Grade</button>`
           : (s.is_graded ? `<span class="badge badge-green">✓ Graded</span>` : `<span class="badge badge-gray">Auto</span>`);
 
-        return `<tr data-class-id="${s.class_id || ''}" data-searchable
+        return `<tr data-section-id="${s.section_id || ''}" data-searchable
           style="cursor:pointer"
           onclick="TeacherController.viewStudentAnswers(${activity.id}, ${s.id})"
           title="Click to view ${escHtml(s.student_name || 'student')}'s answers">
@@ -1101,7 +1174,7 @@ const TeacherController = {
     const cache = TeacherController._submissionsCache;
     if (!cache) return;
     const filtered = classId
-      ? cache.submissions.filter(s => String(s.class_id) === String(classId))
+      ? cache.submissions.filter(s => String(s.section_id) === String(classId))
       : cache.submissions;
     tbody.innerHTML = cache.buildRows(filtered);
   },

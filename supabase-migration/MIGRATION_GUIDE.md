@@ -51,6 +51,7 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 10. `09_student_attendance_summary.sql` — adds the student-scoped attendance summary RPC.
 11. `10_activity_late_submissions.sql` — adds late-submission settings and submission penalty snapshots, and updates the student submission and teacher grading RPCs to enforce them.
 12. `11_audit_logs.sql` — adds the immutable admin audit table, admin-only reporting RPCs, safe change capture, and atomic section/enrollment auditing.
+13. `12_section_scoped_learning_content.sql` — scopes published modules, activities, questions, activity-file access, submissions, and module-read tracking to the student's assigned section.
 
 For an existing database, apply `10_activity_late_submissions.sql` after the
 current migrations. It is safe to rerun and installs the updated submission
@@ -65,6 +66,14 @@ made after installation; it does not fabricate a history of older changes.
 The audit table is readable only by admins and has no client update/delete
 permission. Personal identifiers and contact details are redacted from
 recorded before/after values.
+
+For an existing database, run `12_section_scoped_learning_content.sql` after
+migration 11. It adds a section link to modules and backfills existing modules
+only when their teacher, subject, and class identify exactly one section.
+Ambiguous legacy modules remain hidden from students until a teacher selects
+the correct section with the module's **Section** action. New modules require
+the teacher to select a specific subject and section; activities inherit that
+scope from their module.
 
 For an existing project receiving these scoring and analytics fixes, also
 rerun the updated `03_functions.sql` in the SQL Editor. It synchronizes each

@@ -102,11 +102,17 @@ exact order**, from `supabase-migration/` in your unzipped folder:
 10. `09_student_attendance_summary.sql` — adds the student-scoped attendance summary RPC.
 11. `10_activity_late_submissions.sql` — adds late-submission settings and updates submission and grading RPCs.
 12. `11_audit_logs.sql` — installs the admin-only, immutable audit history and reporting RPCs.
+13. `12_section_scoped_learning_content.sql` — scopes modules and activities to assigned sections, including student access and submissions.
 
 For an existing project, run `11_audit_logs.sql` after migrations 01-10 and
 before deploying the updated Edge Functions. Audit history starts at install
 time; prior activity is not backfilled. Contact and other sensitive profile
 values are redacted from field-level change details.
+
+For an existing project, run `12_section_scoped_learning_content.sql` after
+migration 11. It backfills only modules that resolve to exactly one section.
+Teachers can assign ambiguous existing modules to the correct section from
+the Modules page; new modules and their activities are section-scoped.
 
 Deploy both admin Edge Functions when account management is enabled:
 
