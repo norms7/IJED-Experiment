@@ -2275,17 +2275,13 @@ class LMSAdminAPI {
   }
 
   async getBayesianAnalytics(
-    targetGrade = 90,
+    targetGrade = 85,
     subjectId = null,
     term = null,
     semester = null,
   ) {
     const studentId = await this._myStudentId();
-    const [
-      predicted_grade,
-      improvement_probability,
-      risk_assessment,
-    ] = await Promise.all([
+    const [predicted_grade, improvement_probability] = await Promise.all([
       AnalyticsEngine.getPredictedFinalGrade(
         this.sb,
         studentId,
@@ -2301,18 +2297,10 @@ class LMSAdminAPI {
         term,
         semester,
       ),
-      AnalyticsEngine.getRiskAssessment(
-        this.sb,
-        studentId,
-        subjectId,
-        term,
-        semester,
-      ),
     ]);
     return {
       predicted_grade,
       improvement_probability,
-      risk_assessment,
     };
   }
 
@@ -2396,7 +2384,7 @@ class LMSAdminAPI {
   }
 
   async getImprovementProbability(
-    targetGrade = 90,
+    targetGrade = 85,
     subjectId = null,
     term = null,
     semester = null,

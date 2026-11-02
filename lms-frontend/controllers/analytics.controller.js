@@ -6,7 +6,7 @@
      • Load subject list for the filter dropdown
      • Fetch and cache descriptive + Bayesian data
      • Render chart canvases via Chart.js
-     • Handle sub-tab switching (Descriptive / Bayesian)
+     • Handle tab switching (Performance Analytics / Grading Details)
      • Handle subject filter changes
      • Manage target-grade slider for improvement probability
 
@@ -22,12 +22,12 @@ const AnalyticsController = {
 
   // ── State ─────────────────────────────────────────────────────────────────
 
-  _currentTab:     'descriptive',   // 'descriptive' | 'bayesian'
+  _currentTab:     'performance',  // 'performance' | 'grading-details'
   _currentSemester: null,           // '1st' | '2nd' — resolved on first load, defaults to 1st
   _currentSubject: null,            // null = All subjects
   _currentTerm:    null,            // null = All terms; else '1st'/'2nd'/'3rd'/'4th'
   _filterRevision: 0,
-  _targetGrade:    90,              // For improvement probability
+  _targetGrade:    85,              // For improvement probability
   _descData:       null,
   _bayesData:      null,
   _subjects:       [],
@@ -37,24 +37,12 @@ const AnalyticsController = {
 
   /**
    * Called by DashboardController._postRender when sectionId === 'analytics'.
-   * Renders the shell, loads subjects, then loads the active sub-tab data.
+   * Renders the shell, loads subjects, then loads the active tab data.
    */
   async load() {
     const area = document.getElementById('content-area');
 
-    // BUG FIX (2025-06): shell() always renders with the Descriptive tab
-    // marked active and the Bayesian panel hidden, regardless of whatever
-    // _currentTab happened to be set to from a previous visit. If the user
-    // had switched to Bayesian, then navigated away and back, _currentTab
-    // stayed 'bayesian' in memory while the screen visually reset to
-    // Descriptive — a state/DOM mismatch. The next click on "Bayesian" then
-    // hit the early-return guard in switchTab() ("if tab === _currentTab,
-    // do nothing") and silently no-op'd, making the tab look broken.
-    //
-    // Fix: explicitly reset _currentTab to 'descriptive' here, matching
-    // exactly what shell() always renders. This keeps state and DOM in sync
-    // on every fresh entry into the Analytics section.
-    this._currentTab = 'descriptive';
+    this._currentTab = 'performance';
     this._filterRevision++;
 
     // Reset state on each entry
@@ -94,36 +82,7 @@ const AnalyticsController = {
       this._currentSubject,
     );
 
-    // Load the default tab
-    await this._loadDescriptive();
-
-    // PERF FIX (2025-06): prefetch the Bayesian bundle in the background
-    // once Descriptive has finished. The user is looking at Descriptive
-    // data already, so this costs nothing perceived — but by the time they
-    // click the Bayesian tab, _bayesData is already populated and
-    // switchTab() renders instantly instead of showing a loading skeleton.
-    // Caught and ignored on failure: if this silently fails, the user just
-    // sees the normal loading skeleton when they actually click the tab,
-    // same as before this fix existed.
-    this._prefetchBayesian();
-  },
-
-  /**
-   * Background prefetch — never shown to the user, never throws into the
-   * caller. If it fails, _bayesData stays null and _loadBayesian() will
-   * just fetch normally (with its own loading skeleton) when the tab is
-   * actually clicked.
-   */
-  async _prefetchBayesian() {
-    if (this._bayesData) return; // already have it somehow
-    const requestRevision = this._filterRevision;
-    const requestTarget = this._targetGrade;
-    try {
-      const data = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester);
-      if (requestRevision === this._filterRevision && requestTarget === this._targetGrade) this._bayesData = data;
-    } catch (_) {
-      if (requestRevision === this._filterRevision && requestTarget === this._targetGrade) this._bayesData = null;
-    }
+    await this._loadPerformance();
   },
 
   // ── Public: tab switching ─────────────────────────────────────────────────
@@ -137,13 +96,13 @@ const AnalyticsController = {
     if (btnEl) btnEl.classList.add('active');
 
     // Show / hide panels
-    document.getElementById('analytics-panel-descriptive')
-      .classList.toggle('hidden', tab !== 'descriptive');
-    document.getElementById('analytics-panel-bayesian')
-      .classList.toggle('hidden', tab !== 'bayesian');
+    document.getElementById('analytics-panel-performance')
+      .classList.toggle('hidden', tab !== 'performance');
+    document.getElementById('analytics-panel-grading-details')
+      .classList.toggle('hidden', tab !== 'grading-details');
 
-    if (tab === 'descriptive') await this._loadDescriptive();
-    if (tab === 'bayesian')    await this._loadBayesian();
+    if (tab === 'performance') await this._loadPerformance();
+    if (tab === 'grading-details') await this._loadGradingDetails();
   },
 
   // ── Public: semester filter ───────────────────────────────────────────────
@@ -179,8 +138,8 @@ const AnalyticsController = {
     this._bayesData = null;
     this._destroyAllCharts();
 
-    if (this._currentTab === 'descriptive') await this._loadDescriptive();
-    else                                     await this._loadBayesian();
+    if (this._currentTab === 'performance') await this._loadPerformance();
+    else                                     await this._loadGradingDetails();
   },
 
   // ── Public: subject filter ────────────────────────────────────────────────
@@ -193,8 +152,8 @@ const AnalyticsController = {
     this._bayesData = null;
     this._destroyAllCharts();
 
-    if (this._currentTab === 'descriptive') await this._loadDescriptive();
-    else                                     await this._loadBayesian();
+    if (this._currentTab === 'performance') await this._loadPerformance();
+    else                                     await this._loadGradingDetails();
   },
 
   // ── Public: term filter ───────────────────────────────────────────────────
@@ -206,8 +165,8 @@ const AnalyticsController = {
     this._bayesData = null;
     this._destroyAllCharts();
 
-    if (this._currentTab === 'descriptive') await this._loadDescriptive();
-    else                                     await this._loadBayesian();
+    if (this._currentTab === 'performance') await this._loadPerformance();
+    else                                     await this._loadGradingDetails();
   },
 
   // ── Public: target grade control ─────────────────────────────────────────
@@ -215,7 +174,8 @@ const AnalyticsController = {
   adjustTarget(delta) {
     this._targetGrade = Math.max(0, Math.min(100, this._targetGrade + delta));
     this._bayesData = null;  // force refetch with new target
-    this._loadBayesian();
+    if (this._currentTab === 'performance') this._loadPerformance();
+    else this._loadGradingDetails();
   },
 
   // ── Public: reload on error ───────────────────────────────────────────────
@@ -226,54 +186,64 @@ const AnalyticsController = {
     await this.load();
   },
 
-  // ── Private: load descriptive ─────────────────────────────────────────────
+  // ── Private: load combined performance analytics ─────────────────────────
 
-  async _loadDescriptive() {
-    const panel = document.getElementById('analytics-panel-descriptive');
-    if (!panel) return;
-    const requestRevision = this._filterRevision;
-
-    if (this._descData) {
-      // Re-render from cache (e.g. returning to tab)
-      panel.innerHTML = AnalyticsView.descriptivePanel(this._descData);
-      await this._renderDescriptiveCharts(this._descData, requestRevision);
-      return;
-    }
-
-    panel.innerHTML = AnalyticsView.descriptiveSkeleton();
-
-    try {
-      const data = await api.getDescriptiveAnalytics(this._currentSubject, this._currentTerm, this._currentSemester);
-      if (!panel.isConnected || requestRevision !== this._filterRevision) return;
-      this._descData = data;
-      panel.innerHTML = AnalyticsView.descriptivePanel(data);
-      await this._renderDescriptiveCharts(data, requestRevision);
-    } catch (err) {
-      if (!panel.isConnected || requestRevision !== this._filterRevision) return;
-      panel.innerHTML = AnalyticsView.error(err.message);
-    }
-  },
-
-  // ── Private: load Bayesian ────────────────────────────────────────────────
-
-  async _loadBayesian() {
-    const panel = document.getElementById('analytics-panel-bayesian');
+  async _loadPerformance() {
+    const panel = document.getElementById('analytics-panel-performance');
     if (!panel) return;
     const requestRevision = this._filterRevision;
     const requestTarget = this._targetGrade;
 
-    if (this._bayesData) {
-      panel.innerHTML = AnalyticsView.bayesianPanel(this._bayesData);
+    if (this._descData && this._bayesData
+      && this._bayesData.improvement_probability?.target_grade === this._targetGrade) {
+      panel.innerHTML = AnalyticsView.performancePanel(this._descData, this._bayesData);
+      await this._renderDescriptiveCharts(this._descData, requestRevision);
       return;
     }
 
-    panel.innerHTML = AnalyticsView.bayesianSkeleton();
+    panel.innerHTML = AnalyticsView.performanceSkeleton();
+
+    try {
+      const [descriptiveData, gradingData] = await Promise.all([
+        this._descData
+          ? Promise.resolve(this._descData)
+          : api.getDescriptiveAnalytics(this._currentSubject, this._currentTerm, this._currentSemester),
+        this._bayesData?.improvement_probability?.target_grade === this._targetGrade
+          ? Promise.resolve(this._bayesData)
+          : api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester),
+      ]);
+      if (!panel.isConnected || requestRevision !== this._filterRevision || requestTarget !== this._targetGrade) return;
+      this._descData = descriptiveData;
+      this._bayesData = gradingData;
+      panel.innerHTML = AnalyticsView.performancePanel(descriptiveData, gradingData);
+      await this._renderDescriptiveCharts(descriptiveData, requestRevision);
+    } catch (err) {
+      if (!panel.isConnected || requestRevision !== this._filterRevision || requestTarget !== this._targetGrade) return;
+      panel.innerHTML = AnalyticsView.error(err.message);
+    }
+  },
+
+  // ── Private: load grading details ─────────────────────────────────────────
+
+  async _loadGradingDetails() {
+    const panel = document.getElementById('analytics-panel-grading-details');
+    if (!panel) return;
+    const requestRevision = this._filterRevision;
+    const requestTarget = this._targetGrade;
+
+    if (this._bayesData
+      && this._bayesData.improvement_probability?.target_grade === this._targetGrade) {
+      panel.innerHTML = AnalyticsView.gradingDetailsPanel(this._bayesData);
+      return;
+    }
+
+    panel.innerHTML = AnalyticsView.gradingDetailsSkeleton();
 
     try {
       const data = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject, this._currentTerm, this._currentSemester);
       if (!panel.isConnected || requestRevision !== this._filterRevision || requestTarget !== this._targetGrade) return;
       this._bayesData = data;
-      panel.innerHTML = AnalyticsView.bayesianPanel(data);
+      panel.innerHTML = AnalyticsView.gradingDetailsPanel(data);
     } catch (err) {
       if (!panel.isConnected || requestRevision !== this._filterRevision || requestTarget !== this._targetGrade) return;
       panel.innerHTML = AnalyticsView.error(err.message);
@@ -319,8 +289,17 @@ const AnalyticsController = {
     const gpCanvas = document.getElementById('chart-grade-progress');
     if (gpCanvas && grade_progress.data.length) {
       this._destroyChart('grade-progress');
-      const labels = grade_progress.data.map(d => d.date);
+      const classAverages = new Map((score_vs_avg?.data || []).map(item => [String(item.activity_id), item]));
+      const labels = grade_progress.data.map(d =>
+        d.activity_name.length > 18 ? `${d.activity_name.slice(0, 16)}…` : d.activity_name
+      );
       const pcts   = grade_progress.data.map(d => d.pct);
+      const averagePcts = grade_progress.data.map(item => {
+        const averageValue = classAverages.get(String(item.activity_id))?.class_avg_pct;
+        if (averageValue == null) return null;
+        const average = Number(averageValue);
+        return Number.isFinite(average) ? average : null;
+      });
       const isDarkMode = document.body.classList.contains('dark-mode');
 
       this._charts['grade-progress'] = new Chart(gpCanvas, {
@@ -338,6 +317,18 @@ const AnalyticsController = {
               pointBackgroundColor: '#6d0019',
               pointRadius: 5,
               pointHoverRadius: 7,
+            },
+            {
+              label: 'Class Average (%)',
+              data: averagePcts,
+              borderColor: '#d4a017',
+              backgroundColor: 'rgba(212,160,23,0.12)',
+              fill: false,
+              tension: 0.35,
+              spanGaps: false,
+              pointBackgroundColor: '#d4a017',
+              pointRadius: 4,
+              pointHoverRadius: 6,
             },
             {
               label: 'Passing (75%)',
@@ -386,93 +377,24 @@ const AnalyticsController = {
       });
     }
 
-    // ── 3. Score vs Class Average — Bar Chart ────────────────────────────
-    const svaCanvas = document.getElementById('chart-score-vs-avg');
-    if (svaCanvas && score_vs_avg.data.length) {
-      this._destroyChart('score-vs-avg');
-      const items  = score_vs_avg.data.slice(0, 20);  // cap at 20 for readability
-      const labels = items.map(d => d.activity_name.length > 16 ? d.activity_name.slice(0,14)+'…' : d.activity_name);
-      const isDarkMode = document.body.classList.contains('dark-mode');
-
-      this._charts['score-vs-avg'] = new Chart(svaCanvas, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'My Score (%)',
-              data: items.map(d =>
-                ['missing', 'awaiting_grade'].includes(d.status)
-                  || d.my_score_pct == null
-                  || !Number.isFinite(Number(d.my_score_pct))
-                  ? null
-                  : Number(d.my_score_pct)
-              ),
-              backgroundColor: 'rgba(109,0,25,0.8)',
-              borderRadius: 5,
-            },
-            {
-              label: 'Class average (graded submissions)',
-              data: items.map(d => d.class_avg_pct),
-              backgroundColor: 'rgba(212,160,23,0.75)',
-              borderRadius: 5,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index' },
-          plugins: {
-            legend: { position: 'top', labels: { color: isDarkMode ? '#ead6db' : '#6b5558', font: { family: 'Nunito', size: 12 } } },
-            tooltip: {
-              callbacks: {
-                afterBody(ctx) {
-                  const idx  = ctx[0]?.dataIndex;
-                  const item = items[idx];
-                  if (!item) return [];
-                  if (item.status === 'awaiting_grade') return ['Awaiting grade'];
-                  if (item.status === 'missing') {
-                    const sign = item.diff_pct != null && item.diff_pct >= 0 ? '+' : '';
-                    return item.diff_pct != null ? [`Missing (counts as 0)`, `Difference: ${sign}${item.diff_pct}%`] : ['Missing (counts as 0)'];
-                  }
-                  if (item.diff_pct == null) return [];
-                  const sign = item.diff_pct >= 0 ? '+' : '';
-                  return [`Difference: ${sign}${item.diff_pct}%`];
-                },
-              },
-            },
-          },
-          scales: {
-            y: {
-              min: 0, max: 110,
-              ticks: { color: isDarkMode ? '#ead6db' : '#6b5558', callback: v => v + '%', font: { family: 'Nunito' } },
-              grid: { color: isDarkMode ? 'rgba(234,214,219,0.22)' : 'rgba(0,0,0,0.10)' },
-            },
-            x: {
-              ticks: { color: isDarkMode ? '#ead6db' : '#6b5558', font: { family: 'Nunito', size: 10 }, maxRotation: 40 },
-              grid: { display: false },
-            },
-          },
-        },
-      });
-    }
-
-    // ── 5. Subject Radar ──────────────────────────────────────────────────
+    // ── Subject performance chart ────────────────────────────────────────
     const radarCanvas = document.getElementById('chart-subject-radar');
-    if (radarCanvas && subject_radar.axes.length >= 3) {
+    if (radarCanvas) {
       this._destroyChart('subject-radar');
       const axes = subject_radar.axes;
+      const hasSubjectScores = axes.length > 0;
       const subjectColors = ['#8B1E3F', '#1B998B', '#2D6CDF', '#F28E2B', '#7B2CBF', '#0081A7', '#C99700', '#D1495B', '#3A5A40', '#6A4C93', '#E76F51', '#264653'];
       const isDarkMode = document.body.classList.contains('dark-mode');
       this._charts['subject-radar'] = new Chart(radarCanvas, {
         type: 'polarArea',
         data: {
-          labels: axes.map(a => a.subject_name),
+          labels: hasSubjectScores ? axes.map(a => a.subject_name) : ['No scores yet'],
           datasets: [{
             label: 'Average Performance (%)',
-            data: axes.map(a => a.avg_pct),
-            backgroundColor: axes.map((_, index) => `${subjectColors[index % subjectColors.length]}${isDarkMode ? 'dd' : 'cc'}`),
+            data: hasSubjectScores ? axes.map(a => a.avg_pct) : [0],
+            backgroundColor: hasSubjectScores
+              ? axes.map((_, index) => `${subjectColors[index % subjectColors.length]}${isDarkMode ? 'dd' : 'cc'}`)
+              : ['transparent'],
             borderColor: '#fff',
             borderWidth: 2,
           }],
@@ -482,6 +404,7 @@ const AnalyticsController = {
           maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
+            tooltip: { enabled: hasSubjectScores },
           },
           scales: {
             r: {

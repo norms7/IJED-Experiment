@@ -712,7 +712,7 @@ const AnalyticsEngine = (() => {
   const PRIOR_STRENGTH = 4; // effective sample size of the class-wide prior
   const LOW_EVIDENCE_N = 3;
 
-  async function getImprovementProbability(sb, studentId, targetGrade = 90.0, subjectId = null, term = null, semester = null) {
+  async function getImprovementProbability(sb, studentId, targetGrade = 85.0, subjectId = null, term = null, semester = null) {
     const cacheKey = `improvement_prob.v6.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}.target_${Math.trunc(targetGrade)}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term, semester);

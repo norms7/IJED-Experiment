@@ -29,7 +29,7 @@ const analyticsIcon = (name, className = 'analytics-icon') => `<span class="${cl
 
 const AnalyticsView = {
 
-  // ── Shell: the two-sub-tab wrapper ───────────────────────────────────────
+  // ── Shell: analytics and grading details tabs ────────────────────────────
 
   shell(subjectOptions = [], currentSemester = '1st', currentTerm = null, currentSubject = null) {
     const opts = subjectOptions.map(s =>
@@ -40,7 +40,7 @@ const AnalyticsView = {
       <div class="analytics-header">
         <div>
           <h2 class="analytics-title">${analyticsIcon('chart')}Performance Analytics</h2>
-          <p class="analytics-sub">Understand your academic journey with data-driven insights.</p>
+          <p class="analytics-sub">See your grades, progress, and attendance.</p>
         </div>
         <div class="analytics-filters">
           <select id="analytics-semester-filter" class="analytics-select" onchange="AnalyticsController.onSemesterChange(this.value)">
@@ -61,33 +61,31 @@ const AnalyticsView = {
         </div>
       </div>
 
-      <!-- Sub-tab navigation -->
       <div class="analytics-tabs">
-        <button class="analytics-tab active" data-tab="descriptive"
-          onclick="AnalyticsController.switchTab('descriptive', this)">
-          ${analyticsIcon('trend', 'analytics-tab-icon')}Descriptive Analysis
+        <button class="analytics-tab active" data-tab="performance"
+          onclick="AnalyticsController.switchTab('performance', this)">
+          ${analyticsIcon('trend', 'analytics-tab-icon')}Performance Analytics
         </button>
-        <button class="analytics-tab" data-tab="bayesian"
-          onclick="AnalyticsController.switchTab('bayesian', this)">
-          ${analyticsIcon('crystal', 'analytics-tab-icon')}Bayesian Analysis
+        <button class="analytics-tab" data-tab="grading-details"
+          onclick="AnalyticsController.switchTab('grading-details', this)">
+          ${analyticsIcon('crystal', 'analytics-tab-icon')}Grading Details
         </button>
       </div>
 
-      <!-- Tab panels -->
-      <div id="analytics-panel-descriptive" class="analytics-panel">
-        ${AnalyticsView.descriptiveSkeleton()}
+      <div id="analytics-panel-performance" class="analytics-panel">
+        ${AnalyticsView.performanceSkeleton()}
       </div>
-      <div id="analytics-panel-bayesian" class="analytics-panel hidden">
-        ${AnalyticsView.bayesianSkeleton()}
+      <div id="analytics-panel-grading-details" class="analytics-panel hidden">
+        ${AnalyticsView.gradingDetailsSkeleton()}
       </div>`;
   },
 
   // ── Skeletons ─────────────────────────────────────────────────────────────
 
-  descriptiveSkeleton() {
+  performanceSkeleton() {
     return `
       <div class="analytics-grid">
-        ${[1,2,3,4,5].map(() => `
+        ${[1,2,3,4].map(() => `
           <div class="analytics-card">
             <div class="skeleton-title"></div>
             <div class="skeleton-chart"></div>
@@ -95,10 +93,10 @@ const AnalyticsView = {
       </div>`;
   },
 
-  bayesianSkeleton() {
+  gradingDetailsSkeleton() {
     return `
       <div class="analytics-grid">
-        ${[1,2,3,4].map(() => `
+        ${[1,2,3].map(() => `
           <div class="analytics-card">
             <div class="skeleton-title"></div>
             <div class="skeleton-chart"></div>
@@ -131,29 +129,42 @@ const AnalyticsView = {
   },
 
   // ════════════════════════════════════════════════════════════════════════════
-  // DESCRIPTIVE PANEL
+  // PERFORMANCE ANALYTICS PANEL
   // ════════════════════════════════════════════════════════════════════════════
 
-  descriptivePanel(data, subjectMap = {}) {
-    const { grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar } = data;
+  performancePanel(data, bayesData) {
+    const { grade_progress, attendance_calendar, module_progress, subject_radar } = data;
+    const { predicted_grade, improvement_probability } = bayesData;
 
     return `
-      <div class="analytics-grid">
+      <div class="analytics-grid performance-analytics-grid">
 
-        <!-- 1. Module Reading Progress — Progress Bars -->
+        <div class="analytics-card analytics-summary-card">
+          <div class="analytics-card-header">
+            <div class="analytics-card-title">${analyticsIcon('target')}Estimated Final Grade (current standing)</div>
+          </div>
+          ${AnalyticsView._predictedGrade(predicted_grade)}
+        </div>
+
+        <div class="analytics-card analytics-summary-card">
+          <div class="analytics-card-header">
+            <div class="analytics-card-title">${analyticsIcon('trend')}Chance to Hit Target Next Time</div>
+          </div>
+          ${AnalyticsView._improvementProb(improvement_probability)}
+        </div>
+
         <div class="analytics-card analytics-module-progress-card">
           <div class="analytics-card-header">
             <div class="analytics-card-title">${analyticsIcon('file')}Module Reading Progress</div>
-            <div class="analytics-card-sub">Learning engagement with course materials</div>
+            <div class="analytics-card-sub">Modules you've read</div>
           </div>
           ${AnalyticsView._moduleProgress(module_progress)}
         </div>
 
-        <!-- 2. Grade Progress — Line Chart -->
         <div class="analytics-card analytics-card-wide">
           <div class="analytics-card-header">
             <div class="analytics-card-title">${analyticsIcon('trend')}My Grade Progress</div>
-            <div class="analytics-card-sub">Score trends over time</div>
+            <div class="analytics-card-sub">Your scores by activity</div>
           </div>
           ${grade_progress.data.length
             ? `<div class="chart-wrapper"><canvas id="chart-grade-progress"></canvas></div>`
@@ -161,11 +172,10 @@ const AnalyticsView = {
           }
         </div>
 
-        <!-- 3. Attendance Calendar — Heatmap -->
-        <div class="analytics-card analytics-card-wide analytics-attendance-card">
+        <div class="analytics-card analytics-attendance-card analytics-card-wide">
           <div class="analytics-card-header">
             <div class="analytics-card-title">${analyticsIcon('calendar')}My Attendance Calendar</div>
-            <div class="analytics-card-sub">Daily attendance patterns</div>
+            <div class="analytics-card-sub">Your class days</div>
           </div>
           <div class="att-legend">
             <span class="att-dot att-present"></span>Present
@@ -173,34 +183,188 @@ const AnalyticsView = {
             <span class="att-dot att-excused"></span>Excused
             <span class="att-dot att-no-class"></span>No Class
           </div>
-          ${AnalyticsView._attendanceCalendar(attendance_calendar)}
-          ${AnalyticsView._attendanceSummary(attendance_calendar.summary)}
-        </div>
-
-        <!-- 4. Score vs Class Average — Bar Chart -->
-        <div class="analytics-card analytics-card-wide">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('chart')}Activity Score vs Class Average</div>
-            <div class="analytics-card-sub">How you compare to your peers</div>
+          <div class="att-calendar-layout">
+            ${AnalyticsView._attendanceCalendar(attendance_calendar)}
+            ${AnalyticsView._attendanceSummary(attendance_calendar.summary)}
           </div>
-          ${score_vs_avg.data.length
-            ? `<div class="chart-wrapper"><canvas id="chart-score-vs-avg"></canvas></div>`
-            : AnalyticsView.empty('Class average data will appear once activities are graded.')
-          }
         </div>
 
-        <!-- 5. Subject Performance — Colored Comparison Chart -->
         <div class="analytics-card analytics-card-wide analytics-subject-performance-card">
           <div class="analytics-card-header">
             <div class="analytics-card-title">${analyticsIcon('chart')}Subject Performance Overview</div>
-            <div class="analytics-card-sub">Average performance by subject</div>
+            <div class="analytics-card-sub">Average score for each subject</div>
           </div>
-          ${subject_radar.axes.length >= 3
-            ? `<div class="subject-radar-legend">${subject_radar.axes.map((axis, index) => `<span class="subject-radar-legend-item"><i style="background:${['#8B1E3F', '#1B998B', '#2D6CDF', '#F28E2B', '#7B2CBF', '#0081A7', '#C99700', '#D1495B', '#3A5A40', '#6A4C93', '#E76F51', '#264653'][index % 12]}"></i>${escHtml(axis.subject_name)}</span>`).join('')}</div><div class="chart-wrapper chart-wrapper-subject-performance"><canvas id="chart-subject-radar"></canvas></div>`
-            : AnalyticsView.empty('Enroll in at least 3 subjects to see the subject comparison.')
+          ${subject_radar.axes.length
+            ? `<div class="subject-radar-legend">${subject_radar.axes.map((axis, index) => `<span class="subject-radar-legend-item"><i style="background:${['#8B1E3F', '#1B998B', '#2D6CDF', '#F28E2B', '#7B2CBF', '#0081A7', '#C99700', '#D1495B', '#3A5A40', '#6A4C93', '#E76F51', '#264653'][index % 12]}"></i>${escHtml(axis.subject_name)}</span>`).join('')}</div>`
+            : `<p class="subject-chart-note">No scores yet. Your chart will fill in as activities are graded.</p>`
           }
+          <div class="chart-wrapper chart-wrapper-subject-performance"><canvas id="chart-subject-radar"></canvas></div>
         </div>
 
+      </div>`;
+  },
+
+  gradingDetailsPanel(data) {
+    const prediction = data.predicted_grade || {};
+    const components = prediction.components || {};
+    const parts = [
+      { key: 'academic', label: 'Academic Score', weight: 75, formula: 'Points earned ÷ points possible × 100' },
+      { key: 'attendance', label: 'Attendance Score', weight: 15, formula: '(Present + 0.5 × Late) ÷ Class sessions × 100' },
+      { key: 'modules', label: 'Module Score', weight: 10, formula: 'Modules read ÷ Published modules × 100' },
+    ];
+    const availableWeight = parts.reduce((sum, part) =>
+      Number.isFinite(components[part.key]) ? sum + part.weight : sum, 0);
+    const weightedParts = parts.map(part => {
+      const value = Number.isFinite(components[part.key]) ? components[part.key] : null;
+      const effectiveWeight = value === null || !availableWeight ? 0 : part.weight / availableWeight;
+      return { ...part, value, effectiveWeight };
+    });
+    const formula = weightedParts
+      .filter(part => part.value !== null)
+      .map(part => `${(part.effectiveWeight * 100).toFixed(1)}% × ${part.value.toFixed(1)}`)
+      .join(' + ');
+    const probability = data.improvement_probability || {};
+
+    return `
+      <div class="grading-details">
+        <section class="analytics-card grading-overview-card">
+          <div class="analytics-card-header">
+            <div class="analytics-card-title">${analyticsIcon('target')}Your Current Grade</div>
+            <div class="analytics-card-sub">An estimate based on your available scores</div>
+          </div>
+          ${prediction.predicted_grade == null
+            ? AnalyticsView.empty('More graded work is needed for an estimate.')
+            : `<div class="grading-estimate">
+                <strong>${prediction.predicted_grade}%</strong>
+                <span>Estimated range: ${prediction.range_low}%–${prediction.range_high}%</span>
+                <span>${prediction.n_observations} graded activities</span>
+              </div>`
+          }
+          <div class="grading-weighted-formula">
+            <strong>Weighted score</strong>
+            <span>${formula ? `${formula} = ${prediction.predicted_grade}%` : 'Scores will appear when data is available.'}</span>
+          </div>
+          ${availableWeight > 0 && availableWeight < 100
+            ? `<p class="grading-note">Missing scores are not counted as zero. Their weights are shared by the scores available.</p>`
+            : ''}
+        </section>
+
+        <section class="analytics-card">
+          <div class="analytics-card-header">
+            <div class="analytics-card-title">${analyticsIcon('chart')}Building Blocks</div>
+            <div class="analytics-card-sub">How each score is calculated</div>
+          </div>
+          <div class="grading-block-list">
+            ${weightedParts.map(part => `
+              <div class="grading-block">
+                <div class="grading-block-heading">
+                  <strong>${part.label}</strong>
+                  <span>${part.value === null ? 'No data yet' : `${part.value.toFixed(1)}%`}</span>
+                </div>
+                <div class="grading-block-track" role="progressbar" aria-label="${part.label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${part.value === null ? 0 : Math.round(part.value)}">
+                  <span style="width:${part.value === null ? 0 : Math.max(0, Math.min(100, part.value))}%"></span>
+                </div>
+                <div class="grading-block-meta">
+                  <span>${part.formula}</span>
+                  <span>${part.value === null
+                    ? `Base weight: ${part.weight}%`
+                    : `${(part.effectiveWeight * 100).toFixed(1)}% of grade${part.effectiveWeight !== part.weight / 100 ? ` (base ${part.weight}%)` : ''}`
+                  }</span>
+                </div>
+              </div>`).join('')}
+          </div>
+        </section>
+
+        <section class="analytics-card grading-bands-card">
+          <div class="analytics-card-header">
+            <div class="analytics-card-title">${analyticsIcon('rating')}Score Guide</div>
+            <div class="analytics-card-sub">What each score range means</div>
+          </div>
+          <div class="grading-bands">
+            ${[
+              ['90 and above', 'Excellent'],
+              ['85–89.99', 'Very Good'],
+              ['80–84.99', 'Good'],
+              ['75–79.99', 'Fair'],
+              ['70–74.99', 'Needs Improvement'],
+              ['Below 70', 'At Risk'],
+            ].map(([score, rating]) => `<div><span>${score}</span><strong>${rating}</strong></div>`).join('')}
+          </div>
+        </section>
+
+        <section class="analytics-card">
+          <div class="analytics-card-header">
+            <div class="analytics-card-title">${analyticsIcon('crystal')}Next Activity Estimate</div>
+            <div class="analytics-card-sub">How likely you are to reach your target</div>
+          </div>
+          ${probability.probability == null
+            ? AnalyticsView.empty('More graded activities are needed.')
+            : `<div class="grading-probability">
+                <strong>${probability.probability}%</strong>
+                <span>Chance to score ${probability.target_grade}% or higher</span>
+              </div>
+              ${AnalyticsView._bayesianFactors(probability)}`
+          }
+        </section>
+      </div>`;
+  },
+
+  _bayesianFactors(data) {
+    const number = value => value == null || !Number.isFinite(Number(value)) ? null : Number(value);
+    const display = (value, digits = 0) => {
+      const parsed = number(value);
+      return parsed === null ? '—' : parsed.toFixed(digits);
+    };
+    const ownCount = (number(data.my_successes) || 0) + (number(data.my_failures) || 0);
+    const peerCount = (number(data.class_successes) || 0) + (number(data.class_failures) || 0);
+    const recommendation = ownCount === 0
+      ? 'This estimate uses class results because you do not have graded scores yet.'
+      : data.probability >= 70
+        ? 'You are in a good position. Keep up your effort.'
+        : data.probability >= 40
+          ? 'Keep practicing to improve your chance.'
+          : 'Review past work and ask for help where you need it.';
+    const confidenceText = data.low_confidence
+      ? `Still changing · ${display(data.n_observations)} graded scores so far`
+      : `Steadier estimate · ${display(data.n_observations)} graded scores`;
+
+    return `
+      <div class="bayesian-factor-list">
+        <p class="grading-note">This estimates your chance of scoring ${display(data.target_grade)}% or higher on your next activity. It is separate from your estimated final grade.</p>
+        <div class="bayesian-factor-row">
+          <strong>Your past scores</strong>
+          <span>${display(data.my_successes)} reached the target · ${display(data.my_failures)} below · ${display(data.evidence_count)} used</span>
+        </div>
+        <div class="bayesian-factor-row">
+          <strong>Class results</strong>
+          <span>${display(data.class_successes)} reached the target · ${display(data.class_failures)} below · ${peerCount} total</span>
+        </div>
+        <div class="bayesian-factor-row">
+          <strong>Class hit rate</strong>
+          <span>${peerCount ? `${display(data.class_rate_at_target)}% reached the target` : 'No class scores yet'}</span>
+        </div>
+        <div class="bayesian-factor-row">
+          <strong>Possible chance range</strong>
+          <span>${display(data.credible_low)}%–${display(data.credible_high)}%</span>
+        </div>
+        <div class="bayesian-factor-row">
+          <strong>Chance you reach the target more often than the class</strong>
+          <span>${display(data.above_class_average_probability)}%</span>
+        </div>
+        <div class="bayesian-factor-row">
+          <strong>Missing activities</strong>
+          <span>${display(data.missing_count)} · counted in your current grade, not this chance</span>
+        </div>
+        <div class="bayesian-factor-row">
+          <strong>How steady is this estimate?</strong>
+          <span>${confidenceText}</span>
+        </div>
+        <p class="bayesian-recommendation"><strong>Next step:</strong> ${escHtml(recommendation)}</p>
+        <details class="bayesian-explanation">
+          <summary>How do we get this estimate?</summary>
+          <p>We start with how often the class reached your target, then adjust the estimate using your past graded scores. A score at or above the target counts as reaching it. A lower score does not.</p>
+          <p>The possible range shows that this is not exact. More graded scores can make the estimate steadier. Missing or ungraded activities do not count here, but they can affect your current grade.</p>
+        </details>
       </div>`;
   },
 
@@ -219,7 +383,7 @@ const AnalyticsView = {
     }
 
     const months = Object.keys(byMonth).sort();
-    const visible = months;
+    const visible = months.slice(-4);
 
     const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -284,10 +448,10 @@ const AnalyticsView = {
 
     return `
       <div class="mod-overall">
-        <div class="mod-overall-bar-wrap">
+        <div class="mod-overall-bar-wrap" role="progressbar" aria-label="Overall module progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${totals.pct}">
           <div class="mod-overall-bar" style="width:${totals.pct}%;background:${overallColor}"></div>
         </div>
-        <span class="mod-overall-label">${totals.pct}% overall (${totals.read}/${totals.total} modules)</span>
+        <span class="mod-overall-label">${totals.pct}% <span>${totals.read}/${totals.total} read</span></span>
       </div>
       <div class="mod-list">
         ${subjects.map(s => {
@@ -298,7 +462,7 @@ const AnalyticsView = {
                 ${escHtml(s.subject_name || `Subject ${s.subject_id}`)}
               </div>
               <div class="mod-bar-wrap">
-                <div class="mod-bar" style="width:${s.completion_pct}%;background:${c}"></div>
+                <div class="mod-bar" role="progressbar" aria-label="${escHtml(s.subject_name || `Subject ${s.subject_id}`)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${s.completion_pct}" style="width:${s.completion_pct}%;background:${c}"></div>
               </div>
               <span class="mod-pct" style="color:${c}">${s.completion_pct}%</span>
               <span class="mod-count">${s.modules_read}/${s.modules_total}</span>
@@ -306,63 +470,15 @@ const AnalyticsView = {
         }).join('')}
       </div>
       ${totals.total - totals.read > 0
-        ? `<p class="mod-remaining">${totals.total - totals.read} module(s) remaining</p>`
-        : `<p class="mod-remaining" style="color:var(--green)">${ANALYTICS_ICONS.check} All modules read!</p>`
+        ? `<p class="mod-remaining">${totals.total - totals.read} left to read</p>`
+        : `<p class="mod-remaining" style="color:var(--green)">${ANALYTICS_ICONS.check} All done!</p>`
       }`;
   },
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // BAYESIAN PANEL
-  // ════════════════════════════════════════════════════════════════════════════
-
-  _howComputed(content) {
-    return `<details class="gauge-meta analytics-explanation"><summary>How is this computed?</summary><div class="analytics-explanation-content">${content}</div></details>`;
-  },
-
-  _missingActivities(count) {
-    return count > 0
-      ? `<p class="gauge-meta">Includes ${count} missing activit${count === 1 ? 'y' : 'ies'}.</p>`
-      : '';
-  },
-
-  bayesianPanel(data) {
-    const { predicted_grade, improvement_probability, risk_assessment } = data;
-
-    return `
-      <div class="analytics-grid">
-
-        <!-- 1. Estimated Final Grade — Gauge -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('target')}Estimated Final Grade (current standing)</div>
-            <div class="analytics-card-sub">75% Academic + 15% Attendance + 10% Modules; the displayed range is an estimate.</div>
-          </div>
-          ${AnalyticsView._predictedGrade(predicted_grade)}
-        </div>
-
-        <!-- 2. Probability of Hitting Target on Next Activity -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('trend')}Probability of Hitting Target on Next Activity</div>
-            <div class="analytics-card-sub">Not your final grade odds — the chance your next single graded activity meets this score</div>
-          </div>
-          ${AnalyticsView._improvementProb(improvement_probability)}
-        </div>
-
-        <!-- 3. Overall Performance Rating -->
-        <div class="analytics-card">
-          <div class="analytics-card-header">
-            <div class="analytics-card-title">${analyticsIcon('rating')}Overall Performance Rating</div>
-            <div class="analytics-card-sub">Academic 75% · Attendance 15% · Module Progress 10%</div>
-          </div>
-          ${AnalyticsView._riskAssessment(risk_assessment)}
-        </div>
-
-      </div>`;
-  },
+  // ── Grade metric renderers ─────────────────────────────────────────────────
 
   _predictedGrade(data) {
-    if (!data || data.predicted_grade === null) {
+    if (!data || data.predicted_grade == null) {
       return AnalyticsView.empty('Submit more graded activities to generate a prediction.');
     }
 
@@ -376,7 +492,7 @@ const AnalyticsView = {
     const arc = Math.min(grade / 100, 1);
 
     // SVG gauge
-    const R = 60, CX = 80, CY = 80;
+    const R = 60;
     const arcLen = Math.PI * R;
     const dashOffset = arcLen * (1 - arc);
 
@@ -394,24 +510,17 @@ const AnalyticsView = {
             style="transition:stroke-dashoffset .8s ease"/>
         </svg>
         <div class="gauge-value" style="color:${color}">${grade}%</div>
-        <div class="gauge-label">Estimated current standing</div>
+        <div class="gauge-label">Current estimate</div>
       </div>
       <div class="gauge-ci">
-        <span class="gauge-ci-label">Estimated Range</span>
+        <span class="gauge-ci-label">Estimated range</span>
         <span class="gauge-ci-range">${data.range_low}% – ${data.range_high}%</span>
       </div>
-      <div class="gauge-meta">Based on ${data.n_observations} graded activities &middot; Current academic avg ${data.current_avg ?? '—'}%</div>
-      ${AnalyticsView._missingActivities(data.missing_count || 0)}
-      ${AnalyticsView._howComputed(
-        `Academic ${data.components?.academic == null ? '—' : `${data.components.academic.toFixed(1)}%`} · Attendance ${data.components?.attendance == null ? '—' : `${data.components.attendance.toFixed(1)}%`} · Modules ${data.components?.modules == null ? '—' : `${data.components.modules.toFixed(1)}%`}. Available weights are adjusted when data is missing. The range is an estimate based on ${data.n_observations} graded activities, not a guaranteed final grade.`
-      )}
-      ${data.supporting_factors && data.supporting_factors.length
-        ? `<ul class="risk-factors-list" style="margin-top:8px">${data.supporting_factors.map(f => `<li>${escHtml(f)}</li>`).join('')}</ul>`
-        : ''}`;
+      <div class="gauge-meta">${data.n_observations} graded activities</div>`;
   },
 
   _improvementProb(data) {
-    if (!data || data.probability === null) {
+    if (!data || data.probability == null) {
       return AnalyticsView.empty('Not enough graded activities yet.');
     }
 
@@ -422,125 +531,16 @@ const AnalyticsView = {
       <div class="improv-target-row">
         <span class="improv-label">Target Grade</span>
         <div class="improv-target-control">
-          <button onclick="AnalyticsController.adjustTarget(-5)" class="improv-btn">−</button>
+          <button aria-label="Lower target by 5" onclick="AnalyticsController.adjustTarget(-5)" class="improv-btn">−</button>
           <span id="improv-target-display" class="improv-target-val">${data.target_grade}%</span>
-          <button onclick="AnalyticsController.adjustTarget(+5)" class="improv-btn">+</button>
+          <button aria-label="Raise target by 5" onclick="AnalyticsController.adjustTarget(+5)" class="improv-btn">+</button>
         </div>
       </div>
       <div class="improv-meter-wrap">
-        <div class="improv-meter-bar" style="width:${prob}%;background:${color};transition:width .6s ease"></div>
+        <div class="improv-meter-bar" role="progressbar" aria-label="Chance to hit target" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prob}" style="width:${prob}%;background:${color};transition:width .6s ease"></div>
       </div>
       <div class="improv-prob-val" style="color:${color}">${prob}%</div>
-      <div class="improv-prob-label">${data.label} — chance your next graded activity scores ${data.target_grade}%+</div>
-      ${AnalyticsView._missingActivities(data.missing_count || 0)}
-      ${data.credible_low !== undefined
-        ? `<div class="gauge-meta">Estimated range for your chance: ${data.credible_low}%–${data.credible_high}% (90% range; based on ${data.evidence_count} of your graded activit${data.evidence_count === 1 ? 'y' : 'ies'}; class rate ${data.class_rate_at_target}%).</div>`
-        : ''}
-      <div class="gauge-meta">Your overall standing is ${data.predicted_grade}%; this also includes attendance and module progress.</div>
-      ${data.above_class_average_probability !== undefined
-        ? `<div class="gauge-meta">${data.above_class_average_probability}% chance your success rate will be above the class rate.</div>`
-        : ''}
-      ${data.posterior_mean !== undefined
-        ? AnalyticsView._howComputed(
-          `Class: ${data.class_successes} met the target and ${data.class_failures} did not (${(data.class_rate_exact * 100).toFixed(1)}% met it). Your results: ${data.my_successes} met it and ${data.my_failures} did not. Model starting values (met / not met): ${data.prior_alpha.toFixed(2)} / ${data.prior_beta.toFixed(2)}; updated values: ${data.posterior_alpha.toFixed(2)} / ${data.posterior_beta.toFixed(2)}. Estimated chance next time: ${((data.posterior_mean || 0) * 100).toFixed(1)}%.`
-        )
-        : ''}
-      ${data.recommendation ? `<p class="gauge-meta" style="margin-top:6px"><strong>Recommendation:</strong> ${escHtml(data.recommendation)}</p>` : ''}`;
-  },
-
-  _riskAssessment(data) {
-    if (!data || data.performance_score === null || data.performance_score === undefined) {
-      return AnalyticsView.empty('Performance data will appear once enough activity, attendance, and module signals are recorded.');
-    }
-
-    // Colors follow the Objective §5 rating bands exactly:
-    //   90-100 Excellent (Green) · 85-89 Very Good (Light Green) ·
-    //   80-84 Good (Blue) · 75-79 Fair (Yellow) ·
-    //   70-74 Needs Improvement (Orange) · <70 At Risk (Red)
-    const colorMap = {
-      excellent:          'var(--green)',
-      very_good:          'var(--green-mid)',
-      good:               'var(--blue)',
-      fair:               'var(--yellow)',
-      needs_improvement:  'var(--orange)',
-      at_risk:            'var(--red)',
-    };
-    const bgMap = {
-      excellent:          'var(--green-light)',
-      very_good:          'var(--green-mid-light)',
-      good:               'var(--blue-light)',
-      fair:               'var(--yellow-light)',
-      needs_improvement:  'var(--orange-light)',
-      at_risk:            'var(--red-light)',
-    };
-    const color = colorMap[data.color] || '#888';
-    const bg    = bgMap[data.color]    || '#f5f5f5';
-    const bd = data.breakdown;
-
-    // Weighted formula, spelled out plainly for teachers/panelists:
-    //   Performance Score = Academic×75% + Attendance×15% + Modules×10%
-    //
-    // All three rows are always shown, even when a component has no data
-    // yet (e.g. no attendance sessions recorded so far) — hiding a row
-    // silently would make it look like that factor doesn't count at all,
-    // when really its weight was fairly redistributed across the known
-    // components (Objective §5's "don't red-flag on missing data" rule).
-    // The formula line at the bottom only sums components that actually
-    // had data, so the displayed math still matches performance_score exactly.
-    const allRows = [
-      ['Academic Performance', bd.academic],
-      ['Attendance',           bd.attendance],
-      ['Module Progress',      bd.modules],
-    ];
-    const formulaRows = allRows.filter(([, part]) => part.value !== null);
-
-    return `
-      <div class="risk-badge" style="background:${bg};border:2px solid ${color}">
-        <span class="risk-emoji">${data.emoji}</span>
-        <span class="risk-label" style="color:${color}">${data.performance_score} — ${data.rating}</span>
-      </div>
-      ${AnalyticsView._missingActivities(data.missing_count || 0)}
-
-      <div class="risk-signals">
-        ${allRows.map(([label, part]) => {
-          const val = part.value;
-          if (val === null) {
-            return `
-              <div class="risk-signal-row">
-                <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
-                <div class="risk-signal-bar-wrap">
-                  <div class="risk-signal-bar" style="width:100%;background:var(--gray-100)"></div>
-                </div>
-                <span class="risk-signal-pct" style="color:var(--gray-400)">No data yet</span>
-              </div>`;
-          }
-          const c = val >= 80 ? 'var(--green)' : val >= 70 ? 'var(--yellow)' : 'var(--red)';
-          return `
-            <div class="risk-signal-row">
-              <span class="risk-signal-label">${label} (${Math.round(part.weight * 100)}% weight)</span>
-              <div class="risk-signal-bar-wrap">
-                <div class="risk-signal-bar" style="width:${Math.min(val,100)}%;background:${c}"></div>
-              </div>
-              <span class="risk-signal-pct" style="color:${c}">${val}%</span>
-            </div>`;
-        }).join('')}
-      </div>
-
-      ${formulaRows.length < allRows.length
-        ? `<p class="gauge-meta" style="font-style:italic">Weight for components with no data yet is redistributed proportionally across the rest, so this student isn't penalized for something not yet measurable.</p>`
-        : ''}
-
-      <p class="gauge-meta">Score = ${formulaRows.map(([l, p]) => `${l.split(' ')[0]}×${Math.round(p.weight*100)}%`).join(' + ')} = <strong>${data.performance_score}</strong> (${data.rating})</p>
-      ${AnalyticsView._howComputed(
-        `Your scores: Academic ${bd.academic.value == null ? '—' : `${bd.academic.value}%`}, Attendance ${bd.attendance.value == null ? '—' : `${bd.attendance.value}%`}, Modules ${bd.modules.value == null ? '—' : `${bd.modules.value}%`}. Each uses its shown weight. If a score is unavailable, the remaining weights are adjusted.`
-      )}
-
-      <div class="risk-factors">
-        <div class="risk-factors-title">Contributing Factors</div>
-        <ul class="risk-factors-list">
-          ${data.factors.map(f => `<li>${escHtml(f)}</li>`).join('')}
-        </ul>
-      </div>`;
+      <div class="improv-prob-label">Chance to score ${data.target_grade}% or higher next time</div>`;
   },
 
 };
