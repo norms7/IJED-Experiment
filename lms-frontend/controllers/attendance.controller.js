@@ -231,11 +231,11 @@ const AttendanceController = {
         Toast.show('Attendance saved successfully.', 'success');
       }
       Modal.close();
-      // After saving, update current subject context to what was just saved
-      // so the session history shows immediately without needing to switch filters
+      // Match the history filters to the saved session so it is visible after reload.
       if (modalSubjectId && modalSubjectId !== this._currentSubjectId) {
         this._currentSubjectId = modalSubjectId;
       }
+      this._currentTerm = payload.term;
       await this._renderSectionDetail();
     } catch (err) {
       console.error('[Attendance] save error:', err);
