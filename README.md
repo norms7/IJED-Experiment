@@ -81,6 +81,8 @@ The underlying academic measures use the following formulas:
 
 The calculation process is:
 
+Detailed implementation notes and formulas are documented in [docs/PERFORMANCE_ANALYTICS.md](docs/PERFORMANCE_ANALYTICS.md).
+
 1. Published activities with a graded submission count immediately, even if their due date is in the future.
 2. Unsubmitted activities count only when due or undated, and contribute `0 / max_score`; future activities without a submission are excluded.
 3. Graded submissions contribute their earned points and maximum points; if a legacy submission has no valid `max_score`, the activity's `max_score` is used. Submissions waiting for grading are excluded until graded.

@@ -69,11 +69,13 @@ const ClassPerformanceController = {
     const ownFailures = Number(row.my_failures || 0);
     const peerSuccesses = Math.max(0, Number(row.class_successes || 0) - ownSuccesses);
     const peerFailures = Math.max(0, Number(row.class_failures || 0) - ownFailures);
-    const mean = AnalyticsEngine.betaBinomialMean(
-      peerSuccesses,
-      peerFailures,
+    const estimate = AnalyticsEngine.calculateBayesianEstimate(
       ownSuccesses,
       ownFailures,
+      peerSuccesses,
+      peerFailures,
+      75,
+      4,
     );
 
     return {
@@ -87,8 +89,12 @@ const ClassPerformanceController = {
       rating_emoji: emoji,
       missing_count: Number(row.missing_count || 0),
       graded_count: Number(row.graded_count || 0),
-      low_confidence: Number(row.graded_count || 0) < 3,
-      next_probability: mean === null ? null : Math.round(mean * 1000) / 10,
+      low_confidence: estimate.lowEvidenceIndicator,
+      next_probability: estimate.predictiveProbability === null ? null : Math.round(estimate.predictiveProbability * 1000) / 10,
+      credible_low: estimate.credibleInterval ? Math.round(estimate.credibleInterval.low * 1000) / 10 : null,
+      credible_high: estimate.credibleInterval ? Math.round(estimate.credibleInterval.high * 1000) / 10 : null,
+      peer_success_rate: estimate.peerObservedRate,
+      probability_above_peers: estimate.probabilityAbovePeers === null ? null : Math.round(estimate.probabilityAbovePeers * 1000) / 10,
     };
   },
 
@@ -161,7 +167,7 @@ const ClassPerformanceController = {
       ["Overall", "Academic × 75% + Attendance × 15% + Modules × 10%; weights for unavailable components are redistributed proportionally."],
       ["Rating bands", "90+ Excellent; 85–89 Very Good; 80–84 Good; 75–79 Fair; 70–74 Needs Improvement; below 70 At Risk."],
       ["Low confidence", "Fewer than 3 graded activities."],
-      ["P(next activity ≥ 75%)", "Beta-Binomial posterior mean; prior strength 4 centered on the class peer success rate, or 50% if no peer evidence."],
+      ["P(next activity ≥ 75%)", "Beta-Binomial posterior predictive probability using the same shared formula as student analytics: p = α / (α + β), where α = α0 + own successes and β = β0 + own failures; α0 = 4 × smoothed peer rate and β0 = 4 × (1 - smoothed peer rate)."],
     ];
   },
 

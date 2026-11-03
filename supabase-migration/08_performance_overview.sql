@@ -196,12 +196,9 @@ begin
     );
   end if;
 
-  -- Student own graded work, plus past-due published unsubmitted work as failures.
-  select coalesce(sum(case when x.kind = 'success' then 1 else 0 end),0),
-         coalesce(sum(case when x.kind = 'failure' then 1 else 0 end),0)
-    into v_my_successes, v_my_failures
-  from (
-    select case when (s.score::numeric / nullif(s.max_score,0) * 100) >= v_target then 'success' else 'failure' end as kind
+  with own_evidence as (
+    select
+      case when (s.score::numeric / nullif(coalesce(nullif(s.max_score, 0), a.max_score), 0) * 100) >= v_target then 1 else 0 end as success_flag
     from activity_submissions s
     join activities a on a.id = s.activity_id
     where s.student_id = p_student_id
@@ -210,66 +207,70 @@ begin
       and (v_term is null or normalize_term(a.term) = v_term)
       and s.is_graded = true
       and s.score is not null
-      and s.max_score > 0
+      and coalesce(nullif(s.max_score, 0), a.max_score) > 0
 
     union all
 
-    select 'failure' as kind
+    select 0 as success_flag
     from activities a
-    where a.is_published = true
-      and a.subject_id = any(v_subject_ids)
-      and a.max_score > 0
+    where a.subject_id = any(v_subject_ids)
+      and a.is_published = true
       and (v_term is null or normalize_term(a.term) = v_term)
-      and a.due_date is not null and a.due_date <= now()
+      and (a.due_date is null or a.due_date <= now())
+      and coalesce(nullif(a.max_score, 0), 0) > 0
       and not exists (
         select 1
         from activity_submissions s
-        where s.activity_id = a.id
-          and s.student_id = p_student_id
+        where s.activity_id = a.id and s.student_id = p_student_id
       )
-  ) x;
+  )
+  select
+    coalesce(sum(case when success_flag = 1 then 1 else 0 end), 0),
+    coalesce(sum(case when success_flag = 0 then 1 else 0 end), 0)
+    into v_my_successes, v_my_failures
+  from own_evidence;
 
-  -- Active peers in the same subject(s), excluding the caller.
-  select coalesce(sum(case when x.kind = 'success' then 1 else 0 end),0),
-         coalesce(sum(case when x.kind = 'failure' then 1 else 0 end),0)
-    into v_peer_successes, v_peer_failures
-  from (
-    select case when (s2.score::numeric / nullif(s2.max_score,0) * 100) >= v_target then 'success' else 'failure' end as kind
+  with peer_evidence as (
+    select
+      case when (s2.score::numeric / nullif(coalesce(nullif(s2.max_score, 0), a2.max_score), 0) * 100) >= v_target then 1 else 0 end as success_flag
     from activity_submissions s2
     join activities a2 on a2.id = s2.activity_id
-    join student_subject_enrollments sse2 on sse2.student_id = s2.student_id and sse2.subject_id = a2.subject_id
-    join students st on st.id = s2.student_id
-    join users u on u.id = st.user_id
+    join students st2 on st2.id = s2.student_id
+    join users u2 on u2.id = st2.user_id
     where s2.student_id <> p_student_id
-      and u.is_active = true
       and a2.subject_id = any(v_subject_ids)
       and a2.is_published = true
       and (v_term is null or normalize_term(a2.term) = v_term)
       and s2.is_graded = true
       and s2.score is not null
-      and s2.max_score > 0
+      and coalesce(nullif(s2.max_score, 0), a2.max_score) > 0
+      and u2.is_active = true
 
     union all
 
-    select 'failure' as kind
+    select 0 as success_flag
     from activities a2
     join student_subject_enrollments sse2 on sse2.subject_id = a2.subject_id
-    join students st on st.id = sse2.student_id
-    join users u on u.id = st.user_id
-    where st.id <> p_student_id
-      and u.is_active = true
+    join students st2 on st2.id = sse2.student_id
+    join users u2 on u2.id = st2.user_id
+    where st2.id <> p_student_id
       and a2.subject_id = any(v_subject_ids)
       and a2.is_published = true
-      and a2.max_score > 0
       and (v_term is null or normalize_term(a2.term) = v_term)
-      and a2.due_date is not null and a2.due_date <= now()
+      and (a2.due_date is null or a2.due_date <= now())
+      and coalesce(nullif(a2.max_score, 0), 0) > 0
+      and u2.is_active = true
       and not exists (
         select 1
         from activity_submissions s3
-        where s3.activity_id = a2.id
-          and s3.student_id = sse2.student_id
+        where s3.activity_id = a2.id and s3.student_id = st2.id
       )
-  ) x;
+  )
+  select
+    coalesce(sum(case when success_flag = 1 then 1 else 0 end), 0),
+    coalesce(sum(case when success_flag = 0 then 1 else 0 end), 0)
+    into v_peer_successes, v_peer_failures
+  from peer_evidence;
 
   return jsonb_build_object(
     'my_successes', coalesce(v_my_successes, 0),

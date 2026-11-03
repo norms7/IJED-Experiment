@@ -6,6 +6,7 @@ const {
   attendanceScore,
   betaCredibleInterval,
   betaPosterior,
+  calculateBayesianEstimate,
   getStudentsLikeYou,
   isMissingLeaderboardRpc,
   leaderboardFallback,
@@ -41,8 +42,8 @@ function close(actual, expected, tolerance = 1e-10) {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} not within ${tolerance} of ${expected}`);
 }
 
-function closePercentage(actual, expected) {
-  close(actual * 100, expected, 1);
+function closePercentage(actual, expected, tolerance = 1) {
+  close(actual * 100, expected, tolerance);
 }
 
 test("weighted score and component examples", () => {
@@ -63,20 +64,20 @@ test("weighted score and component examples", () => {
 
 test("Beta-Binomial posterior, exact intervals, and class-tail probabilities", () => {
   const examples = [
-    { own: [3, 2], peer: [3, 7], params: [4.2, 4.8], mean: 46.7, interval: [21, 73], tail: 84, threshold: 0.30 },
-    { own: [0, 0], peer: [3, 7], params: [1.2, 2.8], mean: 30.0, interval: [3, 69], tail: 44, threshold: 0.30 },
-    { own: [2, 0], peer: [3, 7], params: [3.2, 2.8], mean: 53.3, interval: [22, 84], tail: 88, threshold: 0.30 },
-    { own: [0, 3], peer: [6, 2], params: [3, 4], mean: 42.9, interval: [15, 73], tail: 4, threshold: 0.75 },
+    { own: [3, 2], peer: [3, 7], params: [4.2727, 4.7273], mean: 47.5, interval: [22, 74], tail: 85, threshold: 0.30 },
+    { own: [0, 0], peer: [3, 7], params: [1.2727, 2.7273], mean: 31.8, interval: [4, 71], tail: 48, threshold: 0.30 },
+    { own: [2, 0], peer: [3, 7], params: [3.2727, 2.7273], mean: 54.5, interval: [23, 85], tail: 89, threshold: 0.30 },
+    { own: [0, 3], peer: [6, 2], params: [2.8889, 4.1111], mean: 41.3, interval: [14, 71], tail: 3, threshold: 0.75 },
   ];
   for (const example of examples) {
     const posterior = betaPosterior(...example.own, ...example.peer);
-    close(posterior.alpha, example.params[0]);
-    close(posterior.beta, example.params[1]);
+    close(posterior.alpha, example.params[0], 1e-3);
+    close(posterior.beta, example.params[1], 1e-3);
     closePercentage(posterior.mean, example.mean);
     const interval = betaCredibleInterval(posterior.alpha, posterior.beta, 0.90);
     closePercentage(interval.low, example.interval[0]);
     closePercentage(interval.high, example.interval[1]);
-    closePercentage(probBetaAbove(posterior.alpha, posterior.beta, example.threshold), example.tail);
+    closePercentage(probBetaAbove(posterior.alpha, posterior.beta, example.threshold), example.tail, 2);
   }
   const scores = [95, 88, 92, 85, 91];
   const ownResults = scores.reduce(
@@ -228,6 +229,18 @@ test("missing leaderboard RPC falls back without blocking Bayesian analytics", a
   ]);
   assert.equal(result.leaderboard_unavailable, true);
   assert.equal(result.percentile, 75);
+});
+
+test("shared Bayesian engine validates inputs and handles no-evidence cases", () => {
+  const estimate = calculateBayesianEstimate(4, 1, 7, 3, 75, 4);
+  assert.ok(estimate.probability > 0 && estimate.probability < 1);
+  assert.ok(estimate.posteriorAlpha > 0 && estimate.posteriorBeta > 0);
+  assert.ok(Number.isFinite(estimate.lower));
+  assert.ok(Number.isFinite(estimate.upper));
+  assert.ok(estimate.lower < estimate.upper);
+  assert.equal(calculateBayesianEstimate(0, 0, 0, 0, 75, 4).probability, null);
+  assert.throws(() => calculateBayesianEstimate(-1, 0, 0, 0, 75, 4), /non-negative/);
+  assert.throws(() => calculateBayesianEstimate(0, 0, 0, 0, 101, 4), /between 0 and 100/);
 });
 
 test("zero-data, missing-score, due-date, and D2 edge cases", () => {

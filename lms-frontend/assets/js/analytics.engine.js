@@ -271,20 +271,121 @@ const AnalyticsEngine = (() => {
       : null;
   }
 
-  function betaPosterior(mySuccesses, myFailures, peerSuccesses, peerFailures, priorStrength = 4) {
-    const peerTotal = peerSuccesses + peerFailures;
-    const classRate = peerTotal ? peerSuccesses / peerTotal : 0.5;
-    const priorAlpha = classRate * priorStrength;
-    const priorBeta = (1 - classRate) * priorStrength;
-    const alpha = priorAlpha + mySuccesses;
-    const beta = priorBeta + myFailures;
+  function calculateBayesianEstimate(
+    ownSuccesses,
+    ownFailures,
+    peerSuccesses,
+    peerFailures,
+    targetGrade = 75,
+    priorStrength = 4,
+  ) {
+    const ownSuccessesCount = Number(ownSuccesses || 0);
+    const ownFailuresCount = Number(ownFailures || 0);
+    const peerSuccessesCount = Number(peerSuccesses || 0);
+    const peerFailuresCount = Number(peerFailures || 0);
+
+    if (!Number.isFinite(ownSuccessesCount) || !Number.isFinite(ownFailuresCount)
+      || !Number.isFinite(peerSuccessesCount) || !Number.isFinite(peerFailuresCount)) {
+      throw new RangeError("Bayesian evidence counts must be finite numbers.");
+    }
+    if (!Number.isInteger(ownSuccessesCount) || !Number.isInteger(ownFailuresCount)
+      || !Number.isInteger(peerSuccessesCount) || !Number.isInteger(peerFailuresCount)) {
+      throw new RangeError("Bayesian evidence counts must be non-negative integers.");
+    }
+    if (ownSuccessesCount < 0 || ownFailuresCount < 0 || peerSuccessesCount < 0 || peerFailuresCount < 0) {
+      throw new RangeError("Bayesian evidence counts must be non-negative integers.");
+    }
+    if (!Number.isFinite(targetGrade) || targetGrade < 0 || targetGrade > 100) {
+      throw new RangeError("Target grade must be between 0 and 100.");
+    }
+    if (!Number.isFinite(priorStrength) || priorStrength <= 0) {
+      throw new RangeError("Prior strength must be a positive finite number.");
+    }
+
+    const peerTotal = peerSuccessesCount + peerFailuresCount;
+    const peerObservedRate = peerTotal > 0 ? peerSuccessesCount / peerTotal : 0.5;
+    const smoothedPriorRate = peerTotal > 0
+      ? (peerSuccessesCount + 0.5) / (peerTotal + 1)
+      : 0.5;
+    const priorAlpha = priorStrength * smoothedPriorRate;
+    const priorBeta = priorStrength * (1 - smoothedPriorRate);
+    const posteriorAlpha = priorAlpha + ownSuccessesCount;
+    const posteriorBeta = priorBeta + ownFailuresCount;
+
+    if (!(posteriorAlpha > 0) || !(posteriorBeta > 0)) {
+      throw new RangeError("Posterior beta-binomial parameters must be strictly greater than zero.");
+    }
+
+    const evidenceCount = ownSuccessesCount + ownFailuresCount;
+    const predictiveProbability = (evidenceCount === 0 && peerTotal === 0)
+      ? null
+      : posteriorAlpha / (posteriorAlpha + posteriorBeta);
+    const credibleInterval = predictiveProbability === null
+      ? null
+      : betaCredibleInterval(posteriorAlpha, posteriorBeta, 0.90);
+    const probabilityAbovePeers = peerTotal > 0
+      ? regularizedIncompleteBeta(1 - peerObservedRate, posteriorBeta, posteriorAlpha)
+      : null;
+
     return {
-      alpha,
-      beta,
-      mean: alpha + beta ? alpha / (alpha + beta) : null,
-      classRate,
+      predictiveProbability,
+      probability: predictiveProbability,
+      targetGrade,
+      target_grade: targetGrade,
+      peerObservedRate,
+      peer_observed_success_rate: peerObservedRate,
+      smoothedPriorRate,
+      smoothed_prior_rate: smoothedPriorRate,
       priorAlpha,
+      prior_alpha: priorAlpha,
       priorBeta,
+      prior_beta: priorBeta,
+      posteriorAlpha,
+      posterior_alpha: posteriorAlpha,
+      posteriorBeta,
+      posterior_beta: posteriorBeta,
+      ownSuccesses: ownSuccessesCount,
+      own_successes: ownSuccessesCount,
+      ownFailures: ownFailuresCount,
+      own_failures: ownFailuresCount,
+      peerSuccesses: peerSuccessesCount,
+      peer_successes: peerSuccessesCount,
+      peerFailures: peerFailuresCount,
+      peer_failures: peerFailuresCount,
+      evidenceCount,
+      evidence_count: evidenceCount,
+      gradedActivityCount: evidenceCount,
+      graded_activity_count: evidenceCount,
+      missingActivityCount: 0,
+      missing_activity_count: 0,
+      lower: credibleInterval ? credibleInterval.low : null,
+      upper: credibleInterval ? credibleInterval.high : null,
+      credibleInterval,
+      probabilityAbovePeers,
+      probability_above_peers: probabilityAbovePeers,
+      lowEvidenceIndicator: evidenceCount < 3,
+      low_evidence_indicator: evidenceCount < 3,
+      peerRate: peerObservedRate,
+      classRate: peerObservedRate,
+    };
+  }
+
+  function betaPosterior(mySuccesses, myFailures, peerSuccesses, peerFailures, priorStrength = 4) {
+    const estimate = calculateBayesianEstimate(
+      mySuccesses,
+      myFailures,
+      peerSuccesses,
+      peerFailures,
+      75,
+      priorStrength,
+    );
+    return {
+      alpha: estimate.posteriorAlpha,
+      beta: estimate.posteriorBeta,
+      mean: estimate.predictiveProbability,
+      classRate: estimate.peerObservedRate,
+      priorAlpha: estimate.priorAlpha,
+      priorBeta: estimate.priorBeta,
     };
   }
 
@@ -397,11 +498,15 @@ const AnalyticsEngine = (() => {
   }
 
   function betaBinomialMean(peerSuccesses, peerFailures, ownSuccesses, ownFailures) {
-    const peerTotal = peerSuccesses + peerFailures;
-    const classRate = peerTotal ? peerSuccesses / peerTotal : 0.5;
-    const alpha = classRate * 4 + ownSuccesses;
-    const beta = (1 - classRate) * 4 + ownFailures;
-    return (alpha + beta) ? alpha / (alpha + beta) : null;
+    const estimate = calculateBayesianEstimate(
+      ownSuccesses,
+      ownFailures,
+      peerSuccesses,
+      peerFailures,
+      75,
+      4,
+    );
+    return estimate.probability;
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -716,14 +821,17 @@ const AnalyticsEngine = (() => {
     const cacheKey = `improvement_prob.v6.subject_${subjectId || "all"}.term_${term || "all"}.semester_${semester || "all"}.target_${Math.trunc(targetGrade)}`;
     return cacheOrCompute(sb, studentId, cacheKey, BAYESIAN_TTL_SECONDS, async () => {
       const prediction = await getPredictedFinalGrade(sb, studentId, subjectId, term, semester);
-      const predicted = prediction.predicted_grade;
-      if (predicted === null) {
-        return { probability: null, target_grade: targetGrade, predicted_grade: null, n_observations: 0, recommendation: null };
-      }
+      const predicted = prediction && prediction.predicted_grade != null ? prediction.predicted_grade : null;
 
       const subjectIds = subjectId ? [subjectId] : await resolveSubjectIds(sb, studentId, semester);
       if (!subjectIds.length) {
-        return { probability: null, target_grade: targetGrade, predicted_grade: predicted, n_observations: 0, recommendation: null };
+        return {
+          probability: null,
+          target_grade: targetGrade,
+          predicted_grade: predicted,
+          n_observations: 0,
+          recommendation: null,
+        };
       }
 
       const { data: evidence, error } = await sb.rpc("get_beta_binomial_evidence", {
@@ -734,61 +842,62 @@ const AnalyticsEngine = (() => {
       });
       if (error) throw new Error(error.message);
 
-      const { my_successes: mySucc, my_failures: myFail, peer_successes: peerSucc, peer_failures: peerFail } = evidence;
+      const { my_successes: mySucc, my_failures: myFail, peer_successes: peerSucc, peer_failures: peerFail } = evidence || {};
+      const estimate = calculateBayesianEstimate(mySucc || 0, myFail || 0, peerSucc || 0, peerFail || 0, targetGrade, PRIOR_STRENGTH);
+      const probability = estimate.predictiveProbability === null ? null : Math.round(estimate.predictiveProbability * 100);
+      const credibleLow = estimate.credibleInterval ? Math.max(0, Math.round(estimate.credibleInterval.low * 100)) : null;
+      const credibleHigh = estimate.credibleInterval ? Math.min(100, Math.round(estimate.credibleInterval.high * 100)) : null;
+      const aboveClassAvgProbability = estimate.probabilityAbovePeers === null
+        ? null
+        : Math.round(estimate.probabilityAbovePeers * 100);
 
-      // Prior: class-wide rate at this target, or an uninformative 50/50
-      // split if nobody else in the subject has a graded activity yet.
-      const peerTotal = peerSucc + peerFail;
-      const posterior = betaPosterior(mySucc, myFail, peerSucc, peerFail, PRIOR_STRENGTH);
-      const { alpha, beta, mean } = posterior;
-      const probability = Math.round(mean * 100);
-      const credible = betaCredibleInterval(alpha, beta, 0.90);
-      const credibleLow = Math.max(0, Math.round(credible.low * 100));
-      const credibleHigh = Math.min(100, Math.round(credible.high * 100));
-      const aboveClassAvgProbability = Math.round(
-        probBetaAbove(alpha, beta, posterior.classRate) * 100,
-      );
+      const evidenceCount = estimate.evidenceCount;
+      const label = probability === null ? "No evidence" : probability >= 80 ? "Very likely" : probability >= 60 ? "Likely" : probability >= 40 ? "Possible" : "Challenging";
 
-      const evidenceCount = mySucc + myFail;
-      const label = probability >= 80 ? "Very likely" : probability >= 60 ? "Likely" : probability >= 40 ? "Possible" : "Challenging";
-
-      const gap = targetGrade - predicted;
-      let recommendation;
-      if (evidenceCount === 0) {
-        recommendation = `This estimate is currently based on your class's history at the ${targetGrade}% mark, since you don't have a graded activity of your own yet — it will sharpen as your results come in.`;
-      } else if (gap <= 0) {
-        recommendation = probability >= 60
-          ? "You're already on track to meet or exceed this target grade."
-          : "Your overall blended average already meets this target — but your individual graded activities haven't consistently hit it yet, since attendance and module progress are currently carrying some of the weight. Worth keeping an eye on, even though the big picture looks fine.";
-      } else if (gap <= 5) {
-        recommendation = "A small, consistent improvement on upcoming graded activities should close this gap.";
-      } else if (gap <= 10) {
-        recommendation = "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 75% of the prediction.";
-      } else {
-        recommendation = "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
+      let recommendation = null;
+      if (predicted !== null) {
+        const gap = targetGrade - predicted;
+        if (evidenceCount === 0) {
+          recommendation = `This estimate is currently based on your class's history at the ${targetGrade}% mark, since you don't have a graded activity of your own yet — it will sharpen as your results come in.`;
+        } else if (gap <= 0) {
+          recommendation = probability !== null && probability >= 60
+            ? "You're already on track to meet or exceed this target grade."
+            : "Your overall blended average already meets this target — but your individual graded activities haven't consistently hit it yet, since attendance and module progress are currently carrying some of the weight. Worth keeping an eye on, even though the big picture looks fine.";
+        } else if (gap <= 5) {
+          recommendation = "A small, consistent improvement on upcoming graded activities should close this gap.";
+        } else if (gap <= 10) {
+          recommendation = "Focus on your weakest activity type, and keep attendance and module reading up — academics carry 75% of the prediction.";
+        } else {
+          recommendation = "This is a stretch target. Prioritize catching up on missed or low-scoring graded work first, since it has the largest effect on your predicted grade.";
+        }
+      } else if (evidenceCount > 0) {
+        recommendation = `Bayesian evidence is available for a ${targetGrade}% target, but there is no weighted final-grade estimate to compare it against.`;
       }
 
       return {
-        probability, target_grade: targetGrade, predicted_grade: predicted, label,
-        n_observations: prediction.n_observations,
+        probability,
+        target_grade: targetGrade,
+        predicted_grade: predicted,
+        label,
+        n_observations: prediction?.n_observations || evidenceCount,
         recommendation,
-        // New: real Bayesian detail the old lookup table couldn't provide.
-        credible_low: credibleLow, credible_high: credibleHigh,
+        credible_low: credibleLow,
+        credible_high: credibleHigh,
         evidence_count: evidenceCount,
-        class_rate_at_target: Math.round(posterior.classRate * 100),
-        class_rate_exact: posterior.classRate,
-        class_successes: peerSucc,
-        class_failures: peerFail,
-        prior_alpha: posterior.priorAlpha,
-        prior_beta: posterior.priorBeta,
-        my_successes: mySucc,
-        my_failures: myFail,
-        posterior_alpha: alpha,
-        posterior_beta: beta,
-        posterior_mean: mean,
-        missing_count: prediction.missing_count || 0,
+        class_rate_at_target: estimate.peerObservedRate * 100,
+        class_rate_exact: estimate.peerObservedRate,
+        class_successes: peerSucc || 0,
+        class_failures: peerFail || 0,
+        prior_alpha: estimate.priorAlpha,
+        prior_beta: estimate.priorBeta,
+        my_successes: mySucc || 0,
+        my_failures: myFail || 0,
+        posterior_alpha: estimate.posteriorAlpha,
+        posterior_beta: estimate.posteriorBeta,
+        posterior_mean: estimate.predictiveProbability,
+        missing_count: prediction?.missing_count || 0,
         above_class_average_probability: aboveClassAvgProbability,
-        low_confidence: (prediction.graded_count || 0) < LOW_EVIDENCE_N,
+        low_confidence: evidenceCount < LOW_EVIDENCE_N,
       };
     });
   }
@@ -1041,11 +1150,12 @@ const AnalyticsEngine = (() => {
     normalCdf, percentileRank, isMissingLeaderboardRpc, leaderboardFallback,
     mergeStudentScores, weightedScore, subjectScores, overallScore,
     academicScore, attendanceScore, moduleScore, transmute, ratingForScore,
-    betaPosterior, regularizedIncompleteBeta, betaCredibleInterval, probBetaAbove,
-    betaBinomialMean, LOW_EVIDENCE_N, COMPONENT_WEIGHTS,
-    getGradeProgress, getAttendanceCalendar, getScoreVsClassAverage,
-    getModuleReadingProgress, getSubjectRadar,
-    getPredictedFinalGrade, getImprovementProbability, getStudentsLikeYou, getRiskAssessment,
+    calculateBayesianEstimate, betaPosterior, regularizedIncompleteBeta,
+    betaCredibleInterval, probBetaAbove, betaBinomialMean, LOW_EVIDENCE_N,
+    COMPONENT_WEIGHTS, getGradeProgress, getAttendanceCalendar,
+    getScoreVsClassAverage, getModuleReadingProgress, getSubjectRadar,
+    getPredictedFinalGrade, getImprovementProbability, getStudentsLikeYou,
+    getRiskAssessment,
   };
 })();
 

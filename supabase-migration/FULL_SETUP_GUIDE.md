@@ -103,6 +103,7 @@ exact order**, from `supabase-migration/` in your unzipped folder:
 11. `10_activity_late_submissions.sql` — adds late-submission settings and updates submission and grading RPCs.
 12. `11_audit_logs.sql` — installs the admin-only, immutable audit history and reporting RPCs.
 13. `12_section_scoped_learning_content.sql` — scopes modules and activities to assigned sections, including student access and submissions.
+14. `14_bayesian_inference_consistency.sql` — updates the deployed Bayesian evidence RPC so fresh and existing installations behave the same.
 
 For an existing project, run `11_audit_logs.sql` after migrations 01-10 and
 before deploying the updated Edge Functions. Audit history starts at install

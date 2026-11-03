@@ -53,6 +53,7 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 12. `11_audit_logs.sql` — adds the immutable admin audit table, admin-only reporting RPCs, safe change capture, and atomic section/enrollment auditing.
 13. `12_section_scoped_learning_content.sql` — scopes published modules, activities, questions, activity-file access, submissions, and module-read tracking to the student's assigned section.
 14. `13_activity_timers.sql` — adds an optional minute-based time limit for auto-graded activities.
+15. `14_bayesian_inference_consistency.sql` — redefines the Bayesian evidence RPC so existing deployments and fresh installs share the same peer/evidence logic, without changing the RPC signature.
 
 For an existing database, apply `10_activity_late_submissions.sql` after the
 current migrations. It is safe to rerun and installs the updated submission
