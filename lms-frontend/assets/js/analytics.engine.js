@@ -271,6 +271,17 @@ const AnalyticsEngine = (() => {
       : null;
   }
 
+  function normalizeEvidenceCount(value, label) {
+    if (value === null || value === undefined || value === "") {
+      throw new RangeError(`${label} must be a non-negative integer.`);
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || !Number.isInteger(numeric) || numeric < 0) {
+      throw new RangeError(`${label} must be a non-negative integer.`);
+    }
+    return numeric;
+  }
+
   function calculateBayesianEstimate(
     ownSuccesses,
     ownFailures,
@@ -278,27 +289,27 @@ const AnalyticsEngine = (() => {
     peerFailures,
     targetGrade = 75,
     priorStrength = 4,
+    missingActivityCount = 0,
   ) {
-    const ownSuccessesCount = Number(ownSuccesses || 0);
-    const ownFailuresCount = Number(ownFailures || 0);
-    const peerSuccessesCount = Number(peerSuccesses || 0);
-    const peerFailuresCount = Number(peerFailures || 0);
+    const ownSuccessesCount = normalizeEvidenceCount(ownSuccesses, "Own successes");
+    const ownFailuresCount = normalizeEvidenceCount(ownFailures, "Own failures");
+    const peerSuccessesCount = normalizeEvidenceCount(peerSuccesses, "Peer successes");
+    const peerFailuresCount = normalizeEvidenceCount(peerFailures, "Peer failures");
+    const missingActivities = normalizeEvidenceCount(missingActivityCount, "Missing activity count");
 
-    if (!Number.isFinite(ownSuccessesCount) || !Number.isFinite(ownFailuresCount)
-      || !Number.isFinite(peerSuccessesCount) || !Number.isFinite(peerFailuresCount)) {
-      throw new RangeError("Bayesian evidence counts must be finite numbers.");
-    }
-    if (!Number.isInteger(ownSuccessesCount) || !Number.isInteger(ownFailuresCount)
-      || !Number.isInteger(peerSuccessesCount) || !Number.isInteger(peerFailuresCount)) {
-      throw new RangeError("Bayesian evidence counts must be non-negative integers.");
-    }
-    if (ownSuccessesCount < 0 || ownFailuresCount < 0 || peerSuccessesCount < 0 || peerFailuresCount < 0) {
-      throw new RangeError("Bayesian evidence counts must be non-negative integers.");
-    }
-    if (!Number.isFinite(targetGrade) || targetGrade < 0 || targetGrade > 100) {
+    const targetValue = Number(targetGrade);
+    if (targetGrade === null || targetGrade === undefined || targetGrade === "") {
       throw new RangeError("Target grade must be between 0 and 100.");
     }
-    if (!Number.isFinite(priorStrength) || priorStrength <= 0) {
+    if (!Number.isFinite(targetValue) || targetValue < 0 || targetValue > 100) {
+      throw new RangeError("Target grade must be between 0 and 100.");
+    }
+
+    const strengthValue = Number(priorStrength);
+    if (priorStrength === null || priorStrength === undefined || priorStrength === "") {
+      throw new RangeError("Prior strength must be a positive finite number.");
+    }
+    if (!Number.isFinite(strengthValue) || strengthValue <= 0) {
       throw new RangeError("Prior strength must be a positive finite number.");
     }
 
@@ -307,8 +318,8 @@ const AnalyticsEngine = (() => {
     const smoothedPriorRate = peerTotal > 0
       ? (peerSuccessesCount + 0.5) / (peerTotal + 1)
       : 0.5;
-    const priorAlpha = priorStrength * smoothedPriorRate;
-    const priorBeta = priorStrength * (1 - smoothedPriorRate);
+    const priorAlpha = strengthValue * smoothedPriorRate;
+    const priorBeta = strengthValue * (1 - smoothedPriorRate);
     const posteriorAlpha = priorAlpha + ownSuccessesCount;
     const posteriorBeta = priorBeta + ownFailuresCount;
 
@@ -317,6 +328,7 @@ const AnalyticsEngine = (() => {
     }
 
     const evidenceCount = ownSuccessesCount + ownFailuresCount;
+    const lowEvidenceIndicator = evidenceCount < 3;
     const predictiveProbability = (evidenceCount === 0 && peerTotal === 0)
       ? null
       : posteriorAlpha / (posteriorAlpha + posteriorBeta);
@@ -330,8 +342,8 @@ const AnalyticsEngine = (() => {
     return {
       predictiveProbability,
       probability: predictiveProbability,
-      targetGrade,
-      target_grade: targetGrade,
+      targetGrade: targetValue,
+      target_grade: targetValue,
       peerObservedRate,
       peer_observed_success_rate: peerObservedRate,
       smoothedPriorRate,
@@ -356,21 +368,21 @@ const AnalyticsEngine = (() => {
       evidence_count: evidenceCount,
       gradedActivityCount: evidenceCount,
       graded_activity_count: evidenceCount,
-      missingActivityCount: 0,
-      missing_activity_count: 0,
+      missingActivityCount: missingActivities,
+      missing_activity_count: missingActivities,
       lower: credibleInterval ? credibleInterval.low : null,
       upper: credibleInterval ? credibleInterval.high : null,
       credibleInterval,
       probabilityAbovePeers,
       probability_above_peers: probabilityAbovePeers,
-      lowEvidenceIndicator: evidenceCount < 3,
-      low_evidence_indicator: evidenceCount < 3,
+      lowEvidenceIndicator,
+      low_evidence_indicator: lowEvidenceIndicator,
       peerRate: peerObservedRate,
       classRate: peerObservedRate,
     };
   }
 
-  function betaPosterior(mySuccesses, myFailures, peerSuccesses, peerFailures, priorStrength = 4) {
+  function betaPosterior(mySuccesses, myFailures, peerSuccesses, peerFailures, priorStrength = 4, missingActivityCount = 0) {
     const estimate = calculateBayesianEstimate(
       mySuccesses,
       myFailures,
@@ -378,6 +390,7 @@ const AnalyticsEngine = (() => {
       peerFailures,
       75,
       priorStrength,
+      missingActivityCount,
     );
     return {
       alpha: estimate.posteriorAlpha,
