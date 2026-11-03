@@ -90,11 +90,11 @@ const AttendanceController = {
         api.getAttendanceSectionStudents(this._currentSectionId, {
           subjectId: this._currentSubjectId,
           term:      this._currentTerm || null,
-        }).catch(e => { console.warn('[Attendance] students:', e); return { students: [], total_meetings: 0 }; }),
+        }),
         api.getAttendanceSessions(this._currentSectionId, {
           subjectId: this._currentSubjectId,
           term:      this._currentTerm || null,
-        }).catch(() => []),
+        }),
       ]);
 
       // Cache plain student list for modal use
@@ -116,7 +116,14 @@ const AttendanceController = {
 
     } catch (err) {
       console.error('[Attendance] _renderSectionDetail:', err);
-      Toast.show('Failed to load section attendance: ' + err.message, 'error');
+      const message = err.message || 'Unknown error';
+      area.innerHTML = `<div class="empty-state">
+        <div class="empty-state-icon">${LMS_ICONS.warning}</div>
+        <div class="empty-state-title">Failed to load attendance</div>
+        <div class="empty-state-sub">${escHtml(message)}</div>
+        <button class="btn btn-outline btn-sm" onclick="AttendanceController.reloadSectionDetail()">Retry</button>
+      </div>`;
+      Toast.show('Failed to load section attendance: ' + message, 'error');
     }
   },
 

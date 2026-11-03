@@ -12,9 +12,11 @@ const elements = {
 };
 let savedPayload;
 let renderedFilters;
+let attendanceArea = { innerHTML: "" };
+let shownToast = "";
 const context = vm.createContext({
   document: {
-    getElementById: id => elements[id] || null,
+    getElementById: id => id === "content-area" ? attendanceArea : elements[id] || null,
     querySelector: selector => selector === 'input[name="att_has_class"]:checked'
       ? { value: "yes" }
       : null,
@@ -25,7 +27,9 @@ const context = vm.createContext({
     },
   },
   Modal: { close() {} },
-  Toast: { show() {} },
+  Toast: { show(message) { shownToast = message; } },
+  LMS_ICONS: { warning: "!" },
+  escHtml: value => String(value),
   console,
 });
 
@@ -35,6 +39,7 @@ vm.runInContext(
 );
 
 const controller = vm.runInContext("AttendanceController", context);
+const originalRenderSectionDetail = controller._renderSectionDetail;
 controller._currentSectionId = 7;
 controller._currentSubjectId = 13;
 controller._currentTerm = "1st";
@@ -45,11 +50,22 @@ controller._renderSectionDetail = async function () {
   };
 };
 
-controller.saveAttendance().then(() => {
+controller.saveAttendance().then(async () => {
   assert.equal(savedPayload.term, "2nd");
   assert.equal(savedPayload.subject_id, 42);
   assert.deepEqual(renderedFilters, { subjectId: 42, term: "2nd" });
-  console.log("Attendance save reloads the history using the saved subject and term.");
+  console.log("PASS attendance save reloads the history using the saved subject and term.");
+
+  controller._renderSectionDetail = originalRenderSectionDetail;
+  context.api.getAttendanceSectionStudents = async () => {
+    throw new Error("Attendance summary RPC unavailable");
+  };
+  context.api.getAttendanceSessions = async () => [];
+  await controller._renderSectionDetail();
+  assert.match(attendanceArea.innerHTML, /Failed to load attendance/);
+  assert.match(attendanceArea.innerHTML, /Attendance summary RPC unavailable/);
+  assert.match(shownToast, /Attendance summary RPC unavailable/);
+  console.log("PASS attendance read failures are shown instead of an empty-history fallback.");
 }).catch(error => {
   console.error(error);
   process.exitCode = 1;
