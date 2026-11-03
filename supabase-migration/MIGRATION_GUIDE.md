@@ -52,6 +52,7 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 11. `10_activity_late_submissions.sql` — adds late-submission settings and submission penalty snapshots, and updates the student submission and teacher grading RPCs to enforce them.
 12. `11_audit_logs.sql` — adds the immutable admin audit table, admin-only reporting RPCs, safe change capture, and atomic section/enrollment auditing.
 13. `12_section_scoped_learning_content.sql` — scopes published modules, activities, questions, activity-file access, submissions, and module-read tracking to the student's assigned section.
+14. `13_activity_timers.sql` — adds an optional minute-based time limit for auto-graded activities.
 
 For an existing database, apply `10_activity_late_submissions.sql` after the
 current migrations. It is safe to rerun and installs the updated submission
@@ -74,6 +75,10 @@ Ambiguous legacy modules remain hidden from students until a teacher selects
 the correct section with the module's **Section** action. New modules require
 the teacher to select a specific subject and section; activities inherit that
 scope from their module.
+
+For an existing database, run `13_activity_timers.sql` after migration 12. It
+adds the nullable `timer_minutes` field used by auto-graded activities; leave
+it null for activities without a time limit.
 
 For an existing project receiving these scoring and analytics fixes, also
 rerun the updated `03_functions.sql` in the SQL Editor. It synchronizes each

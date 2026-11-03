@@ -850,6 +850,10 @@ const StudentView = {
     }).join('');
 
     const totalPts = (activity.questions || []).reduce((s, q) => s + q.points, 0);
+    const timerMinutes = Number(activity.timer_minutes);
+    const timerText = timerMinutes >= 60
+      ? `${String(Math.floor(timerMinutes / 60)).padStart(2, '0')}:${String(timerMinutes % 60).padStart(2, '0')}:00`
+      : `${String(timerMinutes).padStart(2, '0')}:00`;
 
     return `
       <div class="activity-answer-sheet">
@@ -860,6 +864,11 @@ const StudentView = {
             <div style="font-size:12px;color:var(--gray-500)">⏰ Due: ${_fmtDate(activity.due_date)} · 🎯 ${totalPts} pts total</div>
           </div>
         </div>
+        ${activity.grading_mode === 'auto' && Number.isInteger(timerMinutes) && timerMinutes > 0 ? `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;margin-bottom:20px;color:#9a3412">
+            <strong>Time remaining</strong>
+            <span id="activity-timer" role="timer" aria-live="polite" style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums">${timerText}</span>
+          </div>` : ''}
         ${activity.instructions ? `
           <div style="padding:14px 16px;background:#fff9e6;border:1px solid #f0c040;border-radius:8px;margin-bottom:20px;font-size:13px;color:#7a5c00">
             <strong>📌 Instructions:</strong> ${escHtml(activity.instructions)}

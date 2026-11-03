@@ -307,6 +307,12 @@ const TeacherController = {
           <div id="act-grading-badge" style="margin-top:6px">${this._gradingBadge(existingActivity?.grading_mode || 'auto')}</div>
         </div>
 
+        <div class="form-group" id="act-timer-wrap" style="display:${this._FORMAT_TYPES.find(f => f.value === existingActivity?.format_type)?.grading !== 'manual' ? '' : 'none'}">
+          <label for="act-timer">Time Limit (minutes) <span class="text-muted">(optional)</span></label>
+          <input class="form-control" id="act-timer" type="number" min="1" max="1440" step="1" value="${existingActivity?.timer_minutes ?? ''}" placeholder="No time limit" oninput="TeacherController._updateActivitySaveState()" />
+          <small class="text-muted">Students will see a countdown and the quiz will submit automatically when time runs out. Enter 1–1440 minutes.</small>
+        </div>
+
         <div class="form-group" id="act-file-wrap" style="display:${existingActivity?.grading_mode === 'manual' ? '' : 'none'}">
           <label>Activity File <span class="text-muted">(optional, up to 50 MB)</span></label>
           ${existingActivity?.file_name ? `<div class="text-sm" style="margin-bottom:6px">Current file: ${escHtml(existingActivity.file_name)} (kept unless replaced)</div>` : ''}
@@ -357,11 +363,11 @@ const TeacherController = {
         <div id="act-questions-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px">
             <strong>Questions</strong>
-            <button class="btn btn-xs btn-outline" onclick="TeacherController._addQuestion()">${lmsIcon('plus')} Add Question</button>
           </div>
           <div id="act-questions-list">
             <div class="text-muted text-sm" style="padding:12px 0">No questions yet. Click "Add Question" to start.</div>
           </div>
+          <button class="btn btn-xs btn-outline" style="margin-top:4px" onclick="TeacherController._addQuestion()">${lmsIcon('plus')} Add Question</button>
         </div>
 
       </div>`,
@@ -443,8 +449,10 @@ const TeacherController = {
     const badgeEl  = document.getElementById('act-grading-badge');
     const qSection = document.getElementById('act-questions-section');
     const fileWrap = document.getElementById('act-file-wrap');
+    const timerWrap = document.getElementById('act-timer-wrap');
     if (badgeEl)  badgeEl.innerHTML  = this._gradingBadge(fmt?.grading || 'auto');
     if (fileWrap) fileWrap.style.display = fmt?.grading === 'manual' ? '' : 'none';
+    if (timerWrap) timerWrap.style.display = fmt?.grading === 'manual' ? 'none' : '';
     const hideQ = this._isSinglePrompt(val);
     if (qSection) qSection.style.display = hideQ ? 'none' : '';
     // Freeform / Assignment have no question builder, so the teacher sets the
@@ -471,6 +479,7 @@ const TeacherController = {
     const start = value('act-start');
     const due = value('act-due');
     const instructions = value('act-instructions');
+    const timer = value('act-timer');
 
     if (!title) return 'Activity title is required.';
     if (!subjectId) return 'Please select a subject.';
@@ -483,6 +492,11 @@ const TeacherController = {
     if (Number.isNaN(Date.parse(start)) || Number.isNaN(Date.parse(due))) return 'Please enter valid start and due dates.';
     if (new Date(start) > new Date(due)) return 'The start date must be before the due date.';
     if (!instructions) return 'Instructions to students are required.';
+    const grading = this._FORMAT_TYPES.find(item => item.value === format)?.grading;
+    if (grading === 'auto' && timer &&
+        (!Number.isInteger(Number(timer)) || Number(timer) < 1 || Number(timer) > 1440)) {
+      return 'Enter a whole-number time limit from 1 to 1440 minutes.';
+    }
 
     if (document.getElementById('act-allow-late')?.checked) {
       const penalty = value('act-late-penalty');
@@ -790,6 +804,8 @@ const TeacherController = {
     const instructions = document.getElementById('act-instructions')?.value.trim();
     const allowLate    = Boolean(document.getElementById('act-allow-late')?.checked);
     const latePenalty  = allowLate ? Number(document.getElementById('act-late-penalty')?.value) : 0;
+    const fmt          = this._FORMAT_TYPES.find(f => f.value === format);
+    const timerRaw     = document.getElementById('act-timer')?.value.trim() || '';
 
     if (!title)     { Toast.show('Activity title is required.', 'error'); return; }
     if (!subjectId) { Toast.show('Please select a subject.', 'error'); return; }
@@ -835,8 +851,8 @@ const TeacherController = {
       }
     }
 
-    const fmt         = this._FORMAT_TYPES.find(f => f.value === format);
     const gradingMode = fmt?.grading || 'auto';
+    const timerMinutes = gradingMode === 'auto' && timerRaw ? Number(timerRaw) : null;
     const activityFile = gradingMode === 'manual' ? selectedFile : null;
     if (activityFile && activityFile.size > 50 * 1024 * 1024) {
       Toast.show('Activity files must be 50 MB or smaller.', 'error'); return;
@@ -878,6 +894,7 @@ const TeacherController = {
       due_date:             dueRaw   ? new Date(dueRaw).toISOString()   : null,
       allow_late_submission: allowLate,
       late_penalty_points:   latePenalty,
+      timer_minutes:         timerMinutes,
       max_score,
       is_published:         true,
     };

@@ -32,6 +32,124 @@ function _normaliseSubmission(activity) {
 
 const StudentController = {
   _currentActivity: null,
+  _activityTimerInterval: null,
+  _activityTimerDeadline: null,
+
+  _activityTimerKey(activityId) {
+    return `ijed_activity_timer_${activityId}`;
+  },
+
+  _activityAnswersKey(activityId) {
+    return `ijed_activity_answers_${activityId}`;
+  },
+
+  _readTimedAnswers(activityId) {
+    const raw = sessionStorage.getItem(this._activityAnswersKey(activityId));
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      console.error('Could not restore saved quiz answers:', error);
+      sessionStorage.removeItem(this._activityAnswersKey(activityId));
+      return {};
+    }
+  },
+
+  _saveTimedAnswers(activity) {
+    const answers = {};
+    for (const question of activity.questions || []) {
+      if (question.question_type === 'multiple_choice') {
+        const selected = document.querySelector(`input[name="q_${question.id}"]:checked`);
+        if (selected) answers[question.id] = selected.value;
+      } else if (question.question_type === 'checkbox') {
+        answers[question.id] = JSON.stringify(
+          [...document.querySelectorAll(`input[name="q_${question.id}"]:checked`)]
+            .map(input => Number(input.value)),
+        );
+      } else {
+        const input = document.getElementById(`q_${question.id}`);
+        if (input) answers[question.id] = input.value;
+      }
+    }
+    sessionStorage.setItem(this._activityAnswersKey(activity.id), JSON.stringify(answers));
+  },
+
+  _restoreTimedAnswers(activity) {
+    const savedAnswers = this._readTimedAnswers(activity.id);
+    for (const question of activity.questions || []) {
+      const saved = savedAnswers[question.id];
+      if (saved === undefined) continue;
+      if (question.question_type === 'multiple_choice') {
+        [...document.querySelectorAll(`input[name="q_${question.id}"]`)]
+          .forEach(input => { input.checked = input.value === String(saved); });
+      } else if (question.question_type === 'checkbox') {
+        const selected = new Set(JSON.parse(saved || '[]').map(String));
+        [...document.querySelectorAll(`input[name="q_${question.id}"]`)]
+          .forEach(input => { input.checked = selected.has(input.value); });
+      } else {
+        const input = document.getElementById(`q_${question.id}`);
+        if (input) input.value = saved;
+      }
+    }
+    const questions = document.getElementById('answer-sheet-questions');
+    if (questions) {
+      const save = () => this._saveTimedAnswers(activity);
+      questions.addEventListener('input', save);
+      questions.addEventListener('change', save);
+    }
+  },
+
+  _formatActivityTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return hours
+      ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
+      : `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+  },
+
+  _startActivityTimer(activity) {
+    if (this._activityTimerInterval) clearInterval(this._activityTimerInterval);
+    this._activityTimerInterval = null;
+    this._activityTimerDeadline = null;
+    const minutes = Number(activity.timer_minutes);
+    if (activity.grading_mode !== 'auto' || !Number.isInteger(minutes) || minutes < 1) return;
+
+    const timerKey = this._activityTimerKey(activity.id);
+    let startedAt = Number(sessionStorage.getItem(timerKey));
+    if (!Number.isFinite(startedAt) || startedAt <= 0 || startedAt > Date.now()) {
+      startedAt = Date.now();
+      sessionStorage.setItem(timerKey, String(startedAt));
+    }
+    this._activityTimerDeadline = startedAt + minutes * 60_000;
+
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((this._activityTimerDeadline - Date.now()) / 1000));
+      const timer = document.getElementById('activity-timer');
+      if (timer) timer.textContent = this._formatActivityTime(remaining);
+      if (!remaining) {
+        clearInterval(this._activityTimerInterval);
+        this._activityTimerInterval = null;
+        const submitButton = document.getElementById('submit-activity-btn');
+        if (submitButton && !submitButton.disabled) {
+          this.confirmSubmit(activity.id, { timedOut: true });
+        }
+      }
+    };
+
+    update();
+    if (this._activityTimerDeadline > Date.now()) {
+      this._activityTimerInterval = setInterval(update, 1000);
+    }
+  },
+
+  _clearActivityTimer(activityId) {
+    if (this._activityTimerInterval) clearInterval(this._activityTimerInterval);
+    this._activityTimerInterval = null;
+    this._activityTimerDeadline = null;
+    sessionStorage.removeItem(this._activityTimerKey(activityId));
+    sessionStorage.removeItem(this._activityAnswersKey(activityId));
+  },
 
   // ── Subject accordion ─────────────────────────────────────
 
@@ -130,6 +248,9 @@ const StudentController = {
   // ── Open activity answer sheet ────────────────────────────
 
   async openActivity(activityId) {
+    if (this._activityTimerInterval) clearInterval(this._activityTimerInterval);
+    this._activityTimerInterval = null;
+    this._activityTimerDeadline = null;
     const area = document.getElementById('content-area');
     area.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading activity…</div></div>`;
     try {
@@ -180,6 +301,10 @@ const StudentController = {
       }
       this._currentActivity = activity;
       area.innerHTML = StudentView.activityAnswerSheet(activity);
+      if (activity.grading_mode === 'auto' && Number(activity.timer_minutes) > 0) {
+        this._restoreTimedAnswers(activity);
+      }
+      this._startActivityTimer(activity);
     } catch (err) {
       // Show error inline instead of silently redirecting —
       // a redirect looks like a bug to the student.
@@ -199,10 +324,11 @@ const StudentController = {
 
   // ── Confirm & submit answers ──────────────────────────────
 
-  async confirmSubmit(activityId) {
+  async confirmSubmit(activityId, { timedOut = false } = {}) {
     const activity = this._currentActivity;
     if (!activity) return;
 
+    const savedAnswers = this._readTimedAnswers(activityId);
     const answers     = [];
     const answerFiles = [];
     let allAnswered   = true;
@@ -212,14 +338,19 @@ const StudentController = {
       if (q.question_type === 'multiple_choice') {
         const checked = document.querySelector(`input[name="q_${q.id}"]:checked`);
         if (checked) val = checked.value;
+        else if (savedAnswers[q.id] !== undefined) val = savedAnswers[q.id];
         else allAnswered = false;
       } else if (q.question_type === 'checkbox') {
         const checked = [...document.querySelectorAll(`input[name="q_${q.id}"]:checked`)].map(i => parseInt(i.value));
         if (checked.length) val = JSON.stringify(checked);
-        else allAnswered = false;
+        else if (savedAnswers[q.id]) {
+          const saved = JSON.parse(savedAnswers[q.id]);
+          if (saved.length) val = JSON.stringify(saved);
+          else allAnswered = false;
+        } else allAnswered = false;
       } else {
         const el = document.getElementById(`q_${q.id}`);
-        val = el ? el.value.trim() : null;
+        val = el ? el.value.trim() : (savedAnswers[q.id] ?? null);
         const fileInput = q.question_type === 'essay'
           ? document.getElementById(`q_file_${q.id}`)
           : null;
@@ -235,7 +366,7 @@ const StudentController = {
     }
 
     if (!allAnswered) {
-      const proceed = confirm('Some questions are unanswered. Submit anyway?');
+      const proceed = timedOut || confirm('Some questions are unanswered. Submit anyway?');
       if (!proceed) return;
     }
 
@@ -256,6 +387,7 @@ const StudentController = {
         });
       }
       await api.submitActivityAnswers(activityId, answers);
+      this._clearActivityTimer(activityId);
       api.clearCache("student:activities:");
       submissionSaved = true;
       const [submittedActivity, result] = await Promise.all([

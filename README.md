@@ -37,7 +37,7 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - View assigned subjects, classes, and students
 - Create, publish, edit, and delete learning modules
 - Upload PDF module files to Supabase Storage
-- Create and manage multiple-choice, freeform, hybrid, and assignment activities, including activity files for manually graded work
+- Create and manage multiple-choice, freeform, hybrid, and assignment activities, including optional timers for auto-graded activities and activity files for manually graded work
 - Review student-uploaded files alongside written answers and manually grade submissions
 - Preview uploaded documents, presentations, images, and videos in the LMS without opening a new tab
 - Review submissions and manually grade activities when required

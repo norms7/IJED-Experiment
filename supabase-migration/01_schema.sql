@@ -147,6 +147,7 @@ create table if not exists activities (
     subject_id            integer references subjects(id),
     teacher_id            integer references teachers(id),
     max_score             integer,
+    timer_minutes         integer check (timer_minutes between 1 and 1440),
     start_date            timestamptz,
     due_date              timestamptz,
     allow_late_submission boolean not null default false,
