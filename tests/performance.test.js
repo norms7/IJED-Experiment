@@ -1,12 +1,15 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
 const {
   academicScore,
   attendanceScore,
   betaCredibleInterval,
   betaPosterior,
   calculateBayesianEstimate,
+  getImprovementProbability,
   getStudentsLikeYou,
   isMissingLeaderboardRpc,
   leaderboardFallback,
@@ -70,7 +73,13 @@ test("Beta-Binomial posterior, exact intervals, and class-tail probabilities", (
     { own: [0, 3], peer: [6, 2], params: [2.8889, 4.1111], mean: 41.3, interval: [14, 71], tail: 3, threshold: 0.75 },
   ];
   for (const example of examples) {
-    const posterior = betaPosterior(...example.own, ...example.peer);
+    const posterior = betaPosterior(
+      ...example.own,
+      ...example.peer,
+      4,
+      0,
+      example.own[0] + example.own[1],
+    );
     close(posterior.alpha, example.params[0], 1e-3);
     close(posterior.beta, example.params[1], 1e-3);
     closePercentage(posterior.mean, example.mean);
@@ -232,15 +241,136 @@ test("missing leaderboard RPC falls back without blocking Bayesian analytics", a
 });
 
 test("shared Bayesian engine validates inputs and handles no-evidence cases", () => {
-  const estimate = calculateBayesianEstimate(4, 1, 7, 3, 75, 4);
+  const estimate = calculateBayesianEstimate(4, 1, 7, 3, 75, 4, 0, 5);
   assert.ok(estimate.probability > 0 && estimate.probability < 1);
   assert.ok(estimate.posteriorAlpha > 0 && estimate.posteriorBeta > 0);
   assert.ok(Number.isFinite(estimate.lower));
   assert.ok(Number.isFinite(estimate.upper));
   assert.ok(estimate.lower < estimate.upper);
-  assert.equal(calculateBayesianEstimate(0, 0, 0, 0, 75, 4).probability, null);
-  assert.throws(() => calculateBayesianEstimate(-1, 0, 0, 0, 75, 4), /non-negative/);
-  assert.throws(() => calculateBayesianEstimate(0, 0, 0, 0, 101, 4), /between 0 and 100/);
+  assert.equal(calculateBayesianEstimate(0, 0, 0, 0, 75, 4, 0, 0).probability, null);
+  assert.throws(() => calculateBayesianEstimate(-1, 0, 0, 0, 75, 4, 0, 0), /non-negative/);
+  assert.throws(() => calculateBayesianEstimate(0, 0, 0, 0, 101, 4, 0, 0), /between 0 and 100/);
+});
+
+test("Bayesian edge cohorts and missing evidence semantics", () => {
+  const allSuccessfulPeers = calculateBayesianEstimate(0, 0, 5, 0, 75, 4, 0, 0);
+  const allUnsuccessfulPeers = calculateBayesianEstimate(0, 0, 0, 5, 75, 4, 0, 0);
+  const allSuccessfulOwn = calculateBayesianEstimate(4, 0, 0, 0, 75, 4, 0, 4);
+  const allUnsuccessfulOwn = calculateBayesianEstimate(0, 4, 0, 0, 75, 4, 0, 4);
+  const noEvidence = calculateBayesianEstimate(0, 0, 0, 0, 75, 4, 0, 0);
+
+  assert.ok(allSuccessfulPeers.predictiveProbability > 0.9);
+  assert.ok(allUnsuccessfulPeers.predictiveProbability < 0.1);
+  close(allSuccessfulOwn.predictiveProbability, 0.75);
+  close(allUnsuccessfulOwn.predictiveProbability, 0.25);
+  assert.equal(noEvidence.predictiveProbability, null);
+
+  const withMissing = calculateBayesianEstimate(1, 3, 0, 0, 75, 4, 2, 2);
+  assert.equal(withMissing.evidenceCount, 4);
+  assert.equal(withMissing.gradedActivityCount, 2);
+  assert.equal(withMissing.missingActivityCount, 2);
+  assert.equal(withMissing.ownFailures, 3);
+  assert.equal(withMissing.posteriorBeta, 5);
+  assert.equal(withMissing.lowEvidenceIndicator, true);
+
+  const manyMissing = calculateBayesianEstimate(3, 10, 0, 0, 75, 4, 10, 3);
+  assert.equal(manyMissing.evidenceCount, 13);
+  assert.equal(manyMissing.gradedActivityCount, 3);
+  assert.equal(manyMissing.lowEvidenceIndicator, false);
+
+  const studentEstimate = calculateBayesianEstimate(2, 2, 7, 4, 85, 4, 1, 3);
+  const teacherEstimate = calculateBayesianEstimate(2, 2, 7, 4, 85, 4, 1, 3);
+  assert.deepEqual(teacherEstimate, studentEstimate);
+});
+
+test("teacher row uses the same Bayesian estimate as student analytics", () => {
+  const context = { AnalyticsEngine: require("../lms-frontend/assets/js/analytics.engine.js") };
+  const controllerSource = fs.readFileSync(
+    require.resolve("../lms-frontend/controllers/class-performance.controller.js"),
+    "utf8",
+  );
+  vm.runInNewContext(
+    `${controllerSource}\nthis.ClassPerformanceController = ClassPerformanceController;`,
+    context,
+  );
+
+  const row = context.ClassPerformanceController._prepareRow({
+    student_id: 1,
+    academic_earned: 80,
+    academic_possible: 100,
+    attendance_weighted: 0,
+    attendance_sessions: 0,
+    modules_read: 0,
+    modules_total: 0,
+    my_successes: 2,
+    my_failures: 2,
+    my_graded_count: 3,
+    my_missing_count: 1,
+    class_successes: 9,
+    class_failures: 6,
+  });
+  const studentEstimate = calculateBayesianEstimate(2, 2, 7, 4, 75, 4, 1, 3);
+
+  close(row.next_probability, Math.round(studentEstimate.predictiveProbability * 1000) / 10);
+  close(row.credible_low, Math.round(studentEstimate.credibleInterval.low * 1000) / 10);
+  close(row.credible_high, Math.round(studentEstimate.credibleInterval.high * 1000) / 10);
+  close(row.probability_above_peers, Math.round(studentEstimate.probabilityAbovePeers * 1000) / 10);
+  assert.equal(row.bayesian_graded_count, studentEstimate.gradedActivityCount);
+  assert.equal(row.bayesian_missing_count, studentEstimate.missingActivityCount);
+  assert.equal(row.low_confidence, studentEstimate.lowEvidenceIndicator);
+});
+
+test("Bayesian evidence counts reject invalid values", () => {
+  const validCounts = [1, 1, 2, 2, 75, 4, 0, 2];
+  const invalidCounts = [null, undefined, "", "   ", -1, 1.5, NaN, Infinity, -Infinity];
+  for (const index of [0, 1, 2, 3, 6, 7]) {
+    for (const invalid of invalidCounts) {
+      const inputs = [...validCounts];
+      inputs[index] = invalid;
+      assert.throws(() => calculateBayesianEstimate(...inputs), /non-negative integer/);
+    }
+  }
+});
+
+test("Bayesian evidence remains available when descriptive prediction fails", async () => {
+  const calls = [];
+  const sb = {
+    async rpc(name) {
+      calls.push(name);
+      if (name === "analytics_cache_get") return { data: null, error: null };
+      if (name === "get_beta_binomial_evidence") {
+        return {
+          data: {
+            my_successes: 2,
+            my_failures: 2,
+            my_graded_count: 3,
+            my_missing_count: 1,
+            peer_successes: 7,
+            peer_failures: 4,
+          },
+          error: null,
+        };
+      }
+      if (name === "analytics_cache_set") return { data: null, error: null };
+      throw new Error(`Unexpected RPC: ${name}`);
+    },
+    from() {
+      throw new Error("Descriptive data unavailable");
+    },
+  };
+
+  const result = await getImprovementProbability(sb, 17, 85, 5);
+
+  assert.equal(result.probability, 56);
+  assert.equal(result.predicted_grade, null);
+  assert.equal(result.prediction_unavailable, true);
+  assert.equal(result.prediction_error, true);
+  assert.equal(result.prediction_status, "error");
+  assert.equal(result.graded_activity_count, 3);
+  assert.equal(result.missing_count, 1);
+  assert.equal(result.graded_failure_count, 1);
+  assert.equal(result.evidence_count, 4);
+  assert.ok(calls.indexOf("get_beta_binomial_evidence") < calls.lastIndexOf("analytics_cache_get"));
 });
 
 test("zero-data, missing-score, due-date, and D2 edge cases", () => {
@@ -281,7 +411,7 @@ test("zero-data, missing-score, due-date, and D2 edge cases", () => {
   assert.equal(overallScore(students), 75);
   assert.equal(overallScore([students[2]]), null);
   assert.equal(ratingForScore(overallScore([students[2]])).rating, "Unknown");
-  assert.equal(betaPosterior(0, 0, 0, 0).classRate, 0.5);
+  assert.equal(betaPosterior(0, 0, 0, 0, 4, 0, 0).classRate, 0.5);
 });
 
 Promise.all(pendingTests)

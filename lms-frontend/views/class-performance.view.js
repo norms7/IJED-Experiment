@@ -95,7 +95,7 @@ const ClassPerformanceView = {
                     <strong>${escHtml(name)}</strong>
                     ${row.student_number ? `<small>${escHtml(row.student_number)}</small>` : ""}
                     <span class="class-performance-factors">
-                      <span>Academic <b>${row.academic_pct == null ? "—" : `${row.academic_pct.toFixed(1)}%`}</b><small>${row.graded_count} graded${row.low_confidence ? " · low confidence" : ""}${row.missing_count ? ` · ${row.missing_count} missing` : ""}</small></span>
+                      <span>Academic <b>${row.academic_pct == null ? "—" : `${row.academic_pct.toFixed(1)}%`}</b><small>${row.bayesian_graded_count} Bayesian graded${row.low_confidence ? " · low confidence" : ""}${row.bayesian_missing_count ? ` · ${row.bayesian_missing_count} missing` : ""}</small></span>
                       <span>Attendance <b>${row.attendance_pct == null ? "—" : `${row.attendance_pct.toFixed(1)}%`}</b><small>${row.attendance_sessions} meetings</small></span>
                       <span>Modules <b>${row.modules_pct == null ? "—" : `${row.modules_pct.toFixed(1)}%`}</b><small>${row.modules_read}/${row.modules_total} read</small></span>
                     </span>
@@ -120,6 +120,7 @@ const ClassPerformanceView = {
   },
 
   studentDetails(student, details) {
+    const formatProbability = value => value == null ? "—" : `${Number(value).toFixed(1)}%`;
     const activityRows = (details.activities || []).filter(row => row.student_id === student.student_id);
     const attendanceRows = (details.attendance || []).filter(row => row.student_id === student.student_id);
     const moduleRows = (details.modules || []).filter(row => row.student_id === student.student_id);
@@ -139,6 +140,15 @@ const ClassPerformanceView = {
 
     return `<div>
       <p><strong>Attendance summary:</strong> ${present} present, ${late} late, ${absent} absent, ${excused} excused.</p>
+      <section class="analytics-card class-performance-bayesian">
+        <h4>Next-activity Bayesian estimate</h4>
+        <p>Estimated probability of reaching ${student.bayesian_target}% on the next activity: <strong>${formatProbability(student.next_probability)}</strong></p>
+        <p>90% credible interval: <strong>${formatProbability(student.credible_low)}–${formatProbability(student.credible_high)}</strong></p>
+        <p>Probability of performing above the peer rate: <strong>${formatProbability(student.probability_above_peers)}</strong></p>
+        <p>Graded successes: ${student.bayesian_successes}; graded failures: ${student.bayesian_graded_failures}; missing activities: ${student.bayesian_missing_count}.</p>
+        <p>Graded activities: ${student.bayesian_graded_count}. ${student.low_confidence ? "<strong>Low confidence:</strong> fewer than 3 graded activities." : "Evidence threshold met: at least 3 graded activities."}</p>
+        <small>Eligible missing activities count once as failures and are shown separately; they are not graded observations.</small>
+      </section>
       <h4>Activities</h4>${activityTable}
       <h4>Attendance</h4>${attendanceTable}
       <h4>Modules read</h4>${moduleTable}

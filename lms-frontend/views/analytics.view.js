@@ -315,33 +315,37 @@ const AnalyticsView = {
       const parsed = number(value);
       return parsed === null ? '—' : parsed.toFixed(digits);
     };
-    const ownCount = (number(data.my_successes) || 0) + (number(data.my_failures) || 0);
+    const ownGradedCount = number(data.graded_activity_count) || 0;
+    const ownMissingCount = number(data.missing_count) || 0;
     const peerCount = (number(data.class_successes) || 0) + (number(data.class_failures) || 0);
-    const recommendation = ownCount === 0
-      ? 'This estimate uses class results because you do not have graded scores yet.'
+    const recommendation = ownGradedCount === 0 && ownMissingCount > 0
+      ? 'This estimate includes eligible missing activities as failures. Graded evidence is not available yet.'
+      : ownGradedCount === 0
+        ? 'This estimate uses peer results because you do not have graded scores yet.'
       : data.probability >= 70
         ? 'You are in a good position. Keep up your effort.'
         : data.probability >= 40
           ? 'Keep practicing to improve your chance.'
           : 'Review past work and ask for help where you need it.';
     const confidenceText = data.low_confidence
-      ? `Still changing · ${display(data.n_observations)} graded scores so far`
-      : `Steadier estimate · ${display(data.n_observations)} graded scores`;
+      ? `Low confidence · ${display(data.graded_activity_count)} graded activities; missing activities do not count toward this threshold`
+      : `At least 3 graded activities · ${display(data.graded_activity_count)} graded`;
 
     return `
       <div class="bayesian-factor-list">
         <p class="grading-note">This estimates your chance of scoring ${display(data.target_grade)}% or higher on your next activity. It is separate from your estimated final grade.</p>
+        ${data.prediction_unavailable ? '<p class="grading-note">The descriptive final-grade prediction is unavailable; this Bayesian estimate was calculated independently.</p>' : ''}
         <div class="bayesian-factor-row">
-          <strong>Your past scores</strong>
-          <span>${display(data.my_successes)} reached the target · ${display(data.my_failures)} below · ${display(data.evidence_count)} used</span>
+          <strong>Your graded results</strong>
+          <span>${display(data.my_successes)} successes · ${display(data.graded_failure_count)} failures · ${display(data.graded_activity_count)} graded</span>
         </div>
         <div class="bayesian-factor-row">
           <strong>Class results</strong>
-          <span>${display(data.class_successes)} reached the target · ${display(data.class_failures)} below · ${peerCount} total</span>
+          <span>${display(data.class_successes)} successes · ${display(data.class_failures)} failures (including missing) · ${peerCount} total</span>
         </div>
         <div class="bayesian-factor-row">
           <strong>Class hit rate</strong>
-          <span>${peerCount ? `${display(data.class_rate_at_target)}% reached the target` : 'No class scores yet'}</span>
+          <span>${peerCount ? `${display(data.class_rate_at_target)}% reached the target` : 'No peer observations yet'}</span>
         </div>
         <div class="bayesian-factor-row">
           <strong>Possible chance range</strong>
@@ -353,7 +357,11 @@ const AnalyticsView = {
         </div>
         <div class="bayesian-factor-row">
           <strong>Missing activities</strong>
-          <span>${display(data.missing_count)} · counted in your current grade, not this chance</span>
+          <span>${display(data.missing_count)} · eligible overdue/undated missing activities count once as failures</span>
+        </div>
+        <div class="bayesian-factor-row">
+          <strong>Total Bayesian observations</strong>
+          <span>${display(data.evidence_count)} · includes graded results and eligible missing failures</span>
         </div>
         <div class="bayesian-factor-row">
           <strong>How steady is this estimate?</strong>
@@ -362,8 +370,8 @@ const AnalyticsView = {
         <p class="bayesian-recommendation"><strong>Next step:</strong> ${escHtml(recommendation)}</p>
         <details class="bayesian-explanation">
           <summary>How do we get this estimate?</summary>
-          <p>We start with how often the class reached your target, then adjust the estimate using your past graded scores. A score at or above the target counts as reaching it. A lower score does not.</p>
-          <p>The possible range shows that this is not exact. More graded scores can make the estimate steadier. Missing or ungraded activities do not count here, but they can affect your current grade.</p>
+          <p>We start with the Jeffreys-smoothed peer rate, then update the Beta prior with your own successes and failures. A score at or above the target is a success. An eligible past-due or undated published activity with no submission counts as a failure; submitted but ungraded and future unsubmitted activities are excluded.</p>
+          <p>The possible range shows uncertainty, not a guarantee. Low confidence means fewer than 3 graded activities; missing activities are reported separately and do not count as graded observations.</p>
         </details>
       </div>`;
   },

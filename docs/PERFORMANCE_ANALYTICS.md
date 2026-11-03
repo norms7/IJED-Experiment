@@ -56,7 +56,7 @@ The DepEd transmutation function is intentionally separate from the Bayesian pro
 
 ## 5. Beta-Binomial model
 
-Each graded activity is treated as a Bernoulli trial for the event “the student reaches the selected target,” and the prior is centered on the peer cohort success rate.
+Each graded activity is treated as a Bernoulli trial for the event “the student reaches the selected target,” and the prior is centered on the peer cohort success rate. An eligible past-due or undated published activity with no submission is also a failure observation. It is included once in `own_failures` and separately reported in `my_missing_count`; it is not an additional failure on top of that count.
 
 ### Jeffreys-smoothed peer rate
 
@@ -70,17 +70,19 @@ Otherwise,
 
 ### Prior parameters
 
-`prior_alpha = prior_strength * peer_rate`
+`prior_alpha = 4 * peer_rate`
 
-`prior_beta = prior_strength * (1 - peer_rate)`
+`prior_beta = 4 * (1 - peer_rate)`
 
-The default prior strength is 4, which keeps the prior weakly informative while allowing the student’s evidence to dominate as more graded results accumulate.
+The prior strength is 4 pseudo-observations, which keeps the prior weakly informative while allowing the student’s evidence to dominate as more observations accumulate.
 
 ### Likelihood and posterior
 
 `posterior_alpha = prior_alpha + own_successes`
 
 `posterior_beta = prior_beta + own_failures`
+
+`own_failures` includes graded failures and eligible missing activities exactly once. `my_graded_count` counts graded successes plus graded failures only. `my_missing_count` reports the missing subset separately.
 
 ### Predictive probability
 
@@ -123,18 +125,18 @@ This ensures legacy rows with null or zero submission max scores still count cor
 
 ## 7. Student peer cohort and teacher section cohort definitions
 
-Student analytics use the same selected subject and term filters, the student is removed from the peer pool, and inactive peers are excluded.
+Student analytics use the selected subject and term filters, exclude the requesting student from the peer pool, and include only active students enrolled in the corresponding subject. Duplicate enrollment rows cannot multiply evidence. Missing peer activities use these same activity and eligibility filters.
 
-Teacher and administrator class reports compute per-student outputs using the section and subject scope authorized for the current user. For each student:
+Teacher and administrator class reports compute per-student outputs using the section and subject scope authorized for the current user. Their peer totals include only active students enrolled in the subject and in the report's authorized section scope; duplicate enrollments cannot multiply evidence. The teacher report's class totals include the current student, which is subtracted before the shared engine calculates peer evidence.
 
 - `peer_successes = class_successes - own_successes`
 - `peer_failures = class_failures - own_failures`
 
-The same Beta-Binomial engine is used for the student and class reports so the formula remains identical even though the evidence populations differ.
+Student reports currently use all active enrolled peers in the selected subject(s) and term because their RPC has no section filter. Teacher reports use the authorized selected section, or all sections assigned to that teacher when no section is selected. Therefore, student and teacher probabilities match when their subject, term, and eligible peer populations match; a section-scoped teacher report can intentionally have a different peer population. Both use the same Beta-Binomial formula, and neither exposes peer identities or raw peer grades.
 
 ## 8. Insufficient evidence behavior
 
-The system marks estimates with fewer than three graded activities as low evidence. If neither personal nor peer evidence exists, the estimate is returned as null rather than as a misleading 50% evidence-based prediction.
+The system marks estimates with fewer than three graded activities as low evidence; missing activities are failures but do not count as graded observations for this threshold. If neither personal nor peer evidence exists, the estimate is returned as null rather than as a misleading 50% evidence-based prediction.
 
 ## 9. Relevant functions and RPCs
 
@@ -147,8 +149,8 @@ The system marks estimates with fewer than three graded activities as low eviden
 - `supabase-migration/08_performance_overview.sql`
   - `public.get_beta_binomial_evidence()`
   - `public.get_class_performance()`
-- `supabase-migration/14_bayesian_inference_consistency.sql`
-  - Safe forward-compatible override for the evidence RPC
+- `supabase-migration/15_bayesian_evidence_alignment.sql`
+  - Forward migration aligning student and teacher evidence eligibility and counts
 
 ## 10. RLS and privacy protections
 

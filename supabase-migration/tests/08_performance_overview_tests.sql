@@ -1,4 +1,4 @@
--- Run in the Supabase SQL Editor after migrations 01-09. All fixtures and
+-- Run in the Supabase SQL Editor after migrations 01-15. All fixtures and
 -- generated notifications are rolled back when this script completes.
 begin;
 
@@ -30,6 +30,8 @@ create temporary table performance_test_ids (
   student_one integer,
   student_two integer,
   student_three integer,
+  student_four integer,
+  student_five integer,
   teacher_id integer,
   notification_teacher_id integer,
   subject_id integer,
@@ -49,7 +51,9 @@ insert into auth.users (
   ('00000000-0000-0000-0000-000000000000', '80000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'perf-test-student-one@example.invalid', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
   ('00000000-0000-0000-0000-000000000000', '80000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'perf-test-student-two@example.invalid', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
   ('00000000-0000-0000-0000-000000000000', '80000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'perf-test-student-three@example.invalid', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
-  ('00000000-0000-0000-0000-000000000000', '80000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'perf-test-teacher-assigned@example.invalid', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
+  ('00000000-0000-0000-0000-000000000000', '80000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'perf-test-teacher-assigned@example.invalid', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '80000000-0000-4000-8000-000000000007', 'authenticated', 'authenticated', 'perf-test-student-unenrolled@example.invalid', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '80000000-0000-4000-8000-000000000008', 'authenticated', 'authenticated', 'perf-test-student-inactive@example.invalid', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
 
 do $$
 declare
@@ -60,12 +64,18 @@ declare
   v_teacher_id integer;
   v_notification_teacher_id integer;
   v_student_ids integer[];
+  v_student_four_user integer;
+  v_student_five_user integer;
+  v_student_four integer;
+  v_student_five integer;
   v_class_id integer;
   v_section_id integer;
   v_subject_id integer;
   v_other_subject_id integer;
   v_modules integer[];
   v_activities integer[];
+  v_pending_activity integer;
+  v_second_term_activity integer;
   v_session_id integer;
   v_statuses text[] := array[
     'present','present','present','present','present','present','present',
@@ -99,6 +109,15 @@ begin
 
   insert into users (auth_uid, email, first_name, last_name, role_id)
   values
+    ('80000000-0000-4000-8000-000000000007', 'perf-test-student-unenrolled@example.invalid', 'Test', 'Unenrolled', (select id from roles where name = 'student')),
+    ('80000000-0000-4000-8000-000000000008', 'perf-test-student-inactive@example.invalid', 'Test', 'Inactive', (select id from roles where name = 'student'));
+  select id into v_student_four_user from users where auth_uid = '80000000-0000-4000-8000-000000000007';
+  select id into v_student_five_user
+  from users
+  where auth_uid = '80000000-0000-4000-8000-000000000008';
+
+  insert into users (auth_uid, email, first_name, last_name, role_id)
+  values
     ('80000000-0000-4000-8000-000000000003', 'perf-test-student-one@example.invalid', 'Test', 'One', (select id from roles where name = 'student')),
     ('80000000-0000-4000-8000-000000000004', 'perf-test-student-two@example.invalid', 'Test', 'Two', (select id from roles where name = 'student')),
     ('80000000-0000-4000-8000-000000000005', 'perf-test-student-three@example.invalid', 'Test', 'Three', (select id from roles where name = 'student'));
@@ -120,6 +139,13 @@ begin
 
   select array_agg(id order by user_id) into v_student_ids
   from students where user_id = any(v_student_user_ids);
+  insert into students (user_id, student_number)
+  values (v_student_four_user, 'PERF-UNENROLLED')
+  returning id into v_student_four;
+  insert into students (user_id, student_number)
+  values (v_student_five_user, 'PERF-INACTIVE')
+  returning id into v_student_five;
+  update users set is_active = false where id = v_student_five_user;
 
   insert into classes (name, grade_level, school_year) values ('Performance Test Class', '11', 'TEST')
   returning id into v_class_id;
@@ -137,9 +163,13 @@ begin
   insert into student_section_assignments (student_id, section_id)
   select student_id, v_section_id
   from unnest(v_student_ids) as assigned_students(student_id);
+  insert into student_section_assignments (student_id, section_id)
+  values (v_student_four, v_section_id), (v_student_five, v_section_id);
   insert into student_subject_enrollments (student_id, subject_id)
   select student_id, v_subject_id
   from unnest(v_student_ids) as enrolled_students(student_id);
+  insert into student_subject_enrollments (student_id, subject_id)
+  values (v_student_five, v_subject_id);
 
   insert into modules (title, class_id, subject_id, teacher_id, term, is_published)
   select 'Performance Test Module ' || module_number, v_class_id, v_subject_id, v_teacher_id, '1st Term', true
@@ -160,11 +190,28 @@ begin
   from activities
   where title in ('Performance Test Graded Activity', 'Performance Test Missing Activity');
 
+  insert into activities (title, activity_type, module_id, subject_id, teacher_id, term, max_score, due_date, is_published)
+  values
+    ('Performance Test Pending Activity', 'quiz', v_modules[1], v_subject_id, v_teacher_id, '1st Term', 10, now() - interval '1 day', true),
+    ('Performance Test Future Activity', 'quiz', v_modules[1], v_subject_id, v_teacher_id, '1st Term', 10, now() + interval '1 day', true),
+    ('Performance Test Unpublished Activity', 'quiz', v_modules[1], v_subject_id, v_teacher_id, '1st Term', 10, now() - interval '1 day', false),
+    ('Performance Test Invalid Max Activity', 'quiz', v_modules[1], v_subject_id, v_teacher_id, '1st Term', null, now() - interval '1 day', true),
+    ('Performance Test Second Term Activity', 'quiz', v_modules[1], v_subject_id, v_teacher_id, '2nd Term', 100, null, true);
+  select id into v_pending_activity from activities where title = 'Performance Test Pending Activity';
+  select id into v_second_term_activity from activities where title = 'Performance Test Second Term Activity';
+
   insert into activity_submissions (activity_id, student_id, score, max_score, is_graded)
   values
     (v_activities[1], v_student_ids[1], 58, null, true),
     (v_activities[1], v_student_ids[2], 76, 80, true),
     (v_activities[1], v_student_ids[3], 59, 80, true);
+  insert into activity_submissions (activity_id, student_id, score, max_score, is_graded)
+  values
+    (v_pending_activity, v_student_ids[1], null, 10, false),
+    (v_second_term_activity, v_student_ids[1], 80, 100, true),
+    (v_second_term_activity, v_student_ids[2], 20, 100, true),
+    (v_activities[1], v_student_four, 80, 80, true),
+    (v_activities[1], v_student_five, 80, 80, true);
 
   for i in 1..array_length(v_statuses, 1) loop
     insert into attendance_sessions (teacher_id, class_id, subject_id, term, session_date, has_class)
@@ -175,7 +222,8 @@ begin
   end loop;
 
   insert into performance_test_ids
-  values (v_student_ids[1], v_student_ids[2], v_student_ids[3], v_teacher_id, v_notification_teacher_id,
+  values (v_student_ids[1], v_student_ids[2], v_student_ids[3], v_student_four, v_student_five,
+          v_teacher_id, v_notification_teacher_id,
           v_subject_id, v_other_subject_id, v_section_id, v_class_id, v_modules, v_activities);
 end;
 $$;
@@ -190,6 +238,9 @@ declare
   v_components jsonb;
   v_row jsonb;
   v_evidence jsonb;
+  v_second_term_evidence jsonb;
+  v_class_report jsonb;
+  v_class_row jsonb;
   v_chart_data jsonb;
   v_chart_row jsonb;
   v_leaderboard_data jsonb;
@@ -260,14 +311,28 @@ begin
   raise notice 'PASS score-vs-class chart uses activity max score when submission max_score is null';
 
   v_evidence := get_beta_binomial_evidence(v_ids.student_one, array[v_ids.subject_id], 75, '1st');
-  if (v_evidence->>'my_failures')::integer <> 2 then
+  if (v_evidence->>'my_failures')::integer <> 2
+     or (v_evidence->>'my_successes')::integer <> 0
+     or (v_evidence->>'my_graded_count')::integer <> 1
+     or (v_evidence->>'my_missing_count')::integer <> 1 then
     raise exception 'Past-due missing activity was not counted as a Bayesian failure: %', v_evidence;
   end if;
   if (v_evidence->>'peer_successes')::integer <> 1
-     or (v_evidence->>'peer_failures')::integer <> 3 then
-    raise exception 'Caller was not excluded or peer evidence unexpected: %', v_evidence;
+     or (v_evidence->>'peer_failures')::integer <> 5 then
+    raise exception 'Inactive, un-enrolled, or requesting students affected peer evidence: %', v_evidence;
   end if;
-  raise notice 'PASS missing work counts as a failure and caller is excluded from peers';
+  raise notice 'PASS eligible missing work counts once, pending/future/unpublished/invalid-max work is excluded, and inactive/un-enrolled/current students are excluded from peers';
+
+  v_second_term_evidence := get_beta_binomial_evidence(v_ids.student_one, array[v_ids.subject_id], 75, '2nd');
+  if (v_second_term_evidence->>'my_successes')::integer <> 1
+     or (v_second_term_evidence->>'my_failures')::integer <> 0
+     or (v_second_term_evidence->>'my_graded_count')::integer <> 1
+     or (v_second_term_evidence->>'my_missing_count')::integer <> 0
+     or (v_second_term_evidence->>'peer_successes')::integer <> 0
+     or (v_second_term_evidence->>'peer_failures')::integer <> 2 then
+    raise exception 'Subject/term-filtered Bayesian evidence was unexpected: %', v_second_term_evidence;
+  end if;
+  raise notice 'PASS Bayesian evidence respects selected subject and term filters';
 
   v_denied := false;
   begin
@@ -289,6 +354,13 @@ begin
   exception when sqlstate '42501' then v_denied := true;
   end;
   if not v_denied then raise exception 'Cross-student Beta evidence RPC did not raise 42501'; end if;
+
+  v_denied := false;
+  begin
+    perform get_beta_binomial_evidence(v_ids.student_one, array[v_ids.other_subject_id], 75, '1st');
+  exception when sqlstate '42501' then v_denied := true;
+  end;
+  if not v_denied then raise exception 'Student was able to request Bayesian evidence for a non-enrolled subject'; end if;
 
   v_denied := false;
   begin
@@ -357,6 +429,44 @@ begin
   end;
   if not v_denied then raise exception 'Unassigned teacher was able to call class performance RPC'; end if;
   raise notice 'PASS unassigned teacher is denied class performance RPC';
+
+  perform set_config('request.jwt.claims',
+    '{"sub":"80000000-0000-4000-8000-000000000006","role":"authenticated"}', true);
+  v_class_report := get_class_performance(v_ids.subject_id, v_ids.section_id, '1st', 75);
+  if jsonb_array_length(v_class_report) <> 3 then
+    raise exception 'Teacher report included inactive or non-enrolled students: %', v_class_report;
+  end if;
+  select value into v_class_row
+  from jsonb_array_elements(v_class_report)
+  where (value->>'student_id')::integer = v_ids.student_one;
+  if v_class_row is null
+     or (v_class_row->>'my_successes')::integer <> (v_evidence->>'my_successes')::integer
+     or (v_class_row->>'my_failures')::integer <> (v_evidence->>'my_failures')::integer
+     or (v_class_row->>'my_graded_count')::integer <> (v_evidence->>'my_graded_count')::integer
+     or (v_class_row->>'my_missing_count')::integer <> (v_evidence->>'my_missing_count')::integer
+     or (v_class_row->>'class_successes')::integer - (v_class_row->>'my_successes')::integer
+       <> (v_evidence->>'peer_successes')::integer
+     or (v_class_row->>'class_failures')::integer - (v_class_row->>'my_failures')::integer
+       <> (v_evidence->>'peer_failures')::integer then
+    raise exception 'Student and teacher evidence differs for the same section/subject/term population: student %, teacher %',
+      v_evidence, v_class_row;
+  end if;
+  if exists (
+    select 1
+    from jsonb_array_elements(v_class_report) row_data
+    where (row_data->>'student_id')::integer in (v_ids.student_four, v_ids.student_five)
+  ) then
+    raise exception 'Teacher report exposed an inactive or non-enrolled student';
+  end if;
+  raise notice 'PASS teacher and student evidence counts match for the same eligible section, subject, and term cohort';
+
+  v_denied := false;
+  begin
+    perform get_class_performance(v_ids.subject_id, v_ids.section_id + 999999, '1st', 75);
+  exception when sqlstate '42501' then v_denied := true;
+  end;
+  if not v_denied then raise exception 'Assigned teacher was able to access an unauthorized section'; end if;
+  raise notice 'PASS teacher section authorization remains enforced';
 end;
 $$;
 

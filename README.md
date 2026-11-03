@@ -87,7 +87,7 @@ Detailed implementation notes and formulas are documented in [docs/PERFORMANCE_A
 2. Unsubmitted activities count only when due or undated, and contribute `0 / max_score`; future activities without a submission are excluded.
 3. Graded submissions contribute their earned points and maximum points; if a legacy submission has no valid `max_score`, the activity's `max_score` is used. Submissions waiting for grading are excluded until graded.
 4. Published modules and recorded attendance are filtered to the selected subject and term.
-5. The resulting component percentages are displayed in the descriptive cards and reused by the Bayesian calculations.
+5. The resulting component percentages are displayed in the descriptive cards; Bayesian target probabilities are calculated independently from graded and eligible missing-activity evidence.
 
 For class comparisons, the browser does not read other students' raw rows. Supabase RPCs calculate the class aggregate inside PostgreSQL and return only the requesting student's result and permitted summary statistics.
 
@@ -105,32 +105,35 @@ For class comparisons, the browser does not read other students' raw rows. Supab
 
 ##### In plain language
 
-The Bayesian card estimates the chance that the student's **next graded activity** will reach the selected target. It is not a prediction of the final course grade.
+The Bayesian card estimates the chance that the student's **next activity** will reach the selected target. It is not a prediction of the final course grade.
 
 The estimate starts with a small class-based starting point, then adjusts it using the student's own graded activities:
 
-1. Pick a target, such as **90%**. Each graded activity is a success if its score percentage meets or exceeds the target; otherwise it is a failure. A past-due, unsubmitted activity counts as a failure. Ungraded work is not counted yet.
-2. Count the other students' successes and failures at that target. The student is left out of this class count. Their success rate becomes the starting estimate.
-3. Give that starting estimate the weight of four imaginary results. This keeps a small class sample from dominating the estimate. For example, if the class has 3 successes and 7 failures, its rate is 3/10 = 30%. The four imaginary results become 1.2 successes and 2.8 failures.
-4. Add the student's real results to those starting counts. If the student has 3 successes and 2 failures, the updated counts are 4.2 successes and 4.8 failures.
-5. Divide updated successes by all updated counts: 4.2 / (4.2 + 4.8) = **46.7%**. That is the estimated chance the next graded activity reaches 90%.
+1. Pick a target, such as **90%**. A graded activity is a success if its score percentage meets or exceeds the target; otherwise it is a graded failure. An eligible past-due or undated published activity with no submission also counts as a failure. Submitted but ungraded activities and future unsubmitted activities are excluded.
+2. Count the other eligible students' successes and failures at that target. The student is left out of this peer count. The peer rate uses Jeffreys smoothing, so a small or all-success/all-failure peer cohort does not produce a prior of exactly 0% or 100%.
+3. Give the smoothed peer rate the weight of four pseudo-observations. For 3 peer successes and 7 peer failures, the smoothed rate is `(3 + 0.5) / (3 + 7 + 1) = 31.8%`; the prior parameters are about 1.27 successes and 2.73 failures.
+4. Add the student's successes and failures to those prior parameters. With 3 successes and 2 failures, the posterior parameters are about 4.27 and 4.73.
+5. Divide posterior alpha by the sum of posterior alpha and beta: `4.27 / (4.27 + 4.73) = 47.5%`. This estimates the probability that the next activity reaches the selected target.
 
-The displayed 90% range describes uncertainty around that estimate; it is not a guaranteed range for the next score. In the example above, the range is about **21% to 73%**. More graded evidence usually makes this range narrower. If there is no class evidence, the starting point is neutral (50%).
+The displayed 90% range describes uncertainty around that estimate; it is not a guaranteed range for the next score. More evidence usually narrows this range. If there is no peer evidence, the peer rate is 50%. Eligible missing activities are included once in own and peer failures and are also reported separately as missing counts. They are not graded observations. Low confidence means fewer than three graded activities, regardless of the number of missing activities.
 
 ##### The calculation
 
 For a selected target:
 
 ```text
-class_rate = peer_successes / (peer_successes + peer_failures)
-prior_alpha = class_rate * 4
-prior_beta  = (1 - class_rate) * 4
+peer_rate = (peer_successes + 0.5) / (peer_successes + peer_failures + 1)
+peer_rate = 0.5 when there is no peer evidence
+prior_alpha = 4 * peer_rate
+prior_beta  = 4 * (1 - peer_rate)
 posterior_alpha = prior_alpha + student_successes
 posterior_beta  = prior_beta + student_failures
 next_activity_probability = posterior_alpha / (posterior_alpha + posterior_beta)
 ```
 
-When no class results exist, `class_rate` is set to `0.5`. The engine computes the 90% uncertainty range from the Beta distribution and calculates the probability that the student's underlying success rate is above the class rate. These calculations use aggregate counts only; individual classmates' identities and grades are not exposed.
+`student_failures` includes eligible missing activities exactly once. `my_graded_count` excludes missing activities, while `my_missing_count` reports them separately. Low confidence is based on `my_graded_count < 3`. The engine computes the 90% uncertainty interval from the Beta distribution and estimates the probability that the student's underlying success rate is above the observed peer rate. This is a next-activity target estimate; it does not prove mastery or causation. These calculations use aggregate counts only; individual classmates' identities and grades are not exposed.
+
+Student reports include active enrolled peers across the selected subjects and terms. Teacher reports use the authorized selected section, or all sections assigned to the teacher when no section is selected. The student and teacher probabilities match when those scopes identify the same eligible peer population; a section-filtered teacher report can intentionally have a different peer rate.
 
 The final-grade prediction is a separate weighted estimate using the shared component scores:
 

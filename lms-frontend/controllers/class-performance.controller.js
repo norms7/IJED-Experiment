@@ -65,10 +65,20 @@ const ClassPerformanceController = {
       : null;
     const overall = AnalyticsEngine.weightedScore(academicPct, attendancePct, modulesPct);
     const { rating, color, emoji } = AnalyticsEngine.ratingForScore(overall);
-    const ownSuccesses = Number(row.my_successes || 0);
-    const ownFailures = Number(row.my_failures || 0);
-    const peerSuccesses = Math.max(0, Number(row.class_successes || 0) - ownSuccesses);
-    const peerFailures = Math.max(0, Number(row.class_failures || 0) - ownFailures);
+    const bayesianCounts = [
+      row.my_successes,
+      row.my_failures,
+      row.my_graded_count,
+      row.my_missing_count,
+      row.class_successes,
+      row.class_failures,
+    ];
+    if (bayesianCounts.some(value => typeof value !== "number" || !Number.isInteger(value) || value < 0)) {
+      throw new RangeError("Class performance RPC returned invalid Bayesian evidence counts.");
+    }
+    const [ownSuccesses, ownFailures, ownGradedCount, ownMissingCount, classSuccesses, classFailures] = bayesianCounts;
+    const peerSuccesses = classSuccesses - ownSuccesses;
+    const peerFailures = classFailures - ownFailures;
     const estimate = AnalyticsEngine.calculateBayesianEstimate(
       ownSuccesses,
       ownFailures,
@@ -76,6 +86,8 @@ const ClassPerformanceController = {
       peerFailures,
       75,
       4,
+      ownMissingCount,
+      ownGradedCount,
     );
 
     return {
@@ -89,6 +101,12 @@ const ClassPerformanceController = {
       rating_emoji: emoji,
       missing_count: Number(row.missing_count || 0),
       graded_count: Number(row.graded_count || 0),
+      bayesian_target: estimate.targetGrade,
+      bayesian_graded_count: estimate.gradedActivityCount,
+      bayesian_missing_count: estimate.missingActivityCount,
+      bayesian_graded_failures: estimate.gradedActivityCount - estimate.ownSuccesses,
+      bayesian_successes: estimate.ownSuccesses,
+      bayesian_failures: estimate.ownFailures,
       low_confidence: estimate.lowEvidenceIndicator,
       next_probability: estimate.predictiveProbability === null ? null : Math.round(estimate.predictiveProbability * 1000) / 10,
       credible_low: estimate.credibleInterval ? Math.round(estimate.credibleInterval.low * 1000) / 10 : null,
@@ -167,7 +185,9 @@ const ClassPerformanceController = {
       ["Overall", "Academic × 75% + Attendance × 15% + Modules × 10%; weights for unavailable components are redistributed proportionally."],
       ["Rating bands", "90+ Excellent; 85–89 Very Good; 80–84 Good; 75–79 Fair; 70–74 Needs Improvement; below 70 At Risk."],
       ["Low confidence", "Fewer than 3 graded activities."],
-      ["P(next activity ≥ 75%)", "Beta-Binomial posterior predictive probability using the same shared formula as student analytics: p = α / (α + β), where α = α0 + own successes and β = β0 + own failures; α0 = 4 × smoothed peer rate and β0 = 4 × (1 - smoothed peer rate)."],
+      ["Bayesian evidence", "An eligible past-due or undated missing activity is included once as a failure and reported separately. Submitted ungraded, future unsubmitted, unpublished, and invalid-max activities are excluded."],
+      ["Peer rate", "Jeffreys-smoothed: (peer successes + 0.5) / (peer successes + peer failures + 1); use 0.5 when there is no peer evidence."],
+      ["P(next activity ≥ 75%)", "Beta-Binomial posterior predictive probability: prior_alpha = 4 × peer rate; prior_beta = 4 × (1 - peer rate); posterior_alpha = prior_alpha + own successes; posterior_beta = prior_beta + own failures; p = posterior_alpha / (posterior_alpha + posterior_beta). Low confidence means fewer than 3 graded activities; missing activities do not count as graded."],
     ];
   },
 
@@ -180,11 +200,13 @@ const ClassPerformanceController = {
       const details = await this._loadDetails();
       const workbook = XLSX.utils.book_new();
       const summary = [
-        ["Student", "Student number", "Academic %", "Attendance %", "Modules %", "Overall %", "Rating", "Missing / backlog", "Graded activities", "Low confidence", "P(next activity ≥75%)"],
+        ["Student", "Student number", "Academic %", "Attendance %", "Modules %", "Overall %", "Rating", "Academic missing / backlog", "Academic graded activities", "P(next activity ≥75%)", "90% credible interval lower", "90% credible interval upper", "P(above peer rate)", "Own successes", "Own failures (including missing)", "Bayesian graded activities", "Bayesian missing activities", "Low confidence"],
         ...this._rows.map(row => [
           row.name, row.student_number || "", row.academic_pct, row.attendance_pct, row.modules_pct,
-          row.overall_score, row.rating, row.missing_count, row.graded_count, row.low_confidence ? "Yes" : "No",
-          row.next_probability,
+          row.overall_score, row.rating, row.missing_count, row.graded_count,
+          row.next_probability, row.credible_low, row.credible_high, row.probability_above_peers,
+          row.bayesian_successes, row.bayesian_failures, row.bayesian_graded_count,
+          row.bayesian_missing_count, row.low_confidence ? "Yes" : "No",
         ]),
       ];
       const activities = [
