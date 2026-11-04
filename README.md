@@ -292,6 +292,8 @@ supabase link --project-ref YOUR-PROJECT-REF
 supabase functions deploy admin-create-user
 ```
 
+Redeploy this function after changing `supabase/functions/admin-create-user/index.ts`; the frontend expects the deployed function to return its specific validation or database error when account creation fails.
+
 ### 4. Run the frontend
 
 From the repository root, serve the static frontend. For example, with VS Code Live Server open `lms-frontend/index.html`, or run:

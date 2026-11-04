@@ -364,14 +364,35 @@ class LMSAdminAPI {
     return { ...user, role: user.roles };
   }
 
-  async createUser({ email, password, first_name, last_name, role_id }) {
+  async createUser({ email, password, first_name, last_name, role, role_id }) {
+    const body = { email, password, first_name, last_name };
+    if (role) {
+      const selectedRole = this._throwIfError(
+        await this.sb.from("roles").select("id").eq("name", role).single(),
+      );
+      body.role = role;
+      body.role_id = selectedRole.id;
+    } else {
+      body.role_id = role_id;
+    }
     const { data, error } = await this.sb.functions.invoke(
       "admin-create-user",
       {
-        body: { email, password, first_name, last_name, role_id },
+        body,
       },
     );
-    if (error) throw new Error(error.message || "Failed to create user");
+    if (error) {
+      let message = error.message || "Failed to create user";
+      if (error.context instanceof Response) {
+        try {
+          const responseBody = await error.context.clone().json();
+          message = responseBody?.error || responseBody?.message || message;
+        } catch {
+          // Keep the Functions client message when the response is not JSON.
+        }
+      }
+      throw new Error(message);
+    }
     this.clearCache("users");
     return data;
   }

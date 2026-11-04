@@ -548,52 +548,95 @@ const AdminController = {
     if (!Validate.minLength(password, 8, 'Password must be at least 8 characters')) return;
     if (!/\d/.test(password)) { Toast.show('Password must contain at least one number.', 'error'); return; }
 
-    const roleIdMap = { admin: 1, teacher: 2, student: 3 };
-    const role_id   = roleIdMap[role];
     const parts      = name.split(' ');
     const first_name = parts[0];
     const last_name  = parts.slice(1).join(' ') || parts[0];
+    let teacherAssignments = [];
+    const employeeId = role === 'teacher' ? document.getElementById('f-empid').value.trim() : '';
+    const studentLrn = role === 'student' ? document.getElementById('f-lrn').value.trim() : '';
+
+    if (role === 'teacher') {
+      const rows = Array.from(document.querySelectorAll('#teacher-assignments-container .assignment-row'));
+      const assignmentKeys = new Set();
+      for (const row of rows) {
+        const subjectId = row.querySelector('.assignment-subject').value;
+        const sectionId = row.querySelector('.assignment-class').value;
+        if (Boolean(subjectId) !== Boolean(sectionId)) {
+          Toast.show('Choose both a subject and section for each teacher assignment.', 'error');
+          return;
+        }
+        if (subjectId && sectionId) {
+          const key = `${sectionId}:${subjectId}`;
+          if (assignmentKeys.has(key)) {
+            Toast.show('The same subject and section cannot be assigned more than once.', 'error');
+            return;
+          }
+          assignmentKeys.add(key);
+          const days = row.querySelector('.assignment-days')?.value || '';
+          const time = row.querySelector('.assignment-time')?.value || '';
+          const room = row.querySelector('.assignment-room')?.value || '';
+          teacherAssignments.push({
+            subjectId: Number(subjectId),
+            sectionId: Number(sectionId),
+            schedule: [days, time, room ? `(${room})` : ''].filter(Boolean).join(' ') || null,
+          });
+        }
+      }
+      if (teacherAssignments.length === 0) {
+        Toast.show('Please add at least one subject & section assignment.', 'error');
+        return;
+      }
+    }
+
+    try {
+      if (employeeId) {
+        const existing = api._throwIfError(await api.sb.from('teachers')
+          .select('id').eq('employee_id', employeeId).maybeSingle());
+        if (existing) {
+          Toast.show('That Employee ID is already in use.', 'error');
+          return;
+        }
+      }
+      if (studentLrn) {
+        const existing = api._throwIfError(await api.sb.from('students')
+          .select('id').eq('student_number', studentLrn).maybeSingle());
+        if (existing) {
+          Toast.show('That LRN is already in use.', 'error');
+          return;
+        }
+      }
+    } catch (err) {
+      Toast.show(`Could not validate role details: ${err.message}`, 'error');
+      return;
+    }
 
     const btn = document.getElementById('btn-save-user');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
+    let createdUser = null;
     try {
-      const newUser = await api.createUser({ email, password, first_name, last_name, role_id });
+      createdUser = await api.createUser({ email, password, first_name, last_name, role });
+      const newUser = createdUser;
       Toast.show(`Account created (ID: ${newUser.id}). Setting up ${role} profile…`, 'info');
 
       if (role === 'teacher') {
-        const empId = document.getElementById('f-empid').value.trim();
         const spec  = document.getElementById('f-spec').value.trim();
         const teacherProfile = await api.createTeacherProfile({
           user_id:        newUser.id,
-          employee_id:    empId || null,
+          employee_id:    employeeId || null,
           specialization: spec  || null,
           contact_number: null,
         });
-        const assignments = [];
-        document.querySelectorAll('#teacher-assignments-container .assignment-row').forEach(row => {
-          const subjectId = row.querySelector('.assignment-subject').value;
-          const sectionId = row.querySelector('.assignment-class').value;
-          const days      = row.querySelector('.assignment-days')?.value || '';
-          const time      = row.querySelector('.assignment-time')?.value || '';
-          const room      = row.querySelector('.assignment-room')?.value || '';
-          const schedule  = [days, time, room ? `(${room})` : ''].filter(Boolean).join(' ') || null;
-          if (subjectId && sectionId) assignments.push({ subjectId: parseInt(subjectId), sectionId: parseInt(sectionId), schedule });
-        });
-        if (assignments.length === 0) {
-          Toast.show('Please add at least one subject & section assignment.', 'error');
-          if (btn) btn.disabled = false;
-          return;
-        }
-        for (const a of assignments) {
-          const { data: secRow } = await api.sb.from('sections').select('class_id').eq('id', a.sectionId).single();
+        for (const a of teacherAssignments) {
+          const secRow = api._throwIfError(
+            await api.sb.from('sections').select('class_id').eq('id', a.sectionId).single(),
+          );
           await api.assignTeacherToClass({ teacher_id: teacherProfile.id, class_id: secRow.class_id, section_id: a.sectionId, subject_id: a.subjectId, schedule: a.schedule });
         }
-        Toast.show(`${assignments.length} subject(s)/section(s) assigned.`, 'info');
+        Toast.show(`${teacherAssignments.length} subject(s)/section(s) assigned.`, 'info');
       }
 
       if (role === 'student') {
-        const lrn             = document.getElementById('f-lrn').value.trim();
         const guardian        = document.getElementById('f-guardian').value.trim();
         const guardianContact = document.getElementById('f-guardian-contact').value.trim();
         const strand          = (document.getElementById('f-strand')?.value || '').toUpperCase();
@@ -608,7 +651,7 @@ const AdminController = {
 
         const studentProfile  = await api.createStudentProfile({
           user_id:          newUser.id,
-          student_number:   lrn             || null,
+          student_number:   studentLrn      || null,
           guardian_name:    guardian        || null,
           guardian_contact: guardianContact || null,
           contact_number:   null,
@@ -658,7 +701,10 @@ const AdminController = {
       Toast.show(`✅ ${role.charAt(0).toUpperCase() + role.slice(1)} "${name}" added successfully!`, 'success');
       DashboardController.loadSection(DashboardController.currentSection);
     } catch (err) {
-      Toast.show(`❌ Error: ${err.message}`, 'error');
+      const message = createdUser
+        ? `Account ${createdUser.id} was created, but ${role} setup failed: ${err.message}. Do not retry with the same email.`
+        : err.message;
+      Toast.show(`❌ Error: ${message}`, 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Add User'; }
     }
   },
@@ -1490,7 +1536,7 @@ const AdminController = {
           const newUser = await api.createUser({
             email: row.email, password,
             first_name: row.firstName, last_name: row.lastName,
-            role_id: this._STUDENT_ROLE_ID,
+            role: 'student',
           });
           const studentProfile = await api.createStudentProfile({
             user_id: newUser.id,
@@ -1513,11 +1559,6 @@ const AdminController = {
 
     return { created, updated, errors };
   },
-
-  // Matches the hardcoded role map already used by saveNewUser() elsewhere
-  // in this controller ({ admin: 1, teacher: 2, student: 3 }). Kept as its
-  // own constant here — if that map ever changes, update this too.
-  _STUDENT_ROLE_ID: 3,
 
   _matchStrandSubjects(allSubjects, strand, grade, semester) {
     if (!strand || !grade) return [];
