@@ -243,6 +243,62 @@
 }
 .file-preview-link:hover { color: var(--maroon-dark); }
 .file-preview-link:focus-visible { outline: 2px solid var(--maroon-light); outline-offset: 2px; }
+.file-preview-pdf {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+.modal-file-preview-pdf .modal-body {
+  display: flex;
+  flex-direction: column;
+}
+.modal-file-preview-pdf .file-preview-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.file-preview-pdf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.file-preview-pdf-toolbar .btn {
+  min-height: 40px;
+  padding: 8px 12px;
+}
+.file-preview-pdf-page {
+  min-width: 100px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.file-preview-pdf-page-container {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  max-height: 72vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #e5e7eb;
+  border-radius: var(--radius-sm);
+}
+.file-preview-pdf-canvas {
+  display: block;
+  flex: 0 0 auto;
+  max-width: none;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .18);
+}
 .modal-footer {
   display: flex;
   gap: 10px;
@@ -250,6 +306,46 @@
   margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .modal-file-preview-pdf {
+    width: 100%;
+    max-width: none;
+    max-height: 100vh;
+    max-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+    border-radius: 0;
+  }
+  .modal-file-preview-pdf .modal-header {
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+  .modal-file-preview-pdf .modal-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .file-preview-pdf-page-container { max-height: none; }
+  .file-preview-pdf-toolbar {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .file-preview-pdf-toolbar .btn {
+    min-height: 44px;
+    padding: 8px 10px;
+  }
+  .file-preview-pdf-page {
+    min-width: 88px;
+    font-size: 12px;
+  }
+  .modal-file-preview-pdf .modal-footer {
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+  }
 }
 
 /* ── Forms ─────────────────────────────────────────────────── */

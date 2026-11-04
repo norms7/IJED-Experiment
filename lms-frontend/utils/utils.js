@@ -95,6 +95,9 @@ const Modal = {
 const FilePreview = {
   _activeObjectUrl: null,
   _abortController: null,
+  _activePdf: null,
+  _activePdfLoadingTask: null,
+  _activePdfRenderTask: null,
   _scriptPromises: new Map(),
 
   button(url, fileName, label, className = 'file-preview-link', onClick = '') {
@@ -155,17 +158,18 @@ const FilePreview = {
     this._abortController = request;
 
     const content = document.getElementById('file-preview-content');
+    let objectUrl = null;
     try {
       const response = await fetch(parsedUrl.href, { signal: request.signal });
       if (!response.ok) throw new Error(`File request failed (${response.status}).`);
       const blob = await response.blob();
       if (request.signal.aborted) return;
-      const objectUrl = URL.createObjectURL(blob);
+      objectUrl = URL.createObjectURL(blob);
       this._activeObjectUrl = objectUrl;
 
       switch (this._kind(name, blob.type)) {
         case 'pdf':
-          content.innerHTML = `<iframe class="file-preview-frame" src="${escHtml(objectUrl)}" title="${escHtml(name)}"></iframe>`;
+          await this._renderPdf(blob, name, content, request.signal);
           break;
         case 'image':
           content.innerHTML = `<img class="file-preview-image" src="${escHtml(objectUrl)}" alt="${escHtml(name)}">`;
@@ -205,7 +209,135 @@ const FilePreview = {
       if (content?.isConnected) {
         content.innerHTML = `<p role="alert">Could not preview this file: ${escHtml(error.message || 'An unexpected error occurred.')}</p>`;
       }
+      const footer = document.querySelector('#modal-container .modal-footer');
+      if (footer && objectUrl) {
+        footer.innerHTML = `
+          <a class="btn btn-outline" href="${escHtml(objectUrl)}" download="${escHtml(name)}">Download</a>
+          <button type="button" class="btn btn-ghost" onclick="Modal.close()">Close</button>`;
+      }
     }
+  },
+
+  async _renderPdf(blob, fileName, container, signal) {
+    const pdfJsUrl = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    const pdfWorkerUrl = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    if (!window.pdfjsLib) await this._loadScript(pdfJsUrl);
+    if (signal.aborted) return;
+    if (!window.pdfjsLib) throw new Error('The PDF preview library did not load.');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+    const loadingTask = window.pdfjsLib.getDocument({
+      data: new Uint8Array(await blob.arrayBuffer()),
+    });
+    this._activePdfLoadingTask = loadingTask;
+    const pdf = await loadingTask.promise;
+    if (signal.aborted) {
+      await pdf.destroy();
+      return;
+    }
+    this._activePdfLoadingTask = null;
+    this._activePdf = pdf;
+    document.querySelector('#modal-container .modal')?.classList.add('modal-file-preview-pdf');
+
+    container.innerHTML = `
+      <div class="file-preview-pdf">
+        <div class="file-preview-pdf-toolbar" role="group" aria-label="PDF controls">
+          <button type="button" class="btn btn-outline file-preview-pdf-previous" aria-label="Previous page">Previous</button>
+          <span class="file-preview-pdf-page" aria-live="polite"></span>
+          <button type="button" class="btn btn-outline file-preview-pdf-next" aria-label="Next page">Next</button>
+          <button type="button" class="btn btn-outline file-preview-pdf-zoom-out" aria-label="Zoom out">−</button>
+          <button type="button" class="btn btn-outline file-preview-pdf-zoom-in" aria-label="Zoom in">+</button>
+        </div>
+        <div class="file-preview-pdf-page-container">
+          <canvas class="file-preview-pdf-canvas" role="img" aria-label="${escHtml(fileName)}"></canvas>
+        </div>
+      </div>`;
+
+    const pageLabel = container.querySelector('.file-preview-pdf-page');
+    const canvas = container.querySelector('.file-preview-pdf-canvas');
+    const pageContainer = container.querySelector('.file-preview-pdf-page-container');
+    const previousButton = container.querySelector('.file-preview-pdf-previous');
+    const nextButton = container.querySelector('.file-preview-pdf-next');
+    let pageNumber = 1;
+    let zoom = 1;
+    let renderSequence = 0;
+
+    const renderPage = async () => {
+      const sequence = ++renderSequence;
+      this._activePdfRenderTask?.cancel();
+      const page = await pdf.getPage(pageNumber);
+      if (signal.aborted || sequence !== renderSequence) return;
+
+      const baseViewport = page.getViewport({ scale: 1 });
+      const availableWidth = Math.max(160, pageContainer.clientWidth - 16);
+      const scale = (availableWidth / baseViewport.width) * zoom;
+      const viewport = page.getViewport({ scale });
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.ceil(viewport.width * pixelRatio);
+      canvas.height = Math.ceil(viewport.height * pixelRatio);
+      canvas.style.width = `${Math.ceil(viewport.width)}px`;
+      canvas.style.height = `${Math.ceil(viewport.height)}px`;
+      pageLabel.textContent = `Page ${pageNumber} of ${pdf.numPages}`;
+      previousButton.disabled = pageNumber === 1;
+      nextButton.disabled = pageNumber === pdf.numPages;
+
+      const renderTask = page.render({
+        canvasContext: canvas.getContext('2d'),
+        viewport,
+        transform: pixelRatio === 1 ? null : [pixelRatio, 0, 0, pixelRatio, 0, 0],
+      });
+      this._activePdfRenderTask = renderTask;
+      try {
+        await renderTask.promise;
+      } catch (error) {
+        if (error?.name !== 'RenderingCancelledException' && !signal.aborted) throw error;
+      } finally {
+        if (this._activePdfRenderTask === renderTask) this._activePdfRenderTask = null;
+      }
+    };
+
+    const renderSafely = () => {
+      renderPage().catch((error) => {
+        if (!signal.aborted) {
+          console.error('[LMS] PDF page render failed:', error);
+          pageLabel.textContent = 'Could not render this PDF page.';
+        }
+      });
+    };
+
+    previousButton.addEventListener('click', () => {
+      if (pageNumber > 1) {
+        pageNumber -= 1;
+        renderSafely();
+      }
+    });
+    nextButton.addEventListener('click', () => {
+      if (pageNumber < pdf.numPages) {
+        pageNumber += 1;
+        renderSafely();
+      }
+    });
+    container.querySelector('.file-preview-pdf-zoom-out').addEventListener('click', () => {
+      zoom = Math.max(0.75, zoom - 0.25);
+      renderSafely();
+    });
+    container.querySelector('.file-preview-pdf-zoom-in').addEventListener('click', () => {
+      zoom = Math.min(2.5, zoom + 0.25);
+      renderSafely();
+    });
+
+    let resizeTimer;
+    const onResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(renderSafely, 120);
+    };
+    window.addEventListener('resize', onResize);
+    signal.addEventListener('abort', () => {
+      clearTimeout(resizeTimer);
+      window.removeEventListener('resize', onResize);
+    }, { once: true });
+
+    await renderPage();
   },
 
   async _renderDocx(blob, container, signal) {
@@ -362,6 +494,20 @@ const FilePreview = {
   close() {
     this._abortController?.abort();
     this._abortController = null;
+    this._activePdfRenderTask?.cancel();
+    this._activePdfRenderTask = null;
+    if (this._activePdfLoadingTask) {
+      this._activePdfLoadingTask.destroy().catch((error) => {
+        console.warn('[LMS] Could not stop PDF loading:', error);
+      });
+      this._activePdfLoadingTask = null;
+    }
+    if (this._activePdf) {
+      this._activePdf.destroy().catch((error) => {
+        console.warn('[LMS] Could not release PDF preview:', error);
+      });
+      this._activePdf = null;
+    }
     if (this._activeObjectUrl) URL.revokeObjectURL(this._activeObjectUrl);
     this._activeObjectUrl = null;
   },
