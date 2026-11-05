@@ -39,7 +39,8 @@ create index if not exists ix_users_auth_uid   on users(auth_uid);
 create table if not exists subjects (
     id          serial primary key,
     name        varchar(150) not null unique,
-    description text
+    description text,
+    semester    varchar(20)
 );
 
 -- ── classes ──────────────────────────────────────────────────────────────────
@@ -88,7 +89,8 @@ create table if not exists students (
     student_number    varchar(50) unique,
     contact_number    varchar(30),
     guardian_name     varchar(200),
-    guardian_contact  varchar(30)
+    guardian_contact  varchar(30),
+    current_semester  varchar(20)
 );
 
 -- ── student_section_assignments ──────────────────────────────────────────────

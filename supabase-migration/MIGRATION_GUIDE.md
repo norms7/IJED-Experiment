@@ -54,6 +54,8 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
 13. `12_section_scoped_learning_content.sql` — scopes published modules, activities, questions, activity-file access, submissions, and module-read tracking to the student's assigned section.
 14. `13_activity_timers.sql` — adds an optional minute-based time limit for auto-graded activities.
 15. `14_bayesian_inference_consistency.sql` — redefines the Bayesian evidence RPC so existing deployments and fresh installs share the same peer/evidence logic, without changing the RPC signature.
+16. `15_bayesian_evidence_alignment.sql` — aligns Bayesian evidence rows with the authoritative grade and activity data.
+17. `16_transfer_students_by_semester.sql` — adds subject/student semester fields and the atomic semester-aware student transfer RPC.
 
 For an existing database, apply `10_activity_late_submissions.sql` after the
 current migrations. It is safe to rerun and installs the updated submission
@@ -88,6 +90,11 @@ auto-graded scores from their saved answer correctness and current question
 points, updates the submission RPC, and installs the semester/term-scoped
 attendance score RPC. It also removes the old `varchar` overload of that RPC
 that can make PostgREST calls ambiguous. Manual grades are left unchanged.
+
+For an existing database, run `16_transfer_students_by_semester.sql` after
+migrations 01-15. It adds the semester fields if they are missing and installs
+the admin-only transfer RPC. Transfers preserve existing subject enrollments
+while adding destination-section subjects for the selected semester.
 
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside

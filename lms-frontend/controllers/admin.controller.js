@@ -949,26 +949,34 @@ const AdminController = {
   async confirmTransfer() {
     const fromSel = document.getElementById('transfer-from-section');
     const toSel   = document.getElementById('transfer-to-section');
+    const semester = document.getElementById('transfer-semester')?.value;
     const fromId  = parseInt(fromSel?.value);
     const toId    = parseInt(toSel?.value);
     const studentIds = [...document.querySelectorAll('.transfer-student-cb:checked')].map(cb => parseInt(cb.value));
 
     if (!fromId)  { Toast.show('Pick a "From Section" first.', 'error'); return; }
     if (!toId)    { Toast.show('Pick a "To Section" to transfer into.', 'error'); return; }
+    if (!['1st', '2nd'].includes(semester)) { Toast.show('Select a semester for the transfer.', 'error'); return; }
     if (fromId === toId) { Toast.show('"From" and "To" section must be different.', 'error'); return; }
     if (!studentIds.length) { Toast.show('Select at least one student to transfer.', 'error'); return; }
 
     const fromName = fromSel.options[fromSel.selectedIndex].text;
     const toName   = toSel.options[toSel.selectedIndex].text;
+    const semesterName = semester === '1st' ? '1st Semester' : '2nd Semester';
 
     if (!confirm(
-      `Transfer ${studentIds.length} student(s) from "${fromName}" to "${toName}"?\n\n` +
-      `Their section and subjects will move to "${toName}". ` +
-      `All existing grades and attendance from "${fromName}" stay exactly as they are — this only changes what they're currently enrolled in.`
+      `Transfer ${studentIds.length} student(s) from "${fromName}" to "${toName}" for ${semesterName}?\n\n` +
+      `Their current section will move to "${toName}" and subjects assigned to that section for ${semesterName} will be added. ` +
+      `Existing subject enrollments, grades, and attendance are kept.`
     )) return;
 
     try {
-      const result = await api.transferStudents({ studentIds, fromSectionId: fromId, toSectionId: toId });
+      const result = await api.transferStudents({
+        studentIds,
+        fromSectionId: fromId,
+        toSectionId: toId,
+        semester,
+      });
       Toast.show(
         `✅ Transferred ${result.students_selected} student(s) to "${toName}" ` +
         `(${result.subjects_added} subject enrollment(s) added).`,

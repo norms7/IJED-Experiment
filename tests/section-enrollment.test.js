@@ -4,6 +4,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
+const transferMigration = fs.readFileSync(
+  "supabase-migration/16_transfer_students_by_semester.sql",
+  "utf8",
+);
 const apiSource = fs.readFileSync(
   "lms-frontend/assets/js/lms-supabase-api.js",
   "utf8",
@@ -51,6 +55,12 @@ class Query {
       }
       return { data: [], error: null };
     }
+    if (this.table === "students") {
+      return {
+        data: { current_semester: this.db.currentSemester },
+        error: null,
+      };
+    }
     if (this.table === "student_section_assignments") {
       return { data: [{ student_id: 11 }, { student_id: 12 }], error: null };
     }
@@ -75,14 +85,35 @@ class Query {
 }
 
 function createApi() {
-  const db = { upserts: [], upsertError: null };
+  const db = {
+    upserts: [],
+    upsertError: null,
+    currentSemester: null,
+    rpcCalls: [],
+    rpcError: null,
+  };
   const api = Object.create(context.LMSAdminAPITest.prototype);
   api._cache = new Map();
-  api.sb = { from: table => new Query(db, table) };
+  api._myStudentId = async () => 11;
+  api.sb = {
+    from: table => new Query(db, table),
+    rpc: async (name, args) => {
+      db.rpcCalls.push({ name, args });
+      return db.rpcError
+        ? { data: null, error: db.rpcError }
+        : { data: { students_selected: 2, subjects_added: 4 }, error: null };
+    },
+  };
   return { api, db };
 }
 
 async function run() {
+  assert.match(
+    transferMigration,
+    /coalesce\(subject\.semester::text,\s*''\)/,
+    "transfer semester matching must support integer semester values and nulls",
+  );
+
   const { api, db } = createApi();
   const state = await api.getSectionSubjectEnrollmentState(3);
   assert.equal(state.studentCount, 2);
@@ -117,6 +148,38 @@ async function run() {
   });
   assert.equal(db.upserts.length, 2);
   assert.equal(db.upserts[1].payload.length, 2);
+
+  const transfer = await api.transferStudents({
+    studentIds: [11, 12],
+    fromSectionId: 3,
+    toSectionId: 4,
+    semester: "2nd",
+  });
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(db.rpcCalls[0])),
+    {
+      name: "transfer_students_to_section_with_semester",
+      args: {
+        p_student_ids: [11, 12],
+        p_from_section_id: 3,
+        p_to_section_id: 4,
+        p_semester: "2nd",
+      },
+    },
+  );
+  assert.equal(transfer.subjects_added, 4);
+  db.currentSemester = "2nd";
+  assert.equal(await api.getStudentCurrentSemester(), "2nd");
+  db.rpcError = { message: "function not found in schema cache", code: "PGRST202" };
+  await assert.rejects(
+    api.transferStudents({
+      studentIds: [11],
+      fromSectionId: 3,
+      toSectionId: 4,
+      semester: "1st",
+    }),
+    /semester transfer database function is missing or its schema cache is stale/,
+  );
 
   db.upsertError = "permission denied";
   await assert.rejects(

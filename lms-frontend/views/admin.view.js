@@ -488,8 +488,9 @@ const AdminView = {
         <p style="margin:0 0 18px;font-size:13px;color:var(--gray-400)">
           Move students from one section to the next at the end of a school year.
           Their grades and attendance stay exactly as they were — only their current
-          section and subjects move forward. Not everyone has to move: uncheck
-          anyone who's repeating or staying behind before transferring.
+          section and selected-semester subjects move forward. Existing subject
+          enrollments are kept. Not everyone has to move: uncheck anyone who's
+          repeating or staying behind before transferring.
         </p>
         <div class="form-row">
           <div class="form-group">
@@ -504,6 +505,13 @@ const AdminView = {
             <select id="transfer-to-section" class="form-control">
               <option value="">— Select Section —</option>
               ${sectionOpts}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Semester to Enroll *</label>
+            <select id="transfer-semester" class="form-control">
+              <option value="1st">1st Semester</option>
+              <option value="2nd">2nd Semester</option>
             </select>
           </div>
         </div>

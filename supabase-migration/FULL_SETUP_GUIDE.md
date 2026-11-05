@@ -103,7 +103,10 @@ exact order**, from `supabase-migration/` in your unzipped folder:
 11. `10_activity_late_submissions.sql` — adds late-submission settings and updates submission and grading RPCs.
 12. `11_audit_logs.sql` — installs the admin-only, immutable audit history and reporting RPCs.
 13. `12_section_scoped_learning_content.sql` — scopes modules and activities to assigned sections, including student access and submissions.
-14. `14_bayesian_inference_consistency.sql` — updates the deployed Bayesian evidence RPC so fresh and existing installations behave the same.
+14. `13_activity_timers.sql` — adds optional time limits for auto-graded activities.
+15. `14_bayesian_inference_consistency.sql` — updates the deployed Bayesian evidence RPC so fresh and existing installations behave the same.
+16. `15_bayesian_evidence_alignment.sql` — aligns Bayesian evidence rows with authoritative grade and activity data.
+17. `16_transfer_students_by_semester.sql` — adds semester-aware student transfers and subject/student semester fields.
 
 For an existing project, run `11_audit_logs.sql` after migrations 01-10 and
 before deploying the updated Edge Functions. Audit history starts at install
@@ -114,6 +117,10 @@ For an existing project, run `12_section_scoped_learning_content.sql` after
 migration 11. It backfills only modules that resolve to exactly one section.
 Teachers can assign ambiguous existing modules to the correct section from
 the Modules page; new modules and their activities are section-scoped.
+
+For an existing project, run `16_transfer_students_by_semester.sql` after
+migrations 01-15. Transfers preserve existing subject enrollments and add
+destination-section subjects for the selected semester.
 
 Deploy both admin Edge Functions when account management is enabled:
 

@@ -271,6 +271,14 @@ Run these files in the Supabase SQL Editor, in order:
 10. `supabase-migration/09_student_attendance_summary.sql`
 11. `supabase-migration/10_activity_late_submissions.sql`
 12. `supabase-migration/11_audit_logs.sql`
+13. `supabase-migration/12_section_scoped_learning_content.sql`
+14. `supabase-migration/13_activity_timers.sql`
+15. `supabase-migration/14_bayesian_inference_consistency.sql`
+16. `supabase-migration/15_bayesian_evidence_alignment.sql`
+17. `supabase-migration/16_transfer_students_by_semester.sql`
+
+The semester-aware transfer migration preserves existing subject enrollments
+and adds destination-section subjects for the selected semester.
 
 The migration guide explains account linking, storage policies, and deployment details: [supabase-migration/FULL_SETUP_GUIDE.md](supabase-migration/FULL_SETUP_GUIDE.md).
 

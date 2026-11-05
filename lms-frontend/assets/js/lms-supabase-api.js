@@ -533,17 +533,29 @@ class LMSAdminAPI {
     return result;
   }
 
-  // Promotes/transfers selected students from one section to another —
-  // moves their current section + subject enrollment forward, preserves
-  // every historical grade/attendance record from the old section as-is.
-  async transferStudents({ studentIds, fromSectionId, toSectionId }) {
-    const { data, error } = await this.sb.rpc("transfer_students_to_section", {
+  // Moves selected students and adds only destination subjects for the chosen
+  // semester; existing enrollments and historical records remain unchanged.
+  async transferStudents({ studentIds, fromSectionId, toSectionId, semester }) {
+    const { data, error } = await this.sb.rpc("transfer_students_to_section_with_semester", {
       p_student_ids: studentIds,
       p_from_section_id: fromSectionId,
       p_to_section_id: toSectionId,
+      p_semester: semester,
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === "PGRST202") {
+        throw new Error(
+          "The semester transfer database function is missing or its schema cache is stale. " +
+            "Run supabase-migration/16_transfer_students_by_semester.sql in the linked Supabase project, " +
+            "then retry. No students were transferred.",
+        );
+      }
+      throw new Error(error.message);
+    }
     this.clearCache("sections");
+    this.clearCache("students");
+    this.clearCache("student:");
+    this.clearCache("teacher:");
     return data;
   }
 
@@ -1762,6 +1774,18 @@ class LMSAdminAPI {
 
   // Used to set the default tab in the My Subjects view.
   async getStudentCurrentSemester() {
+    const studentId = await this._myStudentId();
+    const student = this._throwIfError(
+      await this.sb
+        .from("students")
+        .select("current_semester")
+        .eq("id", studentId)
+        .single(),
+    );
+    if (student?.current_semester) {
+      return this._normalizeSemester(student.current_semester);
+    }
+
     const all = await this.getStudentSubjects();
     const semesters = [
       ...new Set(

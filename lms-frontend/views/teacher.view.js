@@ -151,17 +151,24 @@ const TeacherView = {
     if (!subjects) return `<div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.loading}</div><div class="empty-state-title">Loading subjects…</div></div>`;
     if (subjects.length === 0) return `<div class="empty-state"><div class="empty-state-icon">${LMS_ICONS.book}</div><div class="empty-state-title">No subjects assigned</div></div>`;
     const subjectFallbackColors = ['#7b1830', '#9a6a12', '#39717a', '#b16a32', '#76506a'];
+    const semesterLabel = value => {
+      const semester = String(value ?? '').trim().toLowerCase();
+      if (['1', '1st', 'first', '1st semester'].includes(semester)) return '1st Semester';
+      if (['2', '2nd', 'second', '2nd semester'].includes(semester)) return '2nd Semester';
+      return '';
+    };
     const rows = subjects.map((sub, index) => {
       const style = TEACHER_SUBJECT_STYLES[sub.subject_name] || {
         color: subjectFallbackColors[index % subjectFallbackColors.length],
       };
+      const semester = semesterLabel(sub.subject_semester);
       return `
       <div class="subject-item" data-searchable>
         <div class="subject-color-dot" style="background:${style.color}"></div>
         <div style="width:30px;height:30px;color:${style.color};display:inline-flex;align-items:center;justify-content:center">${LMS_ICONS.book}</div>
         <div class="subject-info">
           <div class="subject-name">${escHtml(sub.subject_name)}</div>
-          <div class="subject-teacher">${escHtml(sub.section_name)} · ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
+          <div class="subject-teacher">${escHtml(sub.section_name)}${semester ? ` · ${semester}` : ''} · ${sub.schedule ? escHtml(sub.schedule) : 'No schedule'}</div>
         </div>
         <div class="subject-actions">
           <button class="btn btn-xs btn-outline" onclick="TeacherController.viewStudentsForSubject(${sub.subject_id}, ${sub.section_id}, '${escHtml(sub.subject_name)}')">${lmsIcon('users')} Students</button>
@@ -191,7 +198,12 @@ const TeacherView = {
     const SUBJECT_STYLES = TEACHER_SUBJECT_STYLES;
     const TERM_ORDER = { '1st': 1, '2nd': 2, '3rd': 3, '4th': 4 };
     const termLabel = (t) => t ? `${t} Term` : 'No Term Set';
-    const semesterLabel = (s) => s === 1 || s === '1' ? '1st Semester' : s === 2 || s === '2' ? '2nd Semester' : 'No Semester Set';
+    const semesterLabel = (value) => {
+      const semester = String(value ?? '').trim().toLowerCase();
+      if (['1', '1st', 'first', '1st semester'].includes(semester)) return '1st Semester';
+      if (['2', '2nd', 'second', '2nd semester'].includes(semester)) return '2nd Semester';
+      return 'No Semester Set';
+    };
 
     const card = (m) => {
       const hasFile = !!m.file_url;
