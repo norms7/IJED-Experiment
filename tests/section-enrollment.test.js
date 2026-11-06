@@ -102,6 +102,16 @@ function createApi() {
       if (name === "get_student_weekly_schedule") {
         return { data: [], error: null };
       }
+      if (name === "get_student_active_subjects") {
+        return {
+          data: (db.subjectEnrollments || [
+            { subject_id: 20 },
+            { subject_id: 22 },
+            { subject_id: 23 },
+          ]).map(row => ({ subject_id: row.subject_id })),
+          error: null,
+        };
+      }
       db.rpcCalls.push({ name, args });
       return db.rpcError
         ? { data: null, error: db.rpcError }
