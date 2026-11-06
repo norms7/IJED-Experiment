@@ -1655,10 +1655,7 @@ class LMSAdminAPI {
     return this._cached(cacheKey, 60_000, async () => {
       const studentId = await this._myStudentId();
       const data = this._throwIfError(
-        await this.sb
-          .from("student_subject_enrollments")
-          .select("*, subjects(id, name, description, semester)")
-          .eq("student_id", studentId),
+        await this.sb.rpc("get_student_active_subjects"),
       );
 
       // Enrich with real section/schedule/teacher info via the same
@@ -1690,8 +1687,8 @@ class LMSAdminAPI {
       const rows = data.map((row) => ({
         ...row,
         subject_id: row.subject_id,
-        subject_name: row.subjects?.name || "",
-        semester: row.subjects?.semester ?? null,
+        subject_name: row.subject_name || "",
+        semester: row.semester ?? null,
         class_name: infoBySubject[row.subject_id]?.class_name || "",
         schedule: infoBySubject[row.subject_id]?.schedule || "",
         teacher_name: infoBySubject[row.subject_id]?.teacher_name || "",
@@ -1816,19 +1813,22 @@ class LMSAdminAPI {
       async () => {
       const studentId = await this._myStudentId();
       const enrollments = await this.sb
-        .from("student_subject_enrollments")
-        .select("subject_id")
+        .from("student_section_assignments")
+        .select("section_id")
         .eq("student_id", studentId);
-      const subjectRows = this._throwIfError(enrollments);
+      const assignments = this._throwIfError(enrollments);
+      const sectionIds = [...new Set(assignments.map(row => row.section_id))];
+      const activeSubjects = await this.getStudentSubjects();
       const subjectIds = subject_id
         ? [subject_id]
-        : (subjectRows || []).map((e) => e.subject_id);
-      if (!subjectIds.length) return [];
+        : activeSubjects.map(subject => subject.subject_id);
+      if (!subjectIds.length || !sectionIds.length) return [];
       const modules = this._throwIfError(
         await this.sb
           .from("modules")
           .select("*")
           .in("subject_id", subjectIds)
+          .in("section_id", sectionIds)
           .eq("is_published", true),
       );
         if (!modules.length) return modules;
@@ -1848,20 +1848,16 @@ class LMSAdminAPI {
     );
   }
 
-  async getStudentActivities(subject_id = null) {
+  async getStudentActivities(subject_id = null, semesterFilter = null) {
     return this._cached(
-      `student:activities:${subject_id || ""}`,
+      `student:activities:${subject_id || ""}:${semesterFilter || "all"}`,
       30_000,
       async () => {
         const studentId = await this._myStudentId();
-        const enrollments = await this.sb
-          .from("student_subject_enrollments")
-          .select("subject_id")
-          .eq("student_id", studentId);
-        const subjectRows = this._throwIfError(enrollments);
+        const subjectRows = await this.getStudentSubjects(semesterFilter);
         const subjectIds = subject_id
           ? [subject_id]
-          : (subjectRows || []).map((e) => e.subject_id);
+          : subjectRows.map(subject => subject.subject_id);
         if (!subjectIds.length) return [];
         const modules = await this.getStudentModules(subject_id);
         const moduleIds = modules.map(module => module.id);
@@ -2001,12 +1997,16 @@ class LMSAdminAPI {
     };
   }
 
-  async getStudentDashboardStats() {
+  async getStudentDashboardStats(semester = null) {
     return this._cached(
-      "student:dashboard",
+      `student:dashboard:${semester || "all"}`,
       20_000,
       async () =>
-        this._throwIfError(await this.sb.rpc("get_student_dashboard_stats")),
+        this._throwIfError(
+          await this.sb.rpc("get_student_active_dashboard_stats", {
+            p_semester: semester,
+          }),
+        ),
     );
   }
 
@@ -2021,10 +2021,118 @@ class LMSAdminAPI {
   async getMyAttendance() {
     return this._cached("student:attendance", 30_000, async () => {
       const { data, error } = await this.sb.rpc(
-        "get_my_attendance_summary",
+        "get_my_semester_attendance",
+        { p_archived: false },
       );
       if (error) throw new Error(error.message);
-      return data; // Already in the required format
+      return data;
+    });
+  }
+
+  async getMyAttendanceBySemester(semester) {
+    const normalizedSemester = this._normalizeSemester(semester);
+    if (!["1st", "2nd"].includes(normalizedSemester)) {
+      throw new Error("Attendance semester must be 1st or 2nd.");
+    }
+    return this._cached(`student:attendance:${normalizedSemester}`, 30_000, async () => {
+      const { data, error } = await this.sb.rpc(
+        "get_my_attendance_by_semester",
+        { p_semester: normalizedSemester },
+      );
+      if (error) throw new Error(error.message);
+      return data;
+    });
+  }
+
+  async getStudentHistory() {
+    return this._cached("student:history", 30_000, async () => {
+      const studentId = await this._myStudentId();
+      const contextResult = await this.sb.rpc("get_student_history_context");
+      const context = this._throwIfError(contextResult);
+
+      const subjectById = new Map(
+        context.map(row => [row.subject_id, {
+          subject_id: row.subject_id,
+          subject_name: row.subject_name,
+          semester: row.semester,
+          section_id: row.section_id,
+          section_name: row.section_name,
+          class_name: row.class_name,
+        }]),
+      );
+      const sectionIds = [...new Set(context.map(row => row.section_id))];
+      const historicalSubjectIds = [...new Set(context.map(row => row.subject_id))];
+      if (!sectionIds.length || !historicalSubjectIds.length) {
+        return {
+          subjects: [...subjectById.values()],
+          modules: [],
+          activities: [],
+        };
+      }
+
+      const modules = this._throwIfError(
+        await this.sb
+          .from("modules")
+          .select("*")
+          .in("section_id", sectionIds)
+          .in("subject_id", historicalSubjectIds),
+      );
+      const moduleIds = modules.map(module => module.id);
+      const [readsResult, activitiesResult] = moduleIds.length
+        ? await Promise.all([
+            this.sb
+              .from("student_module_reads")
+              .select("module_id")
+              .eq("student_id", studentId)
+              .in("module_id", moduleIds),
+            this.sb
+              .from("activities")
+              .select("*")
+              .in("module_id", moduleIds),
+          ])
+        : [{ data: [], error: null }, { data: [], error: null }];
+      const reads = this._throwIfError(readsResult);
+      const activities = this._throwIfError(activitiesResult);
+      const submissionsResult = activities.length
+        ? await this.sb
+            .from("activity_submissions")
+            .select("*")
+            .eq("student_id", studentId)
+            .in("activity_id", activities.map(activity => activity.id))
+        : { data: [], error: null };
+      const submissions = this._throwIfError(submissionsResult);
+      const readIds = new Set(reads.map(read => read.module_id));
+      const submissionByActivity = new Map(
+        submissions.map(submission => [submission.activity_id, submission]),
+      );
+      const moduleById = new Map(modules.map(module => [module.id, module]));
+      const moduleSubjectName = module => subjectById.get(module.subject_id)?.subject_name || "Previous subject";
+      const moduleSectionName = module => context.find(row => row.section_id === module.section_id)?.section_name || "Previous section";
+
+      return {
+        subjects: [...subjectById.values()],
+        modules: modules.map(module => ({
+          ...module,
+          _subject_name: moduleSubjectName(module),
+          _section_name: moduleSectionName(module),
+          is_read: readIds.has(module.id),
+          is_archived: true,
+        })),
+        activities: activities.map(activity => {
+          const module = moduleById.get(activity.module_id);
+          return {
+            ...activity,
+            _subject_name: module ? moduleSubjectName(module) : "Previous subject",
+            _section_name: module ? moduleSectionName(module) : "Previous section",
+            _semester: subjectById.get(module?.subject_id)?.semester || null,
+            submission: submissionByActivity.get(activity.id) || null,
+            status: "archived",
+            status_label: "Previous semester · read-only",
+            can_answer: false,
+            is_archived: true,
+          };
+        }),
+      };
     });
   }
 

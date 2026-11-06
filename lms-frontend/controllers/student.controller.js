@@ -34,6 +34,8 @@ const StudentController = {
   _currentActivity: null,
   _activityTimerInterval: null,
   _activityTimerDeadline: null,
+  _activitiesLoadId: 0,
+  _attendanceLoadId: 0,
 
   _activityTimerKey(activityId) {
     return `ijed_activity_timer_${activityId}`;
@@ -190,9 +192,11 @@ const StudentController = {
 
   // ── Activities list ───────────────────────────────────────
 
-  loadActivities() {
+  loadActivities(semester = null) {
     const area = document.getElementById('content-area');
-    area.innerHTML = StudentView.activitiesLoading();
+    const requestId = ++this._activitiesLoadId;
+    let selectedSemester = semester || '1st';
+    area.innerHTML = StudentView.activitiesLoading(selectedSemester);
 
     // ── PERF FIX (2025-06): Eliminated N+1 getMyActivityResult() calls ──────
     //
@@ -210,26 +214,57 @@ const StudentController = {
     // backwards-compatible with any cached/stale API responses.
     // ─────────────────────────────────────────────────────────────────────────
 
-    return Promise.all([
-      api.getStudentActivities(),
-      api.getStudentSubjects(),
-    ])
-      .then(([activities, subjects]) => {
+    return Promise.resolve(semester || api.getStudentCurrentSemester())
+      .then(currentSem => {
+        selectedSemester = currentSem;
+        return Promise.all([
+          api.getStudentActivities(null, currentSem),
+          api.getStudentSubjects(currentSem),
+          api.getStudentHistory(),
+        ]);
+      })
+      .then(([activities, subjects, history]) => {
+        if (requestId !== this._activitiesLoadId) return;
         // Normalise submission field across all naming variants the backend
         // may have returned (current: `submission`, older: `my_submission`).
         const subjectMap = Object.fromEntries(
           (subjects || []).map(subject => [subject.subject_id, subject.subject_name]),
         );
-        const normalised = activities.map(a => ({
+        const normalizeSemester = value => {
+          const normalized = String(value || '').trim().toLowerCase();
+          return ['1', '1st', 'first', '1st semester', 'first semester', 'semester 1'].includes(normalized) ? '1st'
+            : ['2', '2nd', 'second', '2nd semester', 'second semester', 'semester 2'].includes(normalized) ? '2nd'
+              : normalized;
+        };
+        const activeActivities = activities.map(a => ({
           ..._normaliseSubmission(a),
           _subject_name: subjectMap[a.subject_id] || 'Unknown subject',
         }));
-        area.innerHTML = StudentView.activities(normalised);
+        const historySubjectMap = new Map(
+          (history.subjects || []).map(subject => [subject.subject_id, subject]),
+        );
+        const historicalActivities = (history.activities || [])
+          .filter(activity => normalizeSemester(activity._semester) === normalizeSemester(selectedSemester))
+          .map(activity => ({
+            ...activity,
+            _subject_name: activity._subject_name
+              || historySubjectMap.get(activity.subject_id)?.subject_name
+              || 'Previous subject',
+            status: 'archived',
+            status_label: 'Read-only',
+            can_answer: false,
+            is_archived: true,
+          }));
+        const activityById = new Map(
+          [...historicalActivities, ...activeActivities].map(activity => [activity.id, activity]),
+        );
+        area.innerHTML = StudentView.activities([...activityById.values()], selectedSemester);
         DashboardController._attachSearch();
       })
       .catch(err => {
+        if (requestId !== this._activitiesLoadId) return;
         Toast.show('Failed to load activities: ' + err.message, 'error');
-        area.innerHTML = StudentView.activities([]);
+        area.innerHTML = StudentView.activities([], selectedSemester);
       });
   },
 
@@ -470,17 +505,25 @@ const StudentController = {
 
   // ── Attendance view ───────────────────────────────────────
 
-  loadAttendance() {
+  loadAttendance(semester = null) {
     const area = document.getElementById('content-area');
-    area.innerHTML = StudentView.attendanceLoading();
+    const requestId = ++this._attendanceLoadId;
+    let selectedSemester = semester || '1st';
+    area.innerHTML = StudentView.attendanceLoading(selectedSemester);
 
-    return api.getMyAttendance()
+    return Promise.resolve(semester || api.getStudentCurrentSemester())
+      .then(currentSem => {
+        selectedSemester = currentSem;
+        return api.getMyAttendanceBySemester(currentSem);
+      })
       .then(data => {
-        area.innerHTML = StudentView.attendance(data);
+        if (requestId !== this._attendanceLoadId) return;
+        area.innerHTML = StudentView.attendance(data, selectedSemester);
       })
       .catch(err => {
+        if (requestId !== this._attendanceLoadId) return;
         Toast.show('Failed to load attendance: ' + err.message, 'error');
-        area.innerHTML = StudentView.attendanceError(err.message);
+        area.innerHTML = StudentView.attendanceError(err.message, selectedSemester);
       });
   },
 };

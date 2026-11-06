@@ -99,6 +99,33 @@ subjects for the selected semester. Re-running the migration also restores
 subjects from prior transfers recorded in the admin audit log. Students retain
 access to published modules and activities from their previous sections.
 
+For an existing database, run `18_student_semester_history.sql` after
+migration 16 and after rolling back migration 17, if it was previously
+applied. It scopes current subjects and learning content to the student's
+active section and keeps earlier records available to the matching semester
+views. Deploy the matching frontend after the migration succeeds.
+
+If migration 18 was already applied and the student My Subjects page reports
+an infinite RLS recursion involving `activities`, run
+`19_fix_student_activity_policy_recursion.sql`. It moves submission checks
+behind narrowly scoped `SECURITY DEFINER` helpers and updates the affected
+read policies without changing student records.
+
+If enrolled second-semester subjects are missing after migration 18, run
+`20_restore_enrolled_semester_subjects.sql`. It reads the signed-in student's
+explicit subject enrollments for the semester tabs; module and activity
+content remains restricted to the active section.
+
+Run `21_student_semester_tab_attendance.sql` after migrations 18-20 to enable
+attendance records to be selected by 1st/2nd semester. The student frontend
+then provides semester tabs for My Subjects, Activities, My Grades, and
+Attendance; submitted historical work is read-only.
+
+If semester attendance includes records from unrelated classes, run
+`22_scope_attendance_to_student_sections.sql` after migration 21. It restricts
+attendance to the student's enrolled subjects and active or audited former
+section assignments.
+
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside
 `admin-create-user` so administrators can update Auth email addresses and

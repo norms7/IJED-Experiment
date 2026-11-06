@@ -43,6 +43,20 @@ function _studentViewParseScheduleDays(scheduleStr) {
 
 const StudentView = {
 
+  semesterTabs(sectionId, semester = '1st') {
+    return `
+      <div style="display:flex;gap:8px;margin:0 0 18px;flex-wrap:wrap;">
+        ${['1st', '2nd'].map(value => `
+          <button class="semester-tab" onclick="DashboardController.loadSection('${sectionId}',{semester:'${value}'})"
+            style="padding:7px 20px;border-radius:20px;border:2px solid var(--maroon,#7b1c1c);
+                   background:${semester === value ? 'var(--maroon,#7b1c1c)' : 'transparent'};
+                   color:${semester === value ? '#fff' : 'var(--maroon,#7b1c1c)'};
+                   font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;">
+            ${lmsIcon('bookOpen')} ${value} Semester
+          </button>`).join('')}
+      </div>`;
+  },
+
   /**
    * Render the student dashboard.
    * @param {object} user  - current user session object
@@ -295,7 +309,7 @@ const StudentView = {
       </div>`;
   },
 
-  mySubjects(apiSubjects = null, apiModules = [], apiActivities = [], currentSem = null) {
+  mySubjects(apiSubjects = null, apiModules = [], apiActivities = [], currentSem = null, history = null, actualCurrentSem = currentSem) {
     if (apiSubjects === null) {
       return `
         <div class="section-header">
@@ -308,6 +322,37 @@ const StudentView = {
     }
 
     const sem = currentSem || '1st';
+    const normalizeSemester = value => {
+      const normalized = String(value || '').trim().toLowerCase();
+      return ['1', '1st', 'first', '1st semester', 'first semester', 'semester 1'].includes(normalized) ? '1st'
+        : ['2', '2nd', 'second', '2nd semester', 'second semester', 'semester 2'].includes(normalized) ? '2nd'
+          : normalized;
+    };
+    const viewingPreviousSemester = normalizeSemester(sem) !== normalizeSemester(actualCurrentSem);
+    const semesterSubjectsToDisplay = viewingPreviousSemester ? [] : apiSubjects;
+    const semesterHistory = history
+      ? (() => {
+          const visibleSubjectIds = new Set(semesterSubjectsToDisplay.map(subject => subject.subject_id));
+          const semesterSubjects = (history.subjects || []).filter(subject =>
+            normalizeSemester(subject.semester || '1st') === normalizeSemester(sem),
+          );
+          const historySubjectIds = new Set(semesterSubjects.map(subject => subject.subject_id));
+          return {
+            ...history,
+            subjects: semesterSubjects.filter(subject => !visibleSubjectIds.has(subject.subject_id)),
+            modules: (history.modules || []).filter(module => historySubjectIds.has(module.subject_id)),
+            activities: (history.activities || []).filter(activity => historySubjectIds.has(activity.subject_id)),
+          };
+        })()
+      : null;
+    const hasSemesterHistory = Boolean(
+      semesterHistory
+      && (
+        semesterHistory.subjects.length
+        || semesterHistory.modules.length
+        || semesterHistory.activities.length
+      ),
+    );
 
     const semesterTabs = `
       <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
@@ -349,17 +394,22 @@ const StudentView = {
     const TERM_LABELS = { '1st': '1st Term', '2nd': '2nd Term', '3rd': '3rd Term', '4th': '4th Term' };
     const API_BASE    = 'https://ijed-hcj-1.onrender.com';
 
-    if (!apiSubjects || !apiSubjects.length) {
+    if (!semesterSubjectsToDisplay || !semesterSubjectsToDisplay.length) {
       return `
         <div class="section-header">
           <div class="section-header-left"><h2>My Subjects</h2><p>${sem === '1st' ? '1st' : '2nd'} Semester</p></div>
         </div>
         ${semesterTabs}
-        <div class="empty-state" style="margin-top:40px">
+        ${hasSemesterHistory ? '' : `<div class="empty-state" style="margin-top:40px">
           <div class="empty-state-icon">${lmsIcon('book')}</div>
           <div class="empty-state-title">No Subjects for ${sem === '1st' ? '1st' : '2nd'} Semester</div>
           <div class="empty-state-desc">You have no enrolled subjects for this semester. Try switching semesters above, or contact your admin.</div>
-        </div>`;
+        </div>`}
+        ${semesterHistory ? this.previousRecords(semesterHistory, {
+          showActivities: false,
+          heading: `${sem} Semester records`,
+          description: `Read-only records for the ${sem} semester.`,
+        }) : ''}`;
     }
 
     const modulesBySubjectTerm = {};
@@ -454,7 +504,7 @@ const StudentView = {
       }).join('');
     }
 
-    const cards = apiSubjects.map((s, idx) => {
+    const cards = semesterSubjectsToDisplay.map((s, idx) => {
       const style  = NAMED[s.subject_name] || PALETTE[idx % PALETTE.length];
       const sid    = s.subject_id;
       const subjectModules    = (apiModules    || []).filter(m => m.subject_id === sid);
@@ -506,12 +556,70 @@ const StudentView = {
       <div class="section-header">
         <div class="section-header-left">
           <h2>My Subjects</h2>
-          <p>${apiSubjects.length} subject${apiSubjects.length !== 1 ? 's' : ''} · ${sem === '1st' ? '1st' : '2nd'} Semester · click to expand</p>
+          <p>${semesterSubjectsToDisplay.length} subject${semesterSubjectsToDisplay.length !== 1 ? 's' : ''} · ${sem === '1st' ? '1st' : '2nd'} Semester · click to expand</p>
         </div>
         <div class="search-box"><span>${lmsIcon('search')}</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
       </div>
       ${semesterTabs}
-      <div class="subject-list" id="student-subjects-list">${cards}</div>`;
+      <div class="subject-list" id="student-subjects-list">${cards}</div>
+      ${semesterHistory ? this.previousRecords(semesterHistory, {
+        heading: `${sem} Semester records`,
+        description: `Read-only records for the ${sem} semester.`,
+      }) : ''}`;
+  },
+
+  previousRecords(history, options = {}) {
+    const showModules = options.showModules !== false;
+    const showActivities = options.showActivities !== false;
+    const showSubjects = options.showSubjects !== false;
+    const submittedOnly = options.submittedOnly === true;
+    const modules = showModules ? (history.modules || []) : [];
+    const activities = showActivities
+      ? (history.activities || []).filter(activity => !submittedOnly || activity.submission)
+      : [];
+    const subjects = showSubjects ? (history.subjects || []) : [];
+    if (!subjects.length && !modules.length && !activities.length) return '';
+
+    const subjectRows = subjects.map(subject => `<div class="accordion-content-item">
+      <span class="acc-item-icon">${LMS_ICONS.book}</span>
+      <span class="acc-item-label">${escHtml(subject.subject_name)}<span class="acc-item-desc">${escHtml(subject.semester || 'Previous semester')} · ${escHtml(subject.section_name || 'Previous section')}</span></span>
+      <span class="badge badge-gray">Read-only</span>
+    </div>`).join('');
+
+    const moduleRows = modules.map(module => {
+      const fileUrl = module.file_url
+        ? (module.file_url.startsWith('http') ? module.file_url : `https://ijed-hcj-1.onrender.com${module.file_url}`)
+        : null;
+      return `<div class="accordion-content-item">
+        <span class="acc-item-icon">${LMS_ICONS.file}</span>
+        <span class="acc-item-label">${escHtml(module.title)}<span class="acc-item-desc">${escHtml(module._section_name || 'Previous section')} · Read-only</span></span>
+        ${fileUrl ? FilePreview.button(fileUrl, module.file_name || module.title, `${lmsIcon('fileOpen')} Open`, 'btn btn-xs btn-outline') : ''}
+      </div>`;
+    }).join('');
+
+    const activityRows = activities.map(activity => {
+      const submission = activity.submission;
+      const result = submission?.is_graded && submission.score != null
+        ? `${submission.score}/${submission.max_score ?? activity.max_score ?? '?'}`
+        : submission ? 'Submitted · awaiting grade' : 'Not submitted';
+      return `<div class="accordion-content-item">
+        <span class="acc-item-icon">${LMS_ICONS.clipboard}</span>
+        <span class="acc-item-label">${escHtml(activity.title || 'Activity')}<span class="acc-item-desc">${escHtml(activity._subject_name || 'Previous subject')} · ${escHtml(activity._section_name || 'Previous section')} · ${escHtml(result)} · Read-only</span></span>
+        ${submission ? `<button class="btn btn-outline btn-xs" onclick="StudentController.viewResult(${Number(activity.id)})">View result</button>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<section class="card" style="margin-top:24px">
+      <div class="card-header">
+        <div><h3 class="card-title">${escHtml(options.heading || 'Previous semester records')}</h3>
+        <p style="font-size:12px;color:var(--gray-500);margin:4px 0 0">${escHtml(options.description || 'Read-only history.')}</p></div>
+      </div>
+      <div class="card-body">
+        ${subjects.length ? `<h4>Previous subjects</h4>${subjectRows}` : ''}
+        ${modules.length ? `<h4>Previous modules</h4>${moduleRows}` : ''}
+        ${activities.length ? `<h4 style="margin-top:${modules.length || subjects.length ? '18px' : '0'}">Previous activities and results</h4>${activityRows}` : ''}
+      </div>
+    </section>`;
   },
 
   modules(apiModules = null) {
@@ -559,19 +667,20 @@ const StudentView = {
   },
 
   /** Loading skeleton shown while API fetches activity list */
-  activitiesLoading() {
+  activitiesLoading(semester = '1st') {
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">Loading…</p></div>
         <div class="search-box"><span>${lmsIcon('search')}</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
       </div>
+      ${this.semesterTabs('activities', semester)}
       <div id="student-activity-list">
         <div class="empty-state"><div class="empty-state-icon">${lmsIcon('loading')}</div><div class="empty-state-title">Loading activities…</div></div>
       </div>`;
   },
 
   /** Full student activities table from API data */
-  activities(apiActivities) {
+  activities(apiActivities, semester = '1st') {
     const TYPE_LABELS = { quiz:'Quiz', long_quiz:'Long Quiz', task_performance:'Task Performance', exam:'Exam', lab_exercise:'Lab Exercise', assignment:'Assignment', other:'Other' };
     const FMT_LABELS  = { multiple_choice:'Multiple Choice', checkbox:'Checkbox', enumeration:'Enumeration', freeform:'Free-form', assignment:'Assignment', hybrid:'Hybrid' };
 
@@ -584,10 +693,11 @@ const StudentView = {
         <div class="section-header">
           <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p>No activities yet</p></div>
         </div>
+        ${this.semesterTabs('activities', semester)}
         <div class="empty-state" style="margin-top:40px">
           <div class="empty-state-icon">${lmsIcon('clipboard')}</div>
-          <div class="empty-state-title">No Activities Yet</div>
-          <div class="empty-state-sub">Your teacher hasn't posted any activities for your subjects yet. Check back later!</div>
+          <div class="empty-state-title">No Activities for ${semester} Semester</div>
+          <div class="empty-state-sub">There are no activities recorded for this semester.</div>
         </div>`;
     }
 
@@ -607,7 +717,7 @@ const StudentView = {
         a.already_submitted === true ||
         a.status === 'submitted'     ||
         a.status === 'graded'        ||
-        (a.can_answer === false && a.status !== 'past_due' && a.is_past_due !== true);
+        (!a.is_archived && a.can_answer === false && a.status !== 'past_due' && a.is_past_due !== true);
 
       const sub = rawSub
         ? {
@@ -645,6 +755,7 @@ const StudentView = {
       const _statusMap = {
         graded:    ['badge-green',  `${lmsIcon('check')} Graded`],
         submitted: ['badge-blue',   `${lmsIcon('send')} Submitted`],
+        archived:  ['badge-gray',   'Read-only'],
         past_due:  ['badge-danger', `${lmsIcon('warning')} Past Due`],
         late_allowed: ['badge-gold', `${lmsIcon('clock')} Late Submission Allowed`],
         not_open:  ['badge-gray',   `${lmsIcon('clock')} Not Yet Open`],
@@ -787,6 +898,7 @@ const StudentView = {
         <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">${apiActivities.length} activity(s)</p></div>
         <div class="search-box"><span>${lmsIcon('search')}</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
       </div>
+      ${this.semesterTabs('activities', semester)}
       <div class="table-wrap" style="margin-top:8px;border:1px solid var(--gray-200);border-radius:12px;overflow-x:auto;overflow-y:visible;background:white;box-shadow:0 1px 4px rgba(0,0,0,.05);-webkit-overflow-scrolling:touch">
         <table class="activity-table" id="student-activity-list">
           <thead>
@@ -987,7 +1099,7 @@ const StudentView = {
   },
 
   // ── My Grades shell (shown while loading) ────────────────────────────────
-  myGrades() {
+  myGrades(semester = '1st') {
     return `
       <div class="section-header">
         <div class="section-header-left">
@@ -999,6 +1111,7 @@ const StudentView = {
           <input type="text" id="global-search" placeholder="Search activities…" />
         </div>
       </div>
+      ${this.semesterTabs('my-grades', semester)}
       <div id="my-grades-wrap">
         <div class="empty-state"><div class="empty-state-icon">${lmsIcon('loading')}</div><div class="empty-state-title">Loading grades…</div></div>
       </div>`;
@@ -1225,7 +1338,7 @@ const StudentView = {
   },
 
   // ── Attendance loading skeleton ────────────────────────────────────────────
-  attendanceLoading() {
+  attendanceLoading(semester = '1st') {
     return `
       <div class="section-header">
         <div class="section-header-left">
@@ -1233,13 +1346,14 @@ const StudentView = {
           <p>Loading…</p>
         </div>
       </div>
+      ${this.semesterTabs('attendance', semester)}
       <div class="empty-state" style="margin-top:40px">
         <div class="empty-state-icon">${lmsIcon('loading')}</div>
         <div class="empty-state-title">Loading attendance records…</div>
       </div>`;
   },
 
-  attendanceError(message) {
+  attendanceError(message, semester = '1st') {
     return `
       <div class="section-header">
         <div class="section-header-left">
@@ -1247,6 +1361,7 @@ const StudentView = {
           <p>Attendance could not be loaded.</p>
         </div>
       </div>
+      ${this.semesterTabs('attendance', semester)}
       <div class="empty-state" style="margin-top:40px">
         <div class="empty-state-icon">${lmsIcon('warning')}</div>
         <div class="empty-state-title">Unable to load attendance</div>
@@ -1262,16 +1377,17 @@ const StudentView = {
    *   terms[]: { term, present, absent, late, excused, total }
    *   totals:  { present, absent, late, excused, total }
    */
-  attendance(data) {
+  attendance(data, semester = '1st') {
     if (!data || !data.length) {
       return `
         <div class="section-header">
           <div class="section-header-left"><h2>${lmsIcon('clipboard')} My Attendance</h2><p>No records found</p></div>
         </div>
+        ${this.semesterTabs('attendance', semester)}
         <div class="empty-state" style="margin-top:40px">
           <div class="empty-state-icon">${lmsIcon('clipboard')}</div>
-          <div class="empty-state-title">No Attendance Records Yet</div>
-          <div class="empty-state-sub">Your teacher hasn't recorded any attendance sessions for your subjects yet.</div>
+          <div class="empty-state-title">No Attendance Records for ${semester} Semester</div>
+          <div class="empty-state-sub">There are no attendance records for this semester.</div>
         </div>`;
     }
 
@@ -1403,6 +1519,7 @@ const StudentView = {
           <p>${data.length} subject${data.length !== 1 ? 's' : ''}</p>
         </div>
       </div>
+      ${this.semesterTabs('attendance', semester)}
       <div style="margin-top:12px">${cards}</div>
       <p style="margin-top:4px;font-size:11px;color:#bbb;text-align:center">
         This is a read-only view of attendance recorded by your teacher. Contact your teacher for any discrepancies.
