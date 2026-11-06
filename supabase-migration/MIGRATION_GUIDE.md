@@ -96,7 +96,8 @@ migrations 01-15. It adds the semester fields if they are missing and installs
 the admin-only transfer RPC. Transfers preserve existing subject enrollments
 while restoring source-section subjects and adding destination-section
 subjects for the selected semester. Re-running the migration also restores
-subjects from prior transfers recorded in the admin audit log.
+subjects from prior transfers recorded in the admin audit log. Students retain
+access to published modules and activities from their previous sections.
 
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside

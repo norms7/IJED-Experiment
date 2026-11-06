@@ -1814,34 +1814,23 @@ class LMSAdminAPI {
       `student:modules:${subject_id || ""}`,
       60_000,
       async () => {
-        const studentId = await this._myStudentId();
-        const [enrollments, sectionAssignments] = await Promise.all([
-          this.sb
-            .from("student_subject_enrollments")
-            .select("subject_id")
-            .eq("student_id", studentId),
-          this.sb
-            .from("student_section_assignments")
-            .select("section_id")
-            .eq("student_id", studentId),
-        ]);
-        const subjectRows = this._throwIfError(enrollments);
-        const sectionRows = this._throwIfError(sectionAssignments);
-        const subjectIds = subject_id
-          ? [subject_id]
-          : (subjectRows || []).map((e) => e.subject_id);
-        const sectionIds = [...new Set(
-          (sectionRows || []).map(row => row.section_id),
-        )];
-        if (!subjectIds.length || !sectionIds.length) return [];
-        const modules = this._throwIfError(
-          await this.sb
-            .from("modules")
-            .select("*")
-            .in("subject_id", subjectIds)
-            .in("section_id", sectionIds)
-            .eq("is_published", true),
-        );
+      const studentId = await this._myStudentId();
+      const enrollments = await this.sb
+        .from("student_subject_enrollments")
+        .select("subject_id")
+        .eq("student_id", studentId);
+      const subjectRows = this._throwIfError(enrollments);
+      const subjectIds = subject_id
+        ? [subject_id]
+        : (subjectRows || []).map((e) => e.subject_id);
+      if (!subjectIds.length) return [];
+      const modules = this._throwIfError(
+        await this.sb
+          .from("modules")
+          .select("*")
+          .in("subject_id", subjectIds)
+          .eq("is_published", true),
+      );
         if (!modules.length) return modules;
         // Mark which of these the student has actually opened — needed to
         // show real completion progress, not just a module count.
@@ -1865,25 +1854,15 @@ class LMSAdminAPI {
       30_000,
       async () => {
         const studentId = await this._myStudentId();
-        const [enrollments, sectionAssignments] = await Promise.all([
-          this.sb
-            .from("student_subject_enrollments")
-            .select("subject_id")
-            .eq("student_id", studentId),
-          this.sb
-            .from("student_section_assignments")
-            .select("section_id")
-            .eq("student_id", studentId),
-        ]);
+        const enrollments = await this.sb
+          .from("student_subject_enrollments")
+          .select("subject_id")
+          .eq("student_id", studentId);
         const subjectRows = this._throwIfError(enrollments);
-        const sectionRows = this._throwIfError(sectionAssignments);
         const subjectIds = subject_id
           ? [subject_id]
           : (subjectRows || []).map((e) => e.subject_id);
-        const sectionIds = [...new Set(
-          (sectionRows || []).map(row => row.section_id),
-        )];
-        if (!subjectIds.length || !sectionIds.length) return [];
+        if (!subjectIds.length) return [];
         const modules = await this.getStudentModules(subject_id);
         const moduleIds = modules.map(module => module.id);
         if (!moduleIds.length) return [];
