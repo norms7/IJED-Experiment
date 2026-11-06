@@ -268,7 +268,7 @@ const DashboardController = {
       try {
         const currentSem = await api.getStudentCurrentSemester();
         const [stats, allSubjects, activities, scheduleResult, attendanceResult, notificationsResult] = await Promise.all([
-          api.getStudentDashboardStats(currentSem),
+          api.getStudentDashboardStats(),
           api.getStudentSubjects(),
           api.getStudentActivities(),
           api.getStudentWeeklySchedule().catch(() => []),

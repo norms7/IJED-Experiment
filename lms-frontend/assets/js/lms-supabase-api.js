@@ -2001,16 +2001,12 @@ class LMSAdminAPI {
     };
   }
 
-  async getStudentDashboardStats(semester = null) {
+  async getStudentDashboardStats() {
     return this._cached(
-      `student:dashboard:${semester || "all"}`,
+      "student:dashboard",
       20_000,
       async () =>
-        this._throwIfError(
-          await this.sb.rpc("get_student_dashboard_stats", {
-            p_semester: semester,
-          }),
-        ),
+        this._throwIfError(await this.sb.rpc("get_student_dashboard_stats")),
     );
   }
 
