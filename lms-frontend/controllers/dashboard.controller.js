@@ -270,7 +270,7 @@ const DashboardController = {
         const [stats, allSubjects, activities, scheduleResult, attendanceResult, notificationsResult] = await Promise.all([
           api.getStudentDashboardStats(currentSem),
           api.getStudentSubjects(),
-          api.getStudentActivities(null, currentSem),
+          api.getStudentActivities(),
           api.getStudentWeeklySchedule().catch(() => []),
           api.getMyAttendance().catch(() => []),
           api.getNotifications(5).catch(() => []),
@@ -366,13 +366,12 @@ const DashboardController = {
       try {
         // Detect current semester from enrolled subjects (default to highest)
         const currentSem = opts?.semester ?? (await api.getStudentCurrentSemester());
-        const [subjects, modules, activities, archive] = await Promise.all([
+        const [subjects, modules, activities] = await Promise.all([
           api.getStudentSubjects(currentSem),
           api.getStudentModules(),
-          api.getStudentActivities(null, currentSem),
-          api.getStudentArchive(),
+          api.getStudentActivities(),
         ]);
-        area.innerHTML = StudentView.mySubjects(subjects, modules, activities, currentSem, archive);
+        area.innerHTML = StudentView.mySubjects(subjects, modules, activities, currentSem);
         StudentController._attachSubjectAccordion();
         this._attachSearch();
       } catch (err) {
@@ -435,11 +434,9 @@ const DashboardController = {
       area.innerHTML = Loader.skeleton("grades");
       Loader.init();
       try {
-        const currentSem = await api.getStudentCurrentSemester();
-        const [activities, subjects, archive] = await Promise.all([
-          api.getStudentActivities(null, currentSem),
-          api.getStudentSubjects(currentSem),
-          api.getStudentArchive(),
+        const [activities, subjects] = await Promise.all([
+          api.getStudentActivities(),
+          api.getStudentSubjects(),
         ]);
         const subjectMap = {};
         (subjects || []).forEach((s) => {
@@ -452,12 +449,7 @@ const DashboardController = {
           wrap.innerHTML = StudentView.myGradesTable(
             activities || [],
             subjectMap,
-          ) + StudentView.archiveHistory({
-            ...archive,
-            modules: [],
-            activities: (archive.activities || []).filter(activity => activity.submission),
-            attendance: [],
-          }, null, { showModules: false });
+          );
           this._attachSearch();
         }
       } catch (err) {
