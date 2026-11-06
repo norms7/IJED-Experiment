@@ -161,6 +161,48 @@ begin
 end;
 $$;
 
+-- A transferred student keeps access to content in previous sections. The
+-- transfer audit record is the trusted history because the active assignment
+-- is replaced during transfer.
+create or replace function public.student_can_access_module(p_module_id integer)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select exists (
+    select 1
+    from public.modules module
+    join public.student_subject_enrollments enrollment
+      on enrollment.subject_id = module.subject_id
+     and enrollment.student_id = public.auth_student_id()
+    where module.id = p_module_id
+      and module.section_id is not null
+      and module.is_published = true
+      and (
+        exists (
+          select 1
+          from public.student_section_assignments assignment
+          where assignment.student_id = enrollment.student_id
+            and assignment.section_id = module.section_id
+        )
+        or exists (
+          select 1
+          from public.audit_logs transfer
+          where transfer.action = 'TRANSFER'
+            and transfer.table_name = 'student_section_assignments'
+            and transfer.record_id = enrollment.student_id::text
+            and transfer.metadata ->> 'source' = 'transfer_students_to_section_with_semester'
+            and transfer.changed_fields #>> '{section_id,old}' = module.section_id::text
+        )
+      )
+  );
+$$;
+
+revoke all on function public.student_can_access_module(integer) from public, anon;
+grant execute on function public.student_can_access_module(integer) to authenticated;
+
 -- Repair transfers made before this migration was rerun: restore enrollments
 -- for subjects assigned to each student's previous section, using its audit record.
 do $$
