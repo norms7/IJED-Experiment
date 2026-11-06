@@ -268,9 +268,9 @@ const DashboardController = {
       try {
         const currentSem = await api.getStudentCurrentSemester();
         const [stats, allSubjects, activities, scheduleResult, attendanceResult, notificationsResult] = await Promise.all([
-          api.getStudentDashboardStats(),
+          api.getStudentDashboardStats(currentSem),
           api.getStudentSubjects(),
-          api.getStudentActivities(),
+          api.getStudentActivities(null, currentSem),
           api.getStudentWeeklySchedule().catch(() => []),
           api.getMyAttendance().catch(() => []),
           api.getNotifications(5).catch(() => []),
@@ -364,14 +364,22 @@ const DashboardController = {
       area.innerHTML = Loader.skeleton("list");
       Loader.init();
       try {
-        // Detect current semester from enrolled subjects (default to highest)
-        const currentSem = opts?.semester ?? (await api.getStudentCurrentSemester());
-        const [subjects, modules, activities] = await Promise.all([
+        const actualCurrentSem = await api.getStudentCurrentSemester();
+        const currentSem = opts?.semester ?? actualCurrentSem;
+        const [subjects, modules, activities, history] = await Promise.all([
           api.getStudentSubjects(currentSem),
           api.getStudentModules(),
-          api.getStudentActivities(),
+          api.getStudentActivities(null, currentSem),
+          api.getStudentHistory(),
         ]);
-        area.innerHTML = StudentView.mySubjects(subjects, modules, activities, currentSem);
+        area.innerHTML = StudentView.mySubjects(
+          subjects,
+          modules,
+          activities,
+          currentSem,
+          history,
+          actualCurrentSem,
+        );
         StudentController._attachSubjectAccordion();
         this._attachSearch();
       } catch (err) {
@@ -430,30 +438,48 @@ const DashboardController = {
 
     // ── Student My Grades ────────────────────────────────────────────────
     if (sectionId === "my-grades" && role === "student") {
-      Loader.start();
-      area.innerHTML = Loader.skeleton("grades");
-      Loader.init();
+      let selectedSemester = opts?.semester || "1st";
+      area.innerHTML = StudentView.myGrades(selectedSemester);
       try {
-        const [activities, subjects] = await Promise.all([
-          api.getStudentActivities(),
+        const currentSem = opts?.semester ?? await api.getStudentCurrentSemester();
+        selectedSemester = currentSem;
+        const [activities, subjects, history] = await Promise.all([
+          api.getStudentActivities(null, currentSem),
           api.getStudentSubjects(),
+          api.getStudentHistory(),
         ]);
+        const normalizeSemester = value => {
+          const normalized = String(value || '').trim().toLowerCase();
+          return ['1', '1st', 'first', '1st semester', 'first semester', 'semester 1'].includes(normalized) ? '1st'
+            : ['2', '2nd', 'second', '2nd semester', 'second semester', 'semester 2'].includes(normalized) ? '2nd'
+              : normalized;
+        };
+        const historicalActivities = (history.activities || [])
+          .filter(activity => normalizeSemester(activity._semester) === normalizeSemester(currentSem))
+          .map(activity => ({ ...activity, is_archived: true }));
+        const activitiesById = new Map(
+          [...historicalActivities, ...(activities || [])].map(activity => [activity.id, activity]),
+        );
+        const semesterActivities = [...activitiesById.values()];
         const subjectMap = {};
         (subjects || []).forEach((s) => {
           subjectMap[s.subject_id] = s.subject_name;
         });
-        area.innerHTML = StudentView.myGrades();
-        Loader.init();
+        (history.subjects || []).forEach(subject => {
+          subjectMap[subject.subject_id] = subject.subject_name;
+        });
+        area.innerHTML = StudentView.myGrades(currentSem);
         const wrap = document.getElementById("my-grades-wrap");
         if (wrap) {
           wrap.innerHTML = StudentView.myGradesTable(
-            activities || [],
+            semesterActivities,
             subjectMap,
           );
           this._attachSearch();
         }
       } catch (err) {
         console.error("[MyGrades]", err);
+        area.innerHTML = StudentView.myGrades(selectedSemester);
         const wrap = document.getElementById("my-grades-wrap");
         if (wrap)
           wrap.innerHTML = `<div class="empty-state">
@@ -462,24 +488,20 @@ const DashboardController = {
           <div class="empty-state-sub">${escHtml(err.message)}</div>
         </div>`;
         Toast.show("Failed to load grades: " + err.message, "error");
-      } finally {
-        Loader.done();
       }
       return;
     }
 
     // ── Student Activities ───────────────────────────────────────────────
     if (sectionId === "activities" && role === "student") {
-      Loader.start();
       // StudentController.loadActivities handles its own skeleton/render
-      StudentController.loadActivities().finally(() => Loader.done());
+      StudentController.loadActivities(opts?.semester);
       return;
     }
 
     // ── Student Attendance ───────────────────────────────────────────────
     if (sectionId === "attendance" && role === "student") {
-      Loader.start();
-      StudentController.loadAttendance().finally(() => Loader.done());
+      StudentController.loadAttendance(opts?.semester);
       return;
     }
 

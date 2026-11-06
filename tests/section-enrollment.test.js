@@ -90,6 +90,7 @@ function createApi() {
     upsertError: null,
     currentSemester: null,
     subjectEnrollments: null,
+    activeSubjects: [],
     rpcCalls: [],
     rpcError: null,
   };
@@ -101,6 +102,9 @@ function createApi() {
     rpc: async (name, args) => {
       if (name === "get_student_weekly_schedule") {
         return { data: [], error: null };
+      }
+      if (name === "get_student_active_subjects") {
+        return { data: db.activeSubjects, error: null };
       }
       db.rpcCalls.push({ name, args });
       return db.rpcError
@@ -162,6 +166,11 @@ async function run() {
       subjects: { id: 24, name: "Legacy formatted semester", semester: "First Semester" },
     },
   ];
+  db.activeSubjects = db.subjectEnrollments.map(row => ({
+    subject_id: row.subject_id,
+    subject_name: row.subjects.name,
+    semester: row.subjects.semester,
+  }));
   const firstSemesterSubjects = await api.getStudentSubjects("1st");
   assert.deepEqual(
     JSON.parse(JSON.stringify(firstSemesterSubjects.map(subject => subject.subject_id))),
