@@ -1654,11 +1654,16 @@ class LMSAdminAPI {
     const cacheKey = `student:mysubjects:${semesterFilter || "all"}`;
     return this._cached(cacheKey, 60_000, async () => {
       const studentId = await this._myStudentId();
-      const data = this._throwIfError(
-        await this.sb
+      const [enrollments, activeSubjects] = await Promise.all([
+        this.sb
           .from("student_subject_enrollments")
           .select("*, subjects(id, name, description, semester)")
           .eq("student_id", studentId),
+        this.sb.rpc("get_student_active_subjects"),
+      ]);
+      const enrollmentRows = this._throwIfError(enrollments);
+      const activeSubjectIds = new Set(
+        this._throwIfError(activeSubjects).map((subject) => subject.subject_id),
       );
 
       // Enrich with real section/schedule/teacher info via the same
@@ -1687,7 +1692,9 @@ class LMSAdminAPI {
         };
       });
 
-      const rows = data.map((row) => ({
+      const rows = enrollmentRows
+        .filter((row) => activeSubjectIds.has(row.subject_id))
+        .map((row) => ({
         ...row,
         subject_id: row.subject_id,
         subject_name: row.subjects?.name || "",
@@ -1814,23 +1821,31 @@ class LMSAdminAPI {
       `student:modules:${subject_id || ""}`,
       60_000,
       async () => {
-      const studentId = await this._myStudentId();
-      const enrollments = await this.sb
-        .from("student_subject_enrollments")
-        .select("subject_id")
-        .eq("student_id", studentId);
-      const subjectRows = this._throwIfError(enrollments);
-      const subjectIds = subject_id
-        ? [subject_id]
-        : (subjectRows || []).map((e) => e.subject_id);
-      if (!subjectIds.length) return [];
-      const modules = this._throwIfError(
-        await this.sb
-          .from("modules")
-          .select("*")
-          .in("subject_id", subjectIds)
-          .eq("is_published", true),
-      );
+        const studentId = await this._myStudentId();
+        const [subjects, assignments] = await Promise.all([
+          this.getStudentSubjects(),
+          this.sb
+            .from("student_section_assignments")
+            .select("section_id")
+            .eq("student_id", studentId),
+        ]);
+        const subjectIds = subject_id
+          ? [subject_id]
+          : subjects.map((subject) => subject.subject_id);
+        const sectionIds = [
+          ...new Set(
+            this._throwIfError(assignments).map((assignment) => assignment.section_id),
+          ),
+        ];
+        if (!subjectIds.length || !sectionIds.length) return [];
+        const modules = this._throwIfError(
+          await this.sb
+            .from("modules")
+            .select("*")
+            .in("subject_id", subjectIds)
+            .in("section_id", sectionIds)
+            .eq("is_published", true),
+        );
         if (!modules.length) return modules;
         // Mark which of these the student has actually opened — needed to
         // show real completion progress, not just a module count.
@@ -1848,20 +1863,16 @@ class LMSAdminAPI {
     );
   }
 
-  async getStudentActivities(subject_id = null) {
+  async getStudentActivities(subject_id = null, semesterFilter = null) {
     return this._cached(
-      `student:activities:${subject_id || ""}`,
+      `student:activities:${subject_id || ""}:${semesterFilter || "all"}`,
       30_000,
       async () => {
         const studentId = await this._myStudentId();
-        const enrollments = await this.sb
-          .from("student_subject_enrollments")
-          .select("subject_id")
-          .eq("student_id", studentId);
-        const subjectRows = this._throwIfError(enrollments);
+        const subjectRows = await this.getStudentSubjects(semesterFilter);
         const subjectIds = subject_id
           ? [subject_id]
-          : (subjectRows || []).map((e) => e.subject_id);
+          : subjectRows.map((subject) => subject.subject_id);
         if (!subjectIds.length) return [];
         const modules = await this.getStudentModules(subject_id);
         const moduleIds = modules.map(module => module.id);
@@ -2025,10 +2036,92 @@ class LMSAdminAPI {
   async getMyAttendance() {
     return this._cached("student:attendance", 30_000, async () => {
       const { data, error } = await this.sb.rpc(
-        "get_my_attendance_summary",
+        "get_my_attendance_history",
+        { p_archived: false },
       );
       if (error) throw new Error(error.message);
       return data; // Already in the required format
+    });
+  }
+
+  async getStudentArchive() {
+    return this._cached("student:archive", 30_000, async () => {
+      const studentId = await this._myStudentId();
+      const [contextResult, attendanceResult] = await Promise.all([
+        this.sb.rpc("get_student_archive_context"),
+        this.sb.rpc("get_my_attendance_history", { p_archived: true }),
+      ]);
+      const contextRows = this._throwIfError(contextResult);
+      if (attendanceResult.error) throw new Error(attendanceResult.error.message);
+      const sectionIds = [...new Set(contextRows.map((row) => row.section_id))];
+      const subjectById = new Map(
+        contextRows.map((row) => [
+          row.subject_id,
+          {
+            subject_id: row.subject_id,
+            subject_name: row.subject_name,
+            semester: row.semester,
+          },
+        ]),
+      );
+      if (!sectionIds.length) {
+        return {
+          subjects: [],
+          modules: [],
+          activities: [],
+          attendance: attendanceResult.data || [],
+        };
+      }
+
+      const modules = this._throwIfError(
+        await this.sb
+          .from("modules")
+          .select("*")
+          .in("section_id", sectionIds),
+      );
+      const moduleIds = modules.map((module) => module.id);
+      const [readsResult, activitiesResult] = moduleIds.length
+        ? await Promise.all([
+            this.sb
+              .from("student_module_reads")
+              .select("module_id")
+              .eq("student_id", studentId)
+              .in("module_id", moduleIds),
+            this.sb
+              .from("activities")
+              .select("*")
+              .in("module_id", moduleIds),
+          ])
+        : [{ data: [], error: null }, { data: [], error: null }];
+      const reads = this._throwIfError(readsResult);
+      const activities = this._throwIfError(activitiesResult);
+      const submissionsResult = activities.length
+        ? await this.sb
+            .from("activity_submissions")
+            .select("*")
+            .eq("student_id", studentId)
+            .in("activity_id", activities.map((activity) => activity.id))
+        : { data: [], error: null };
+      const submissions = this._throwIfError(submissionsResult);
+      const readIds = new Set(reads.map((read) => read.module_id));
+      const submissionByActivity = new Map(
+        submissions.map((submission) => [submission.activity_id, submission]),
+      );
+
+      return {
+        subjects: [...subjectById.values()],
+        modules: modules.map((module) => ({
+          ...module,
+          is_read: readIds.has(module.id),
+          is_archived: true,
+        })),
+        activities: activities.map((activity) => ({
+          ...activity,
+          submission: submissionByActivity.get(activity.id) || null,
+          is_archived: true,
+        })),
+        attendance: attendanceResult.data || [],
+      };
     });
   }
 

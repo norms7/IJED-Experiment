@@ -107,6 +107,7 @@ exact order**, from `supabase-migration/` in your unzipped folder:
 15. `14_bayesian_inference_consistency.sql` — updates the deployed Bayesian evidence RPC so fresh and existing installations behave the same.
 16. `15_bayesian_evidence_alignment.sql` — aligns Bayesian evidence rows with authoritative grade and activity data.
 17. `16_transfer_students_by_semester.sql` — adds semester-aware student transfers and subject/student semester fields.
+18. `17_student_archive.sql` — separates current student records from read-only transfer history.
 
 For an existing project, run `11_audit_logs.sql` after migrations 01-10 and
 before deploying the updated Edge Functions. Audit history starts at install
@@ -121,6 +122,13 @@ the Modules page; new modules and their activities are section-scoped.
 For an existing project, run `16_transfer_students_by_semester.sql` after
 migrations 01-15. Transfers preserve existing subject enrollments and add
 destination-section subjects for the selected semester.
+
+For an existing project, run `17_student_archive.sql` after migration 16 and
+deploy the updated frontend. Current student pages show only subjects and
+learning content assigned to the active section and semester. Prior section
+modules appear in My Subjects, prior activities and results appear in
+Activities and My Grades, and prior attendance appears in Attendance. These
+records are labeled as read-only history within their respective tabs.
 
 Deploy both admin Edge Functions when account management is enabled:
 
