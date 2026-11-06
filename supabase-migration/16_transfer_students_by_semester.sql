@@ -35,10 +35,14 @@ begin
     when '1st' then '1st'
     when 'first' then '1st'
     when '1st semester' then '1st'
+    when 'first semester' then '1st'
+    when 'semester 1' then '1st'
     when '2' then '2nd'
     when '2nd' then '2nd'
     when 'second' then '2nd'
     when '2nd semester' then '2nd'
+    when 'second semester' then '2nd'
+    when 'semester 2' then '2nd'
     else null
   end;
   if v_semester is null then
@@ -100,18 +104,28 @@ begin
       from unnest(v_student_ids) as selected(student_id)
       cross join public.teacher_class_assignments assignment
       join public.subjects subject on subject.id = assignment.subject_id
-      where assignment.section_id = p_to_section_id
-        and case lower(trim(coalesce(subject.semester::text, '')))
+      where assignment.section_id = p_from_section_id
+        or (
+          assignment.section_id = p_to_section_id
+          and case lower(trim(coalesce(subject.semester::text, '')))
           when '1' then '1st'
           when '1st' then '1st'
           when 'first' then '1st'
           when '1st semester' then '1st'
+          when 'first semester' then '1st'
+          when 'semester 1' then '1st'
           when '2' then '2nd'
           when '2nd' then '2nd'
           when 'second' then '2nd'
           when '2nd semester' then '2nd'
-          else null
-        end = v_semester
+          when 'second semester' then '2nd'
+          when 'semester 2' then '2nd'
+          else case
+            when nullif(trim(coalesce(subject.semester::text, '')), '') is null then '1st'
+            else null
+          end
+          end = v_semester
+        )
       on conflict (student_id, subject_id) do nothing
       returning student_id
   )
@@ -144,6 +158,31 @@ begin
     'subjects_added', v_subjects_added,
     'semester', v_semester
   );
+end;
+$$;
+
+-- Repair transfers made before this migration was rerun: restore enrollments
+-- for subjects assigned to each student's previous section, using its audit record.
+do $$
+begin
+  perform set_config('app.audit_log_suppressed', 'true', true);
+  insert into public.student_subject_enrollments (student_id, subject_id)
+    select distinct
+      case when audit.record_id ~ '^[0-9]+$' then audit.record_id::integer end,
+      assignment.subject_id
+    from public.audit_logs audit
+    join public.teacher_class_assignments assignment
+      on assignment.section_id =
+        case
+          when audit.changed_fields #>> '{section_id,old}' ~ '^[0-9]+$'
+            then (audit.changed_fields #>> '{section_id,old}')::integer
+        end
+    where audit.action = 'TRANSFER'
+      and audit.table_name = 'student_section_assignments'
+      and audit.metadata ->> 'source' = 'transfer_students_to_section_with_semester'
+      and audit.record_id ~ '^[0-9]+$'
+    on conflict (student_id, subject_id) do nothing;
+  perform set_config('app.audit_log_suppressed', 'false', true);
 end;
 $$;
 

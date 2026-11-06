@@ -94,7 +94,9 @@ that can make PostgREST calls ambiguous. Manual grades are left unchanged.
 For an existing database, run `16_transfer_students_by_semester.sql` after
 migrations 01-15. It adds the semester fields if they are missing and installs
 the admin-only transfer RPC. Transfers preserve existing subject enrollments
-while adding destination-section subjects for the selected semester.
+while restoring source-section subjects and adding destination-section
+subjects for the selected semester. Re-running the migration also restores
+subjects from prior transfers recorded in the admin audit log.
 
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside

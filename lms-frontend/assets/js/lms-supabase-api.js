@@ -1633,14 +1633,18 @@ class LMSAdminAPI {
       normalized === "1" ||
       normalized === "1st" ||
       normalized === "first" ||
-      normalized === "1st semester"
+      normalized === "1st semester" ||
+      normalized === "first semester" ||
+      normalized === "semester 1"
     )
       return "1st";
     if (
       normalized === "2" ||
       normalized === "2nd" ||
       normalized === "second" ||
-      normalized === "2nd semester"
+      normalized === "2nd semester" ||
+      normalized === "second semester" ||
+      normalized === "semester 2"
     )
       return "2nd";
     return normalized;
@@ -1694,9 +1698,13 @@ class LMSAdminAPI {
       }));
       if (semesterFilter) {
         const expectedSemester = this._normalizeSemester(semesterFilter);
-        return rows.filter(
-          (r) => this._normalizeSemester(r.semester) === expectedSemester,
-        );
+        return rows.filter((r) => {
+          const subjectSemester = this._normalizeSemester(r.semester);
+          // Legacy subjects may not have a semester value. Treat them as
+          // first-semester subjects, matching the default for untagged data.
+          return subjectSemester === expectedSemester ||
+            (expectedSemester === "1st" && !subjectSemester);
+        });
       }
       return rows;
     });
