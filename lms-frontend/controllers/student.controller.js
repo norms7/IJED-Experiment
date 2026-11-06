@@ -210,13 +210,11 @@ const StudentController = {
     // backwards-compatible with any cached/stale API responses.
     // ─────────────────────────────────────────────────────────────────────────
 
-    return api.getStudentCurrentSemester()
-      .then(currentSem => Promise.all([
-        api.getStudentActivities(null, currentSem),
-        api.getStudentSubjects(currentSem),
-        api.getStudentArchive(),
-      ]))
-      .then(([activities, subjects, archive]) => {
+    return Promise.all([
+      api.getStudentActivities(),
+      api.getStudentSubjects(),
+    ])
+      .then(([activities, subjects]) => {
         // Normalise submission field across all naming variants the backend
         // may have returned (current: `submission`, older: `my_submission`).
         const subjectMap = Object.fromEntries(
@@ -226,11 +224,7 @@ const StudentController = {
           ..._normaliseSubmission(a),
           _subject_name: subjectMap[a.subject_id] || 'Unknown subject',
         }));
-        area.innerHTML = StudentView.activities(normalised) + StudentView.archiveHistory({
-          ...archive,
-          modules: [],
-          attendance: [],
-        }, null, { showModules: false });
+        area.innerHTML = StudentView.activities(normalised);
         DashboardController._attachSearch();
       })
       .catch(err => {
@@ -480,15 +474,9 @@ const StudentController = {
     const area = document.getElementById('content-area');
     area.innerHTML = StudentView.attendanceLoading();
 
-    return Promise.all([api.getMyAttendance(), api.getStudentArchive()])
-      .then(([data, archive]) => {
-        area.innerHTML = StudentView.attendance(data, 'Current Attendance')
-          + StudentView.archiveHistory({
-            ...archive,
-            modules: [],
-            activities: [],
-            attendance: archive.attendance,
-          }, null, { showModules: false, showActivities: false });
+    return api.getMyAttendance()
+      .then(data => {
+        area.innerHTML = StudentView.attendance(data);
       })
       .catch(err => {
         Toast.show('Failed to load attendance: ' + err.message, 'error');

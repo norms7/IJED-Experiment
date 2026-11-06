@@ -97,16 +97,7 @@ the admin-only transfer RPC. Transfers preserve existing subject enrollments
 while restoring source-section subjects and adding destination-section
 subjects for the selected semester. Re-running the migration also restores
 subjects from prior transfers recorded in the admin audit log. Students retain
-access to published modules and activities from their previous sections, but
-those records are shown as read-only history within the relevant student tabs.
-
-For an existing database, run `17_student_archive.sql` after migration 16.
-It scopes student subjects, modules, activities, grades, and attendance to
-the current section/semester and enables read-only access to records from
-previously transferred sections. Historical subjects and modules appear in
-My Subjects, activities and results appear in Activities and My Grades, and
-attendance history appears in Attendance. Deploy the updated frontend after
-applying the migration.
+access to published modules and activities from their previous sections.
 
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside

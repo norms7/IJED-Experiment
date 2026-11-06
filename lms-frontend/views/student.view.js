@@ -295,7 +295,7 @@ const StudentView = {
       </div>`;
   },
 
-  mySubjects(apiSubjects = null, apiModules = [], apiActivities = [], currentSem = null, archive = null) {
+  mySubjects(apiSubjects = null, apiModules = [], apiActivities = [], currentSem = null) {
     if (apiSubjects === null) {
       return `
         <div class="section-header">
@@ -359,8 +359,7 @@ const StudentView = {
           <div class="empty-state-icon">${lmsIcon('book')}</div>
           <div class="empty-state-title">No Subjects for ${sem === '1st' ? '1st' : '2nd'} Semester</div>
           <div class="empty-state-desc">You have no enrolled subjects for this semester. Try switching semesters above, or contact your admin.</div>
-        </div>
-        ${archive ? this.archiveHistory({ ...archive, activities: [], attendance: [] }, null, { showActivities: false }) : ''}`;
+        </div>`;
     }
 
     const modulesBySubjectTerm = {};
@@ -512,89 +511,7 @@ const StudentView = {
         <div class="search-box"><span>${lmsIcon('search')}</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
       </div>
       ${semesterTabs}
-      <div class="subject-list" id="student-subjects-list">${cards}</div>
-      ${archive ? this.archiveHistory({ ...archive, attendance: [] }) : ''}`;
-  },
-
-  archiveHistory(data = null, error = null, options = {}) {
-    const showModules = options.showModules !== false;
-    const showActivities = options.showActivities !== false;
-    if (!data) {
-      return error
-        ? `<div class="empty-state"><div class="empty-state-title">Unable to load previous records</div><div class="empty-state-sub">${escHtml(error)}</div></div>`
-        : '';
-    }
-
-    const subjects = data.subjects || [];
-    const modules = showModules ? (data.modules || []) : [];
-    const activities = showActivities ? (data.activities || []) : [];
-    const attendance = data.attendance || [];
-    if (!modules.length && !activities.length && !attendance.length) return '';
-
-    const header = `
-      <div class="section-header">
-        <div class="section-header-left">
-          <h2>Previous section records</h2>
-          <p>Read-only history from sections you previously attended</p>
-        </div>
-      </div>`;
-    const subjectById = new Map(
-      subjects.map(subject => [subject.subject_id, subject]),
-    );
-    const contentBySubject = new Map();
-    modules.forEach(module => {
-      if (!contentBySubject.has(module.subject_id)) {
-        contentBySubject.set(module.subject_id, { modules: [], activities: [] });
-      }
-      contentBySubject.get(module.subject_id).modules.push(module);
-    });
-    activities.forEach(activity => {
-      if (!contentBySubject.has(activity.subject_id)) {
-        contentBySubject.set(activity.subject_id, { modules: [], activities: [] });
-      }
-      contentBySubject.get(activity.subject_id).activities.push(activity);
-    });
-
-    const subjectCards = [...contentBySubject.entries()]
-      .sort(([aId], [bId]) => {
-        const aName = subjectById.get(aId)?.subject_name || '';
-        const bName = subjectById.get(bId)?.subject_name || '';
-        return aName.localeCompare(bName);
-      })
-      .map(([subjectId, content]) => {
-        const subjectName = subjectById.get(subjectId)?.subject_name || 'Previous subject';
-        const moduleRows = content.modules.map(module => {
-          const fileUrl = module.file_url
-            ? (module.file_url.startsWith('http') ? module.file_url : `https://ijed-hcj-1.onrender.com${module.file_url}`)
-            : null;
-          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100)">
-            <div><strong>${escHtml(module.title)}</strong><div style="font-size:11px;color:var(--gray-500)">${escHtml(module.term || 'Archived module')}</div></div>
-            ${fileUrl ? FilePreview.button(fileUrl, module.file_name || module.title, 'Open', 'btn btn-xs btn-outline') : ''}
-          </div>`;
-        }).join('');
-        const activityRows = content.activities.map(activity => {
-          const submission = activity.submission;
-          const result = submission?.is_graded && submission.score != null
-            ? `${submission.score}/${submission.max_score ?? activity.max_score ?? '?'}`
-            : submission ? 'Submitted' : 'No submission';
-          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100)">
-            <div><strong>${escHtml(activity.title)}</strong><div style="font-size:11px;color:var(--gray-500)">${escHtml(activity.term || 'Archived activity')} · ${escHtml(result)}</div></div>
-            ${submission ? `<button class="btn btn-xs btn-outline" onclick="StudentController.viewResult(${Number(activity.id)})">View result</button>` : ''}
-          </div>`;
-        }).join('');
-        return `<article class="card" style="margin-bottom:14px">
-          <div class="card-header"><h3 class="card-title">${escHtml(subjectName)}</h3></div>
-          <div class="card-body">
-            ${content.modules.length ? `<h4 style="margin:0 0 4px">Modules</h4>${moduleRows}` : ''}
-            ${content.activities.length ? `<h4 style="margin:16px 0 4px">Activities &amp; results</h4>${activityRows}` : ''}
-            ${!content.modules.length && !content.activities.length ? '<p>No archived learning content is available for this subject.</p>' : ''}
-          </div>
-        </article>`;
-      }).join('');
-
-    return `${header}
-      ${subjectCards ? `<section style="margin-top:16px"><h3>Previous subjects</h3>${subjectCards}</section>` : ''}
-      ${attendance.length ? `<section style="margin-top:24px"><h3>Previous attendance</h3>${this.attendance(attendance, 'Previous Attendance')}</section>` : ''}`;
+      <div class="subject-list" id="student-subjects-list">${cards}</div>`;
   },
 
   modules(apiModules = null) {
@@ -1345,11 +1262,11 @@ const StudentView = {
    *   terms[]: { term, present, absent, late, excused, total }
    *   totals:  { present, absent, late, excused, total }
    */
-  attendance(data, title = 'My Attendance') {
+  attendance(data) {
     if (!data || !data.length) {
       return `
         <div class="section-header">
-          <div class="section-header-left"><h2>${lmsIcon('clipboard')} ${escHtml(title)}</h2><p>No records found</p></div>
+          <div class="section-header-left"><h2>${lmsIcon('clipboard')} My Attendance</h2><p>No records found</p></div>
         </div>
         <div class="empty-state" style="margin-top:40px">
           <div class="empty-state-icon">${lmsIcon('clipboard')}</div>
@@ -1482,7 +1399,7 @@ const StudentView = {
     return `
       <div class="section-header">
         <div class="section-header-left">
-          <h2>${lmsIcon('clipboard')} ${escHtml(title)}</h2>
+          <h2>${lmsIcon('clipboard')} My Attendance</h2>
           <p>${data.length} subject${data.length !== 1 ? 's' : ''}</p>
         </div>
       </div>
