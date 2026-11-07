@@ -47,7 +47,7 @@ Open Supabase Dashboard → SQL Editor → paste and run each file fully,
    Supabase Realtime and creates notifications for published activities and modules.
 7. `07_activity_term.sql` — adds the activity term column and index.
 8. `08_activity_file_uploads.sql` — adds activity attachment fields, creates/configures the private `Activity-files` bucket, and scopes uploads, signed reads, and deletes to the appropriate student, teacher, or admin.
-9. `08_performance_overview.sql` — adds the performance analytics and authorized class-report RPCs.
+9. `08_performance_overview.sql` — adds performance analysis and authorized class-report RPCs.
 10. `09_student_attendance_summary.sql` — adds the student-scoped attendance summary RPC.
 11. `10_activity_late_submissions.sql` — adds late-submission settings and submission penalty snapshots, and updates the student submission and teacher grading RPCs to enforce them.
 12. `11_audit_logs.sql` — adds the immutable admin audit table, admin-only reporting RPCs, safe change capture, and atomic section/enrollment auditing.

@@ -41,7 +41,7 @@ const DashboardController = {
       {
         id: "performance-analytics",
         icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 3v9h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 15l3-3 2 2 4-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-        label: "Performance Analytics",
+        label: "Performance Analysis",
       },
       { id: "settings", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.7v2.1M12 19.2v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.7 12h2.1M19.2 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', label: "Settings" },
     ],
@@ -483,7 +483,7 @@ const DashboardController = {
       return;
     }
 
-    // ── Student Performance Analytics ───────────────────────────────────────
+    // ── Student Performance Analysis ────────────────────────────────────────
     if (sectionId === "performance-analytics" && role === "student") {
       Loader.start();
       try {

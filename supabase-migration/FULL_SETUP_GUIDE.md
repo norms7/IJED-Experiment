@@ -98,7 +98,7 @@ exact order**, from `supabase-migration/` in your unzipped folder:
    creates notifications for published activities and modules.
 7. `07_activity_term.sql` — adds the activity term column and index.
 8. `08_activity_file_uploads.sql` — adds activity attachment fields, creates/configures the private `Activity-files` bucket, and scopes upload/read/delete access to the activity's teacher and enrolled students.
-9. `08_performance_overview.sql` — adds performance analytics and authorized class-report RPCs.
+9. `08_performance_overview.sql` — adds performance analysis and authorized class-report RPCs.
 10. `09_student_attendance_summary.sql` — adds the student-scoped attendance summary RPC.
 11. `10_activity_late_submissions.sql` — adds late-submission settings and updates submission and grading RPCs.
 12. `11_audit_logs.sql` — installs the admin-only, immutable audit history and reporting RPCs.

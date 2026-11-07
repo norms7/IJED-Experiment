@@ -1,6 +1,6 @@
-# Performance Analytics
+# Performance Analysis
 
-This document describes the final analytics behavior implemented in the LMS front end and the Supabase SQL RPCs used to produce the student and class performance reports.
+This document describes the final performance analysis behavior implemented in the LMS front end and the Supabase SQL RPCs used to produce the student and class performance reports.
 
 ## 1. System overview and architecture
 

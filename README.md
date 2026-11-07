@@ -57,11 +57,11 @@ There is no FastAPI, Python, SQLAlchemy, Alembic, or separate Node/Express serve
 - View subject and term attendance summaries
 - Use a responsive calendar to see class schedules, activity dates, events, and todos; switch between month, week, and agenda views
 - Use the notification inbox
-- Explore Performance Analytics with descriptive and Bayesian analysis
+- Explore Performance Analysis with descriptive and Bayesian analysis
 
-## Performance Analytics
+## Performance Analysis
 
-Analytics are available in the student Performance Analytics area. Results are filtered by subject and term and cached in Supabase for faster repeat loads. Students receive their own records and authorized aggregate comparisons; cross-student information is computed by protected PostgreSQL RPCs.
+Performance analysis is available in the student Performance Analysis area. Results are filtered by subject and term and cached in Supabase for faster repeat loads. Students receive their own records and authorized aggregate comparisons; cross-student information is computed by protected PostgreSQL RPCs.
 
 Teachers can open **Class Performance** for their assigned subjects and sections; administrators can select across the available subjects and sections. The report includes rating-band counts, a needs-attention list, per-student component scores, and a drill-down of activities, attendance, and module reading. The Excel export contains Summary, Activities, Attendance, Modules, and Formulas sheets. Weekly reports retain current-standing summary scores while limiting activity and attendance details to the previous seven days; term reports include the selected term.
 

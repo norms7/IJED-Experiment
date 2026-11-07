@@ -1,12 +1,12 @@
 /* ============================================================
    controllers/analytics.controller.js
-   Handles the Performance Analytics tab.
+   Handles the Performance Analysis tab.
 
    Responsibilities:
      • Load subject list for the filter dropdown
      • Fetch and cache descriptive + Bayesian data
      • Render chart canvases via Chart.js
-     • Handle tab switching (Performance Analytics / Grading Details)
+     • Handle tab switching (Performance Analysis / Grading Details)
      • Handle subject filter changes
      • Manage target-grade slider for improvement probability
 
@@ -186,7 +186,7 @@ const AnalyticsController = {
     await this.load();
   },
 
-  // ── Private: load combined performance analytics ─────────────────────────
+  // ── Private: load combined performance analysis ──────────────────────────
 
   async _loadPerformance() {
     const panel = document.getElementById('analytics-panel-performance');

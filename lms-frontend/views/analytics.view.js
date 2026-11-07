@@ -1,6 +1,6 @@
 /* ============================================================
    views/analytics.view.js
-   Pure render functions for the Performance Analytics tab.
+   Pure render functions for the Performance Analysis tab.
    Follows the same pattern as student.view.js — returns HTML
    strings only; no direct DOM manipulation.
 
@@ -39,7 +39,7 @@ const AnalyticsView = {
     return `
       <div class="analytics-header">
         <div>
-          <h2 class="analytics-title">${analyticsIcon('chart')}Performance Analytics</h2>
+          <h2 class="analytics-title">${analyticsIcon('chart')}Performance Analysis</h2>
           <p class="analytics-sub">See your grades, progress, and attendance.</p>
         </div>
         <div class="analytics-filters">
@@ -64,7 +64,7 @@ const AnalyticsView = {
       <div class="analytics-tabs">
         <button class="analytics-tab active" data-tab="performance"
           onclick="AnalyticsController.switchTab('performance', this)">
-          ${analyticsIcon('trend', 'analytics-tab-icon')}Performance Analytics
+          ${analyticsIcon('trend', 'analytics-tab-icon')}Performance Analysis
         </button>
         <button class="analytics-tab" data-tab="grading-details"
           onclick="AnalyticsController.switchTab('grading-details', this)">
