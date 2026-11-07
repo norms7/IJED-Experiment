@@ -107,6 +107,11 @@ exact order**, from `supabase-migration/` in your unzipped folder:
 15. `14_bayesian_inference_consistency.sql` — updates the deployed Bayesian evidence RPC so fresh and existing installations behave the same.
 16. `15_bayesian_evidence_alignment.sql` — aligns Bayesian evidence rows with authoritative grade and activity data.
 17. `16_transfer_students_by_semester.sql` — adds semester-aware student transfers and subject/student semester fields.
+18. `18_student_semester_history.sql` — scopes current semester data and keeps prior-term student records as read-only history in the relevant tabs.
+19. `19_fix_student_activity_policy_recursion.sql` — prevents recursive RLS evaluation when students read activities and modules.
+20. `20_restore_enrolled_semester_subjects.sql` — reads explicitly enrolled subjects for the current semester tabs while keeping learning content section-scoped.
+21. `21_student_semester_tab_attendance.sql` — adds semester-filtered student attendance for the 1st/2nd semester tabs.
+22. `22_scope_attendance_to_student_sections.sql` — ensures semester attendance is limited to subjects and classes assigned to the student.
 
 For an existing project, run `11_audit_logs.sql` after migrations 01-10 and
 before deploying the updated Edge Functions. Audit history starts at install
@@ -121,6 +126,20 @@ the Modules page; new modules and their activities are section-scoped.
 For an existing project, run `16_transfer_students_by_semester.sql` after
 migrations 01-15. Transfers preserve existing subject enrollments and add
 destination-section subjects for the selected semester.
+
+For an existing project, run `18_student_semester_history.sql` after migration
+16. If migration 17 was previously applied, roll it back first. Deploy the
+matching frontend after migration 18 succeeds. Current semester data remains
+active; prior semester subjects, activities, grades, and attendance are shown
+as read-only history within their existing student tabs.
+If migration 18 was already applied before the recursion fix, run
+`19_fix_student_activity_policy_recursion.sql` as well.
+If enrolled current-semester subjects are missing, also run
+`20_restore_enrolled_semester_subjects.sql`.
+Run `21_student_semester_tab_attendance.sql` after migrations 18-20 for the
+semester tabs in Attendance, Activities, and My Grades frontend updates.
+Run `22_scope_attendance_to_student_sections.sql` after migration 21 if
+attendance is showing records from unrelated classes.
 
 Deploy both admin Edge Functions when account management is enabled:
 

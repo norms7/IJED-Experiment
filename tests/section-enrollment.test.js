@@ -72,7 +72,7 @@ class Query {
     }
     if (this.table === "student_subject_enrollments") {
       return {
-        data: [
+        data: this.db.subjectEnrollments || [
           { student_id: 11, subject_id: 20 },
           { student_id: 12, subject_id: 20 },
           { student_id: 11, subject_id: 22 },
@@ -89,6 +89,8 @@ function createApi() {
     upserts: [],
     upsertError: null,
     currentSemester: null,
+    subjectEnrollments: null,
+    activeSubjects: [],
     rpcCalls: [],
     rpcError: null,
   };
@@ -98,6 +100,12 @@ function createApi() {
   api.sb = {
     from: table => new Query(db, table),
     rpc: async (name, args) => {
+      if (name === "get_student_weekly_schedule") {
+        return { data: [], error: null };
+      }
+      if (name === "get_student_active_subjects") {
+        return { data: db.activeSubjects, error: null };
+      }
       db.rpcCalls.push({ name, args });
       return db.rpcError
         ? { data: null, error: db.rpcError }
@@ -113,6 +121,21 @@ async function run() {
     /coalesce\(subject\.semester::text,\s*''\)/,
     "transfer semester matching must support integer semester values and nulls",
   );
+  assert.match(
+    transferMigration,
+    /assignment\.section_id\s*=\s*p_from_section_id/,
+    "transfers must preserve source-section subjects as enrollments",
+  );
+  assert.match(
+    transferMigration,
+    /nullif\(trim\(coalesce\(subject\.semester::text,\s*''\)\),\s*''\)\s+is\s+null\s+then\s+'1st'/,
+    "subjects without a semester must be included in first-semester transfers",
+  );
+  assert.match(
+    transferMigration,
+    /audit\.metadata\s*->>\s*'source'\s*=\s*'transfer_students_to_section_with_semester'/,
+    "migration must repair enrollments for previously transferred students",
+  );
 
   const { api, db } = createApi();
   const state = await api.getSectionSubjectEnrollmentState(3);
@@ -120,6 +143,45 @@ async function run() {
   assert.deepEqual(Array.from(state.assignedSubjectIds), [20, 21]);
   assert.equal(state.enrolledCounts[20], 2);
   assert.equal(state.enrolledCounts[22], 1);
+
+  db.subjectEnrollments = [
+    {
+      student_id: 11,
+      subject_id: 20,
+      subjects: { id: 20, name: "First semester subject", semester: "1st" },
+    },
+    {
+      student_id: 11,
+      subject_id: 22,
+      subjects: { id: 22, name: "Legacy subject", semester: null },
+    },
+    {
+      student_id: 11,
+      subject_id: 23,
+      subjects: { id: 23, name: "Second semester subject", semester: "2nd" },
+    },
+    {
+      student_id: 11,
+      subject_id: 24,
+      subjects: { id: 24, name: "Legacy formatted semester", semester: "First Semester" },
+    },
+  ];
+  db.activeSubjects = db.subjectEnrollments.map(row => ({
+    subject_id: row.subject_id,
+    subject_name: row.subjects.name,
+    semester: row.subjects.semester,
+  }));
+  const firstSemesterSubjects = await api.getStudentSubjects("1st");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(firstSemesterSubjects.map(subject => subject.subject_id))),
+    [20, 22, 24],
+    "untagged and legacy-formatted first-semester subjects should remain visible",
+  );
+  const secondSemesterSubjects = await api.getStudentSubjects("2nd");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(secondSemesterSubjects.map(subject => subject.subject_id))),
+    [23],
+  );
 
   const enrollment = await api.enrollSectionStudentsInSubjects(3, [20, 21, 20]);
   assert.deepEqual(
