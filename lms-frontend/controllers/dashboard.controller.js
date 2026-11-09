@@ -443,10 +443,11 @@ const DashboardController = {
       try {
         const currentSem = opts?.semester ?? await api.getStudentCurrentSemester();
         selectedSemester = currentSem;
-        const [activities, subjects, history] = await Promise.all([
+        const [activities, subjects, history, reportGrades] = await Promise.all([
           api.getStudentActivities(null, currentSem),
           api.getStudentSubjects(),
           api.getStudentHistory(),
+          api.getStudentReportCardGrades(currentSem),
         ]);
         const normalizeSemester = value => {
           const normalized = String(value || '').trim().toLowerCase();
@@ -469,6 +470,18 @@ const DashboardController = {
           subjectMap[subject.subject_id] = subject.subject_name;
         });
         area.innerHTML = StudentView.myGrades(currentSem);
+        const reportWrap = document.getElementById("my-report-card-wrap");
+        if (reportWrap) {
+          const semesterSubjects = (subjects || []).filter(subject =>
+            normalizeSemester(subject.semester) === normalizeSemester(currentSem)
+            || (normalizeSemester(currentSem) === "1st" && !subject.semester),
+          );
+          reportWrap.innerHTML = StudentView.myReportCard(
+            semesterSubjects,
+            reportGrades,
+            normalizeSemester(currentSem),
+          );
+        }
         const wrap = document.getElementById("my-grades-wrap");
         if (wrap) {
           wrap.innerHTML = StudentView.myGradesTable(
@@ -480,6 +493,14 @@ const DashboardController = {
       } catch (err) {
         console.error("[MyGrades]", err);
         area.innerHTML = StudentView.myGrades(selectedSemester);
+        const reportWrap = document.getElementById("my-report-card-wrap");
+        if (reportWrap) {
+          reportWrap.innerHTML = `<div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-title">Failed to load report card</div>
+            <div class="empty-state-sub">${escHtml(err.message)}</div>
+          </div>`;
+        }
         const wrap = document.getElementById("my-grades-wrap");
         if (wrap)
           wrap.innerHTML = `<div class="empty-state">

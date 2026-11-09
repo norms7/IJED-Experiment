@@ -1112,9 +1112,101 @@ const StudentView = {
         </div>
       </div>
       ${this.semesterTabs('my-grades', semester)}
+      <div id="my-report-card-wrap">
+        <div class="empty-state"><div class="empty-state-icon">${lmsIcon('loading')}</div><div class="empty-state-title">Loading report card…</div></div>
+      </div>
+      <div style="margin:22px 0 10px">
+        <h3 style="margin:0;color:var(--maroon)">Activity Grades</h3>
+        <p style="margin:4px 0 0;color:var(--gray-500);font-size:13px">Individual submissions for the selected semester.</p>
+      </div>
       <div id="my-grades-wrap">
         <div class="empty-state"><div class="empty-state-icon">${lmsIcon('loading')}</div><div class="empty-state-title">Loading grades…</div></div>
       </div>`;
+  },
+
+  myReportCard(subjects, reportGrades, semester) {
+    const normalizeSemester = value => {
+      const normalized = String(value || '').trim().toLowerCase();
+      return ['2', '2nd', 'second', '2nd semester', 'second semester'].includes(normalized)
+        ? '2nd'
+        : '1st';
+    };
+    const selectedSemester = normalizeSemester(semester);
+    const enrolledSubjects = (Array.isArray(subjects) ? subjects : [])
+      .filter(subject => normalizeSemester(subject.semester) === selectedSemester);
+    const published = (Array.isArray(reportGrades) ? reportGrades : [])
+      .filter(record =>
+        record.is_published && normalizeSemester(record.semester) === selectedSemester,
+      );
+    const years = [...new Set(published.map(record => record.school_year || ''))]
+      .sort((a, b) => b.localeCompare(a));
+    if (!years.length) years.push('');
+
+    const termOrder = ['1st', '2nd', '3rd', '4th'];
+    const formatGrade = value => value == null ? '—' : Number(value).toFixed(2);
+    const yearCards = years.map((schoolYear, yearIndex) => {
+      const yearGrades = published.filter(record => (record.school_year || '') === schoolYear);
+      const currentYear = yearIndex === 0;
+      const yearSubjects = currentYear
+        ? enrolledSubjects
+        : enrolledSubjects.filter(subject =>
+          yearGrades.some(record => record.subject_id === subject.subject_id),
+        );
+      const subjectsToRender = yearSubjects.length
+        ? yearSubjects
+        : [...new Map(yearGrades.map(record => [record.subject_id, {
+          subject_id: record.subject_id,
+          subject_name: `Subject ${record.subject_id}`,
+        }])).values()];
+      const rows = subjectsToRender.map(subject => {
+        const subjectRecords = termOrder.map(term => {
+          const record = yearGrades.find(item =>
+            item.subject_id === subject.subject_id && item.term === term,
+          );
+          const detail = record
+            ? `Activities ${formatGrade(record.activity_pct)}% · Attendance ${formatGrade(record.attendance_pct)}% · Modules ${formatGrade(record.module_pct)}%`
+            : 'No grade published';
+          const gradeBadge = record?.initial_grade != null
+            ? `<span class="badge ${record.initial_grade >= 75 ? 'badge-green' : 'badge-danger'}">${formatGrade(record.initial_grade)}</span>`
+            : `<span class="badge badge-gray">—</span>`;
+          return {
+            record,
+            cell: `<td title="${escHtml(detail)}" style="text-align:center;font-weight:700">
+            ${gradeBadge}
+          </td>`,
+          };
+        });
+        const cells = subjectRecords.map(item => item.cell).join('');
+        const termGrades = subjectRecords.map(item => item.record?.initial_grade);
+        const finalGrade = termGrades.every(value => value != null)
+          ? termGrades.reduce((sum, value) => sum + Number(value), 0) / termGrades.length
+          : null;
+        const finalGradeCell = finalGrade == null
+          ? '<td style="text-align:center;font-weight:700"><span class="badge badge-gray">—</span></td>'
+          : `<td style="text-align:center;font-weight:700"><span class="badge ${finalGrade >= 75 ? 'badge-green' : 'badge-danger'}">${formatGrade(finalGrade)}</span></td>`;
+        return `<tr data-searchable>
+          <td style="font-weight:600;color:var(--maroon)">${escHtml(subject.subject_name || 'Subject')}</td>
+          ${cells}
+          ${finalGradeCell}
+        </tr>`;
+      }).join('');
+      const title = schoolYear
+        ? `${escHtml(semester)} Semester · ${escHtml(schoolYear)}`
+        : `${escHtml(semester)} Semester`;
+      return `<section class="card" style="margin-bottom:16px">
+        <div style="padding:16px 18px 0">
+          <h3 style="margin:0;color:var(--maroon)">Report Card — ${title}</h3>
+          <p style="margin:5px 0 12px;color:var(--gray-500);font-size:12px">Initial grades are calculated independently for each term. Final Grade is the average of all four published term grades. Hover a grade for its component percentages.</p>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" style="min-width:680px">
+            <thead><tr><th>Subject</th>${termOrder.map(term => `<th style="text-align:center">${term} Term</th>`).join('')}<th style="text-align:center">Final Grade</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="6" class="text-center text-muted">No enrolled subjects for this semester.</td></tr>`}</tbody>
+          </table>
+        </div>
+      </section>`;
+    }).join('');
+    return yearCards;
   },
 
   // ── My Grades populated table ─────────────────────────────────────────────

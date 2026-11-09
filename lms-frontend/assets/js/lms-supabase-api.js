@@ -1130,6 +1130,7 @@ class LMSAdminAPI {
         subject_name: row.subjects?.name || "",
         subject_description: row.subjects?.description || "",
         subject_semester: row.subjects?.semester ?? null,
+        subject_school_year: row.classes?.school_year ?? "",
         class_id: row.class_id,
         class_name: row.classes?.name || "",
         grade_level: row.classes?.grade_level || "",
@@ -1137,6 +1138,56 @@ class LMSAdminAPI {
         section_name: row.sections?.name || row.classes?.name || "",
       }));
     });
+  }
+
+  async getTeacherReportCardGrades({ sectionId, subjectId, semester, schoolYear = "" }) {
+    let query = this.sb
+      .from("student_report_cards")
+      .select("student_id, subject_id, section_id, semester, term, school_year, activity_pct, attendance_pct, module_pct, initial_grade, is_published, published_at")
+      .eq("section_id", sectionId)
+      .eq("subject_id", subjectId)
+      .eq("semester", semester)
+      .eq("school_year", schoolYear);
+    return this._throwIfError(await query);
+  }
+
+  async getMyAdviserSections() {
+    return this._throwIfError(await this.sb.rpc("get_my_adviser_sections"));
+  }
+
+  async getAdviserReportCard(sectionId, semester) {
+    const { data, error } = await this.sb.rpc("get_adviser_report_card", {
+      p_section_id: sectionId,
+      p_semester: semester,
+    });
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+
+  async publishStudentReportCardGrade({
+    studentId,
+    subjectId,
+    sectionId,
+    semester,
+    term,
+    activityPct,
+    attendancePct,
+    modulePct,
+    isPublished = true,
+  }) {
+    const result = this._throwIfError(await this.sb.rpc("publish_student_report_card_grade", {
+      p_student_id: studentId,
+      p_subject_id: subjectId,
+      p_section_id: sectionId,
+      p_semester: semester,
+      p_term: term,
+      p_activity_pct: activityPct,
+      p_attendance_pct: attendancePct,
+      p_module_pct: modulePct,
+      p_is_published: isPublished,
+    }));
+    this.clearCache("reportcard");
+    return result;
   }
 
   async _myTeacherId() {
@@ -1804,6 +1855,19 @@ class LMSAdminAPI {
     if (semesters.includes("1st")) return "1st";
     if (semesters.includes("2nd")) return "2nd";
     return semesters[0] || "1st";
+  }
+
+  async getStudentReportCardGrades(semester) {
+    const normalizedSemester = this._normalizeSemester(semester);
+    if (!["1st", "2nd"].includes(normalizedSemester)) {
+      throw new Error("Report card semester must be 1st or 2nd.");
+    }
+    return this._throwIfError(await this.sb
+      .from("student_report_cards")
+      .select("subject_id, semester, term, school_year, activity_pct, attendance_pct, module_pct, initial_grade, is_published, published_at")
+      .eq("semester", normalizedSemester)
+      .eq("is_published", true)
+      .order("published_at", { ascending: false }));
   }
 
   async getStudentModules(subject_id = null) {
