@@ -211,6 +211,7 @@ const AdminController = {
   async openAddUser(preRole = 'student') {
     let subjectOpts = '<option value="">— Loading subjects… —</option>';
     let sectionOpts = '<option value="">— Loading sections… —</option>';
+    let adviserOpts = '<option value="">— Not a class adviser —</option>';
     let classOpts   = '<option value="">— Loading classes… —</option>';
 
     try {
@@ -224,6 +225,13 @@ const AdminController = {
       const classes  = classesRes.items  || (Array.isArray(classesRes)  ? classesRes  : []);
       subjectOpts = subjects.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('') || '<option value="">No subjects in DB</option>';
       sectionOpts = '<option value="">— Select Section —</option>' + sections.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+      adviserOpts = '<option value="">— Not a class adviser —</option>' + sections.map(s => {
+        const adviserName = s.adviser?.user
+          ? `${s.adviser.user.first_name} ${s.adviser.user.last_name}`
+          : '';
+        const detail = adviserName ? ` · Current adviser: ${adviserName}` : '';
+        return `<option value="${s.id}">${escHtml(s.name + detail)}</option>`;
+      }).join('');
       classOpts   = '<option value="">— Skip for now —</option>'   + classes.map(c  => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
     } catch (e) {
       console.warn('Could not load dropdown data:', e.message);
@@ -273,6 +281,10 @@ const AdminController = {
             <label class="form-label">Specialization</label>
             <input class="form-control" id="f-spec" placeholder="e.g. Science & Math" />
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Class Adviser Section</label>
+          <select class="form-control" id="f-adviser-section">${adviserOpts}</select>
         </div>
         <div class="form-group" style="margin-top: 12px;">
           <label class="form-label" style="font-weight: 600;">${ADMIN_ICONS.book} Subjects & Classes (at least one)</label>
@@ -553,6 +565,9 @@ const AdminController = {
     const last_name  = parts.slice(1).join(' ') || parts[0];
     let teacherAssignments = [];
     const employeeId = role === 'teacher' ? document.getElementById('f-empid').value.trim() : '';
+    const adviserSectionId = role === 'teacher'
+      ? document.getElementById('f-adviser-section')?.value || ''
+      : '';
     const studentLrn = role === 'student' ? document.getElementById('f-lrn').value.trim() : '';
 
     if (role === 'teacher') {
@@ -589,6 +604,13 @@ const AdminController = {
     }
 
     try {
+      if (adviserSectionId) {
+        const section = api._throwIfError(await api.sb.from('sections')
+          .select('id, adviser_id').eq('id', Number(adviserSectionId)).single());
+        if (section.adviser_id && !window.confirm('This section already has a class adviser. Replace the current adviser with this new teacher?')) {
+          return;
+        }
+      }
       if (employeeId) {
         const existing = api._throwIfError(await api.sb.from('teachers')
           .select('id').eq('employee_id', employeeId).maybeSingle());
@@ -632,6 +654,16 @@ const AdminController = {
             await api.sb.from('sections').select('class_id').eq('id', a.sectionId).single(),
           );
           await api.assignTeacherToClass({ teacher_id: teacherProfile.id, class_id: secRow.class_id, section_id: a.sectionId, subject_id: a.subjectId, schedule: a.schedule });
+        }
+        if (adviserSectionId) {
+          const section = await api.getSection(Number(adviserSectionId));
+          await api.updateSection(section.id, {
+            name: section.name,
+            grade_level: section.grade_level,
+            school_year: section.school_year,
+            room: section.room,
+            adviser_id: teacherProfile.id,
+          });
         }
         Toast.show(`${teacherAssignments.length} subject(s)/section(s) assigned.`, 'info');
       }
@@ -732,6 +764,13 @@ const AdminController = {
       if (role === 'teacher') {
         const subjectOpts = subjects.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
         const sectionOpts = sections.map(sec => `<option value="${sec.id}">${escHtml(sec.name)}</option>`).join('');
+        const adviserSection = sections.find(sec => Number(sec.adviser_id) === Number(teacherProfile?.id));
+        const adviserSectionOpts = sections.map(sec => {
+          const currentAdviser = sec.adviser?.user
+            ? ` · Current adviser: ${sec.adviser.user.first_name} ${sec.adviser.user.last_name}`
+            : '';
+          return `<option value="${sec.id}" ${Number(sec.id) === Number(adviserSection?.id) ? 'selected' : ''}>${escHtml(sec.name + currentAdviser)}</option>`;
+        }).join('');
         let assignmentsHtml = '';
         existingAssignments.forEach((ass, idx) => {
           assignmentsHtml += `
@@ -751,6 +790,12 @@ const AdminController = {
         extraFields = `
           <hr><h4>Teacher Details</h4>
           <div class="form-row"><div class="form-group"><label>Employee ID</label><input class="form-control" id="e-empid" value="${escHtml(teacherProfile?.employee_id || '')}" /></div><div class="form-group"><label>Specialization</label><input class="form-control" id="e-spec" value="${escHtml(teacherProfile?.specialization || '')}" /></div></div>
+          <div class="form-group">
+            <label class="form-label">Class Adviser Section</label>
+            <select class="form-control" id="e-adviser-section">
+              <option value="">— Not a class adviser —</option>${adviserSectionOpts}
+            </select>
+          </div>
           <div class="form-group"><label class="form-label" style="font-weight:600;">${ADMIN_ICONS.book} Subjects & Classes</label><div id="edit-assignments-container">${assignmentsHtml}</div><button type="button" id="add-edit-assignment-btn" class="btn btn-outline btn-sm">${ADMIN_ICONS.plus} Add Another Subject & Class</button></div>`;
       }
 
@@ -836,11 +881,64 @@ const AdminController = {
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
     try {
+      let adviserSectionChanges = [];
+      if (window._editTeacherId) {
+        const selectedSectionId = Number(document.getElementById('e-adviser-section')?.value) || null;
+        const sectionsRes = await api.getSections();
+        const sections = sectionsRes.items || (Array.isArray(sectionsRes) ? sectionsRes : []);
+        const sectionsById = new Map(sections.map(section => [Number(section.id), section]));
+        if (selectedSectionId && !sectionsById.has(selectedSectionId)) {
+          throw new Error('The selected adviser section is no longer available. Reload and try again.');
+        }
+
+        const selectedSection = selectedSectionId ? sectionsById.get(selectedSectionId) : null;
+        const replacements = selectedSection?.adviser_id
+          && Number(selectedSection.adviser_id) !== Number(window._editTeacherId)
+          ? [selectedSection]
+          : [];
+        if (replacements.length && !window.confirm(
+          `Replace the current adviser for "${replacements[0].name}"?`
+        )) {
+          if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+          return;
+        }
+
+        adviserSectionChanges = sections.filter(section => {
+          const currentlyAssigned = Number(section.adviser_id) === Number(window._editTeacherId);
+          const shouldBeAssigned = Number(section.id) === selectedSectionId;
+          return currentlyAssigned !== shouldBeAssigned
+            || (shouldBeAssigned && Number(section.adviser_id) !== Number(window._editTeacherId));
+        });
+      }
+
       await api.updateUser(id, updates);
       Toast.show('User details updated.', 'info');
 
       if (window._editTeacherId) {
         const teacherId = window._editTeacherId;
+        const selectedSectionId = Number(document.getElementById('e-adviser-section')?.value) || null;
+        for (const section of adviserSectionChanges.filter(
+          item => Number(item.adviser_id) === teacherId && Number(item.id) !== selectedSectionId,
+        )) {
+          await api.updateSection(section.id, {
+            name: section.name,
+            grade_level: section.grade_level,
+            school_year: section.school_year,
+            room: section.room,
+            adviser_id: null,
+          });
+        }
+        for (const section of adviserSectionChanges.filter(
+          item => Number(item.id) === selectedSectionId,
+        )) {
+          await api.updateSection(section.id, {
+            name: section.name,
+            grade_level: section.grade_level,
+            school_year: section.school_year,
+            room: section.room,
+            adviser_id: teacherId,
+          });
+        }
         const empId = document.getElementById('e-empid')?.value.trim() || null;
         const spec  = document.getElementById('e-spec')?.value.trim()  || null;
         if (empId !== undefined || spec !== undefined) {
@@ -998,11 +1096,24 @@ const AdminController = {
   },
 
   async _teacherOpts(selectedId = '') {
-    const teachersRes = await api.getTeachers();
+    const selectedTeacherId = Number(selectedId) || null;
+    const [teachersRes, sectionsRes] = await Promise.all([
+      api.getTeachers(),
+      api.getSections(),
+    ]);
     const teachers    = teachersRes.items || (Array.isArray(teachersRes) ? teachersRes : []);
-    const opts = teachers.map(t =>
-      `<option value="${t.id}" ${t.id === selectedId ? 'selected' : ''}>${escHtml(t.user.first_name)} ${escHtml(t.user.last_name)}</option>`
-    ).join('');
+    const sections    = sectionsRes.items || (Array.isArray(sectionsRes) ? sectionsRes : []);
+    const assignedElsewhere = new Set(
+      sections
+        .filter(section => section.adviser_id != null && Number(section.adviser_id) !== selectedTeacherId)
+        .map(section => Number(section.adviser_id))
+        .filter(Number.isInteger),
+    );
+    const opts = teachers
+      .filter(teacher => Number(teacher.id) === selectedTeacherId || !assignedElsewhere.has(Number(teacher.id)))
+      .map(t =>
+        `<option value="${t.id}" ${Number(t.id) === selectedTeacherId ? 'selected' : ''}>${escHtml(t.user.first_name)} ${escHtml(t.user.last_name)}</option>`
+      ).join('');
     return '<option value="">— No adviser assigned —</option>' + opts;
   },
 

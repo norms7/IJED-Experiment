@@ -428,8 +428,8 @@ const TeacherView = {
   },
 
   // ── Sections list table ───────────────────────────────────────────────────
-  gradebookSectionsList(subjects) {
-    if (!subjects || subjects.length === 0) {
+  gradebookSectionsList(subjects, adviserSections = []) {
+    if ((!subjects || subjects.length === 0) && (!adviserSections || adviserSections.length === 0)) {
       return `<div class="empty-state">
         <div class="empty-state-icon">${LMS_ICONS.clipboard}</div>
         <div class="empty-state-title">No sections assigned</div>
@@ -441,7 +441,7 @@ const TeacherView = {
     // containing both ICT1102 and ICT1103) must never merge their students
     // into one gradebook row (same fix already applied to Attendance).
     const sectionMap = {};
-    subjects.forEach(sub => {
+    (subjects || []).forEach(sub => {
       const key = sub.section_id;
       if (!sectionMap[key]) {
         sectionMap[key] = {
@@ -455,12 +455,27 @@ const TeacherView = {
       }
       sectionMap[key].subjects.push(sub);
     });
+    (adviserSections || []).forEach(section => {
+      const key = section.section_id;
+      if (!sectionMap[key]) {
+        sectionMap[key] = {
+          section_id: section.section_id,
+          section_name: section.section_name,
+          class_id: section.class_id,
+          class_name: section.class_name,
+          grade_level: section.grade_level,
+          subjects: [],
+        };
+      }
+      sectionMap[key].is_adviser = true;
+    });
     const sections = Object.values(sectionMap);
 
     const rows = sections.map(sec => `
-      <tr data-searchable style="cursor:pointer" onclick="GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
+      <tr data-searchable>
         <td>
           <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.section_name)}</div>
+          ${sec.is_adviser ? '<span class="badge badge-gold" style="font-size:10px">Class Adviser</span>' : ''}
         </td>
         <td>
           <div style="display:flex;flex-wrap:wrap;gap:4px">
@@ -469,9 +484,10 @@ const TeacherView = {
         </td>
         <td><span class="badge badge-gray" id="student-count-${sec.section_id}">Loading…</span></td>
         <td>
-          <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">
-            ${lmsIcon('chart')} View Gradebook
-          </button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${sec.subjects.length ? `<button class="btn btn-xs btn-outline" onclick="GradebookController.openSection(${sec.section_id}, '${escHtml(sec.section_name)}')">${lmsIcon('chart')} Gradebook</button>` : ''}
+            ${sec.is_adviser ? `<button class="btn btn-xs btn-primary" onclick="GradebookController.openAdviserReportCard(${sec.section_id}, '${escHtml(sec.section_name)}')">${lmsIcon('search')} View Report Card</button>` : ''}
+          </div>
         </td>
       </tr>`).join('');
 
@@ -494,25 +510,38 @@ const TeacherView = {
   },
 
   // ── Section Gradebook Detail Page — per-subject, per-term ────────────────
-  gradebookSection(sectionName, classSubjects, activeSubjectId, activeTerm, students, activities, modules, attendance, loading = false) {
+  gradebookSection(sectionName, classSubjects, activeSubjectId, activeSemester, activeTerm, students, activities, modules, attendance, reportCards = [], canViewReportCard = false, loading = false) {
     const studentCount    = students.length;
     const totalActivities = activities.length;
     const totalModules    = modules.length;
     const attTotal        = attendance?.total_meetings || 0;
-    const activeSubject   = classSubjects.find(s => s.subject_id === activeSubjectId) || classSubjects[0] || {};
+    const normalizeSemester = value => {
+      const semester = String(value || '').trim().toLowerCase();
+      return ['2', '2nd', 'second', '2nd semester', 'second semester'].includes(semester) ? '2nd' : '1st';
+    };
+    const semesterSubjects = classSubjects.filter(subject =>
+      normalizeSemester(subject.subject_semester) === activeSemester,
+    );
+    const activeSubject = semesterSubjects.find(s => s.subject_id === activeSubjectId) || semesterSubjects[0] || {};
 
     // ── Subject dropdown ──────────────────────────────────────────────────
-    const subjectOptions = classSubjects.map(s =>
+    const subjectOptions = semesterSubjects.map(s =>
       `<option value="${s.subject_id}" ${s.subject_id === activeSubjectId ? 'selected' : ''}>${escHtml(s.subject_name)}</option>`
     ).join('');
 
+    const semesterOptions = ['1st', '2nd'].map(semester =>
+      `<option value="${semester}" ${semester === activeSemester ? 'selected' : ''}>${semester} Semester</option>`
+    ).join('');
     const termOptions = ['1st', '2nd', '3rd', '4th'].map(t =>
       `<option value="${t}" ${t === activeTerm ? 'selected' : ''}>${t} Term</option>`
     ).join('');
+    const reportCardByStudentTerm = new Map(
+      (reportCards || []).map(record => [`${record.student_id}:${record.term}`, record]),
+    );
 
     // ── Per-student grade rows ─────────────────────────────────────────────
     const rows = loading
-      ? `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">${LMS_ICONS.loading} Loading grades…</td></tr>`
+      ? `<tr><td colspan="10" class="text-center text-muted" style="padding:40px">${LMS_ICONS.loading} Loading grades…</td></tr>`
       : (students.map(stu => {
           const studentId  = stu.id;
           const fullName   = `${stu.user?.first_name || ''} ${stu.user?.last_name || ''}`.trim() || `Student #${studentId}`;
@@ -531,6 +560,7 @@ const TeacherView = {
           const stuAttTotal   = stu._attTotal    ?? 0;
           const { activityPct, initialGrade, transmutedGrade } =
             TeacherView.gradebookScores(stu, activities, modules);
+          const reportRecord = reportCardByStudentTerm.get(`${studentId}:${activeTerm}`);
           const gradeColor = transmutedGrade === null ? 'badge-gray'
             : transmutedGrade >= 75 ? 'badge-green' : 'badge-danger';
           const formatPct = value => value === null ? '—' : `${Number(value.toFixed(2))}%`;
@@ -546,6 +576,11 @@ const TeacherView = {
           const initialBadge = initialGrade !== null
             ? `<span class="badge ${transmutedGrade >= 75 ? 'badge-green' : 'badge-danger'}" style="font-size:11px">${formatPct(initialGrade)}</span>`
             : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
+          const reportCardCell = reportRecord?.is_published
+            ? `<span class="badge badge-green" style="font-size:10px">Published</span>`
+            : initialGrade !== null
+              ? `<span class="badge badge-gray" style="font-size:10px">Not published</span>`
+              : `<span class="badge badge-gray" style="font-size:10px">No grade</span>`;
 
           return `<tr data-searchable>
             <td><div style="font-weight:600">${escHtml(fullName)}</div></td>
@@ -563,11 +598,12 @@ const TeacherView = {
               <span class="badge ${gradeColor}" style="font-size:12px;font-weight:700">${transmutedGrade ?? '—'}</span>
               ${transmutedGrade !== null ? `<div style="font-size:10px;color:var(--gray-400)">${transmutedGrade >= 75 ? 'Passing' : 'Below passing'}</div>` : ''}
             </td>
+            <td style="text-align:center">${reportCardCell}</td>
             <td>
               <button class="btn btn-xs btn-outline" onclick="GradebookController.viewStudentBreakdown(${studentId}, '${escHtml(fullName)}')">${lmsIcon('search')} Details</button>
             </td>
           </tr>`;
-        }).join('') || `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">No students enrolled.</td></tr>`);
+        }).join('') || `<tr><td colspan="10" class="text-center text-muted" style="padding:40px">No students enrolled.</td></tr>`);
 
     return `
       <!-- Header -->
@@ -584,11 +620,16 @@ const TeacherView = {
         <div class="section-header-right teacher-resource-header-actions">
           <div class="search-box"><span>${LMS_ICONS.search}</span><input type="text" id="global-search" placeholder="Search students…" /></div>
           <button class="btn btn-outline btn-sm" onclick="GradebookController.exportSection()">${lmsIcon('download')} Export Excel</button>
+          <button class="btn btn-primary btn-sm" id="gb-open-publish-modal" onclick="GradebookController.publishAllGrades()">Publish Grades</button>
         </div>
       </div>
 
       <!-- Subject + Term filter (mirrors Attendance UI) -->
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+        <select id="gb-semester-select" class="form-control" style="min-width:150px;max-width:180px"
+          onchange="GradebookController.onSemesterChange()">
+          ${semesterOptions}
+        </select>
         <select id="gb-subject-select" class="form-control" style="min-width:180px;max-width:260px"
           onchange="GradebookController.onFilterChange()">
           ${subjectOptions}
@@ -597,8 +638,8 @@ const TeacherView = {
           onchange="GradebookController.onFilterChange()">
           ${termOptions}
         </select>
-        <span style="font-size:12px;color:var(--gray-400)">
-          Showing grades for <strong style="color:var(--maroon)">${escHtml(activeSubject.subject_name || '')}</strong> — <strong>${escHtml(activeTerm)} Term</strong>
+        <span id="gb-filter-summary" style="font-size:12px;color:var(--gray-400)">
+          Showing <strong>${escHtml(activeSemester)} Semester</strong> grades for <strong style="color:var(--maroon)">${escHtml(activeSubject.subject_name || '')}</strong> — <strong>${escHtml(activeTerm)} Term</strong>
         </span>
       </div>
 
@@ -636,6 +677,7 @@ const TeacherView = {
                 <th style="text-align:center;white-space:nowrap">ATT. <span style="font-weight:400;font-size:10px;opacity:.75">(PRES/TOT)</span></th>
                 <th style="text-align:center;white-space:nowrap">INITIAL GRADE</th>
                 <th style="text-align:center;white-space:nowrap">TRANSMUTED GRADE</th>
+                <th style="text-align:center;white-space:nowrap">REPORT CARD</th>
                 <th style="white-space:nowrap">BREAKDOWN</th>
               </tr>
             </thead>
@@ -653,6 +695,87 @@ const TeacherView = {
           Formula: if Initial Grade ≥ 60, 75 + floor((Initial Grade − 60) / 1.6 + 1e-9); otherwise 60 + floor(Initial Grade / 4 + 1e-9). Capped at 100.
         </span>
       </div>`;
+  },
+
+  adviserReportCard(sectionName, sectionId, semester, records, selectedStudentId = null) {
+    const rows = Array.isArray(records) ? records : [];
+    const students = [...new Map(rows.map(row => [
+      row.student_id,
+      { id: row.student_id, name: row.student_name },
+    ])).values()];
+    const activeStudentId = selectedStudentId && students.some(student => student.id === selectedStudentId)
+      ? selectedStudentId
+      : students[0]?.id;
+    const activeStudent = students.find(student => student.id === activeStudentId);
+    const studentOptions = students.map(student =>
+      `<option value="${student.id}" ${student.id === activeStudentId ? 'selected' : ''}>${escHtml(student.name || `Student #${student.id}`)}</option>`
+    ).join('');
+    const subjectRows = rows
+      .filter(row => row.student_id === activeStudentId)
+      .map(row => {
+        const termGrades = [
+          row.first_term_grade,
+          row.second_term_grade,
+          row.third_term_grade,
+          row.fourth_term_grade,
+        ];
+        const grades = termGrades.map(value => value == null
+          ? '<td style="text-align:center"><span class="badge badge-gray">—</span></td>'
+          : `<td style="text-align:center"><span class="badge ${Number(value) >= 75 ? 'badge-green' : 'badge-danger'}">${Number(value).toFixed(2)}</span></td>`,
+        ).join('');
+        const finalGrade = termGrades.every(value => value != null)
+          ? termGrades.reduce((sum, value) => sum + Number(value), 0) / termGrades.length
+          : null;
+        const finalGradeCell = finalGrade == null
+          ? '<td style="text-align:center"><span class="badge badge-gray">—</span></td>'
+          : `<td style="text-align:center"><span class="badge ${finalGrade >= 75 ? 'badge-green' : 'badge-danger'}">${finalGrade.toFixed(2)}</span></td>`;
+        return `<tr data-searchable>
+          <td style="font-weight:600;color:var(--maroon)">${escHtml(row.subject_name || 'Subject')}</td>
+          ${grades}
+          ${finalGradeCell}
+        </tr>`;
+      }).join('');
+    const schoolYear = rows[0]?.school_year || '—';
+    const semesterOptions = ['1st', '2nd'].map(value =>
+      `<option value="${value}" ${value === semester ? 'selected' : ''}>${value} Semester</option>`
+    ).join('');
+
+    return `<div class="section-header">
+      <div class="section-header-left">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-ghost btn-sm" onclick="DashboardController.loadSection('grades')">← Back</button>
+          <div><h2>${escHtml(sectionName)} Report Card</h2><p>AY ${escHtml(schoolYear)}</p></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      <label for="adviser-report-semester" style="font-weight:600">Semester</label>
+      <select class="form-control" id="adviser-report-semester" style="max-width:180px" onchange="GradebookController.onAdviserSemesterChange()">
+        ${semesterOptions}
+      </select>
+      <label for="adviser-report-student" style="font-weight:600">Student</label>
+      <select class="form-control" id="adviser-report-student" style="max-width:280px" onchange="GradebookController.onAdviserStudentChange()">
+        ${studentOptions || '<option value="">No enrolled students</option>'}
+      </select>
+    </div>
+    <section class="card">
+      <div style="padding:16px 18px 0">
+        <h3 style="margin:0;color:var(--maroon)">${escHtml(semester)} Semester Report Card${activeStudent ? ` · ${escHtml(activeStudent.name)}` : ''}</h3>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" style="min-width:680px">
+          <thead><tr>
+            <th>Subject</th>
+            <th style="text-align:center">1st Term</th>
+            <th style="text-align:center">2nd Term</th>
+            <th style="text-align:center">3rd Term</th>
+            <th style="text-align:center">4th Term</th>
+            <th style="text-align:center">Final Grade</th>
+          </tr></thead>
+          <tbody>${subjectRows || `<tr><td colspan="6" class="text-center text-muted" style="padding:32px">No enrolled subjects or report-card grades for this semester.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </section>`;
   },
 
   // ATTENDANCE VIEWS

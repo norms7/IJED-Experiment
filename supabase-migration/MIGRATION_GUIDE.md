@@ -126,6 +126,27 @@ If semester attendance includes records from unrelated classes, run
 attendance to the student's enrolled subjects and active or audited former
 section assignments.
 
+Run `23_student_report_cards.sql` after migration 22. It creates term-specific,
+semester-scoped report-card snapshots and restricts teacher report-card reads to
+the teacher assigned as adviser of that section. Each teacher may advise only
+one section; the migration stops if existing sections contain duplicate adviser
+assignments, which must be resolved before retrying it. When creating or editing
+a teacher account, an administrator may optionally assign one class-adviser
+section; adviser assignment is also available in the admin section editor.
+The adviser report card calculates each student's grades across all enrolled
+subjects directly from that term's published activities, attendance, and
+modules, so it does not depend on every subject teacher opening the gradebook.
+Published grade snapshots are retained; unpublished grades are calculated live
+for the adviser. The teacher's Publish action controls whether students can see
+the grade in My Grades; draft updates do not unpublish grades that were already
+published. To roll it back, run
+`23_rollback_student_report_cards.sql`.
+
+If migration 23 was already applied, rerun the updated
+`23_student_report_cards.sql` before deploying the matching frontend. The
+updated migration adds live adviser grade calculations and changes the publish
+RPC signature.
+
 Copy both files from `edge_functions/` into the canonical CLI paths under
 `supabase/functions/`, then deploy `admin-update-user` alongside
 `admin-create-user` so administrators can update Auth email addresses and
