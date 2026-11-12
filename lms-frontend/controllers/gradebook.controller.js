@@ -27,6 +27,8 @@ const GradebookController = {
   _adviserSections:   [],
   _adviserSectionIds: new Set(),
   _adviserRows:       [],
+  _adviserStudents:   [],
+  _adviserStudentId:  'all',
   _adviserSemester:   '1st',
   _adviserSectionId:  null,
   _adviserSectionName:'',
@@ -485,6 +487,7 @@ const GradebookController = {
     const requestId = ++this._renderRequestId;
     this._adviserSectionId = sectionId;
     this._adviserSectionName = sectionName;
+    this._adviserStudentId = 'all';
     this._adviserSemester = '1st';
     const area = document.getElementById('content-area');
     if (!area) return;
@@ -493,13 +496,18 @@ const GradebookController = {
       <div class="empty-state-title">Loading adviser report card…</div>
     </div>`;
     try {
-      this._adviserRows = await api.getAdviserReportCard(sectionId, this._adviserSemester);
+      [this._adviserRows, this._adviserStudents] = await Promise.all([
+        api.getAdviserReportCard(sectionId, this._adviserSemester),
+        api.getSectionStudents(sectionId),
+      ]);
       if (requestId !== this._renderRequestId) return;
       area.innerHTML = TeacherView.adviserReportCard(
         sectionName,
         sectionId,
         this._adviserSemester,
         this._adviserRows,
+        this._adviserStudents,
+        this._adviserStudentId,
       );
     } catch (err) {
       if (requestId !== this._renderRequestId) return;
@@ -528,6 +536,8 @@ const GradebookController = {
         this._adviserSectionId,
         semester,
         this._adviserRows,
+        this._adviserStudents,
+        this._adviserStudentId,
       );
     } catch (err) {
       if (requestId !== this._renderRequestId) return;
@@ -537,15 +547,150 @@ const GradebookController = {
   },
 
   onAdviserStudentChange() {
-    const studentId = Number(document.getElementById('adviser-report-student')?.value);
+    const select = document.getElementById('adviser-report-student');
+    if (!select) return;
+    this._adviserStudentId = select.value || 'all';
     const area = document.getElementById('content-area');
     if (area) area.innerHTML = TeacherView.adviserReportCard(
       this._adviserSectionName,
       this._adviserSectionId,
       this._adviserSemester,
       this._adviserRows,
-      studentId || null,
+      this._adviserStudents,
+      this._adviserStudentId,
     );
+  },
+
+  async exportAdviserReportCards() {
+    const students = new Map();
+    (this._adviserStudents || []).forEach(student => {
+      students.set(String(student.id), {
+        id: student.id,
+        name: `${student.user?.first_name || ''} ${student.user?.last_name || ''}`.trim()
+          || `Student #${student.id}`,
+        studentNumber: student.student_number || '',
+        records: [],
+      });
+    });
+    (this._adviserRows || []).forEach(row => {
+      const studentKey = String(row.student_id);
+      if (!students.has(studentKey)) {
+        students.set(studentKey, {
+          id: row.student_id,
+          name: row.student_name || `Student #${row.student_id}`,
+          studentNumber: row.student_number || '',
+          records: [],
+        });
+      }
+      students.get(studentKey).records.push(row);
+    });
+
+    const allStudents = [...students.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const selectedStudents = this._adviserStudentId === 'all'
+      ? allStudents
+      : allStudents.filter(student => String(student.id) === String(this._adviserStudentId));
+    if (!selectedStudents.length) {
+      Toast.show('No report cards are available to export.', 'error');
+      return;
+    }
+
+    try {
+      await this._ensureSheetJS();
+      const XLSX = window.XLSX;
+      const workbook = XLSX.utils.book_new();
+      const schoolYear = this._adviserRows?.[0]?.school_year || '—';
+      const usedSheetNames = new Set();
+
+      selectedStudents.forEach((student, studentIndex) => {
+        const subjectRows = student.records.length
+          ? student.records.map(record => {
+            const termGrades = [
+              record.first_term_grade,
+              record.second_term_grade,
+              record.third_term_grade,
+              record.fourth_term_grade,
+            ];
+            const finalGrade = termGrades.every(value => value != null)
+              ? termGrades.reduce((sum, value) => sum + Number(value), 0) / termGrades.length
+              : '';
+            return [
+              record.subject_name || 'Subject',
+              ...termGrades.map(value => value == null ? '' : Number(value)),
+              finalGrade,
+            ];
+          })
+          : [['No enrolled subjects or report-card grades', '', '', '', '', '']];
+        const worksheetRows = [
+          ['INFANT JESUS LEARNING ACADEMY'],
+          ['STUDENT REPORT CARD'],
+          [],
+          ['Student Name', student.name, '', 'Student Number', student.studentNumber || '—', ''],
+          ['School Year', schoolYear, '', 'Semester', `${this._adviserSemester} Semester`, ''],
+          [],
+          ['Subject', '1st Term', '2nd Term', '3rd Term', '4th Term', 'Final Grade'],
+          ...subjectRows,
+          [],
+          ['Final grade is the average of all four term grades and is shown only when all four are available.'],
+        ];
+        const worksheet = XLSX.utils.aoa_to_sheet(worksheetRows);
+        worksheet['!cols'] = [
+          { wch: 36 }, { wch: 16 }, { wch: 16 },
+          { wch: 16 }, { wch: 16 }, { wch: 16 },
+        ];
+        worksheet['!margins'] = {
+          left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2,
+        };
+        worksheet['!rows'] = [];
+        worksheet['!rows'][0] = { hpt: 26 };
+        worksheet['!rows'][1] = { hpt: 22 };
+        worksheet['!rows'][2] = { hpt: 10 };
+        worksheet['!rows'][5] = { hpt: 10 };
+        worksheet['!rows'][6] = { hpt: 24 };
+        const noteRow = worksheetRows.length - 1;
+        worksheet['!merges'] = [
+          { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+          { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+          { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } },
+          { s: { r: 3, c: 4 }, e: { r: 3, c: 5 } },
+          { s: { r: 4, c: 1 }, e: { r: 4, c: 2 } },
+          { s: { r: 4, c: 4 }, e: { r: 4, c: 5 } },
+          { s: { r: noteRow, c: 0 }, e: { r: noteRow, c: 5 } },
+        ];
+        const firstGradeRow = 7;
+        const lastGradeRow = firstGradeRow + subjectRows.length - 1;
+        for (let row = firstGradeRow; row <= lastGradeRow; row++) {
+          for (let column = 1; column <= 5; column++) {
+            const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
+            if (cell && typeof cell.v === 'number') cell.z = '0.00';
+          }
+        }
+
+        const baseSheetName = String(student.name || `Student ${studentIndex + 1}`)
+          .replace(/[\\/?*[\]:]/g, '')
+          .trim() || `Student ${studentIndex + 1}`;
+        let sheetName = baseSheetName.slice(0, 31);
+        if (usedSheetNames.has(sheetName.toLowerCase())) {
+          const suffix = `_${student.id || studentIndex + 1}`;
+          sheetName = `${baseSheetName.slice(0, 31 - suffix.length)}${suffix}`;
+        }
+        usedSheetNames.add(sheetName.toLowerCase());
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      });
+
+      const slug = value => String(value || 'all')
+        .replace(/[^a-z0-9_-]+/gi, '_')
+        .replace(/^_+|_+$/g, '') || 'all';
+      const studentLabel = this._adviserStudentId === 'all'
+        ? 'all-students'
+        : selectedStudents[0].name;
+      const date = new Date().toISOString().slice(0, 10);
+      const fileName = `Report_Cards_${slug(this._adviserSectionName)}_${slug(this._adviserSemester)}_${slug(studentLabel)}_${date}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      Toast.show(`Exported: ${fileName}`, 'success');
+    } catch (err) {
+      console.error('[Gradebook] adviser report card export error:', err);
+      Toast.show('Could not export report cards: ' + err.message, 'error');
+    }
   },
 
   async _saveReportCardDrafts(students, context) {

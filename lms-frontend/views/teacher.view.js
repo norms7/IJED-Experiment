@@ -697,22 +697,47 @@ const TeacherView = {
       </div>`;
   },
 
-  adviserReportCard(sectionName, sectionId, semester, records, selectedStudentId = null) {
+  adviserReportCard(sectionName, sectionId, semester, records, sectionStudents = [], selectedStudentId = 'all') {
     const rows = Array.isArray(records) ? records : [];
-    const students = [...new Map(rows.map(row => [
-      row.student_id,
-      { id: row.student_id, name: row.student_name },
-    ])).values()];
-    const activeStudentId = selectedStudentId && students.some(student => student.id === selectedStudentId)
-      ? selectedStudentId
-      : students[0]?.id;
-    const activeStudent = students.find(student => student.id === activeStudentId);
-    const studentOptions = students.map(student =>
-      `<option value="${student.id}" ${student.id === activeStudentId ? 'selected' : ''}>${escHtml(student.name || `Student #${student.id}`)}</option>`
-    ).join('');
-    const subjectRows = rows
-      .filter(row => row.student_id === activeStudentId)
-      .map(row => {
+    const students = new Map();
+    (sectionStudents || []).forEach(student => {
+      const studentKey = String(student.id);
+      students.set(studentKey, {
+        id: student.id,
+        name: `${student.user?.first_name || ''} ${student.user?.last_name || ''}`.trim()
+          || `Student #${student.id}`,
+        studentNumber: student.student_number || '—',
+        records: [],
+      });
+    });
+    rows.forEach(row => {
+      const studentKey = String(row.student_id);
+      if (!students.has(studentKey)) {
+        students.set(studentKey, {
+          id: row.student_id,
+          name: row.student_name || `Student #${row.student_id}`,
+          studentNumber: row.student_number || '—',
+          records: [],
+        });
+      }
+      students.get(studentKey).records.push(row);
+    });
+    const sortedStudents = [...students.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const selectedExists = sortedStudents.some(student => String(student.id) === String(selectedStudentId));
+    const activeStudentId = selectedStudentId === 'all' || !selectedExists
+      ? 'all'
+      : String(selectedStudentId);
+    const visibleStudents = activeStudentId === 'all'
+      ? sortedStudents
+      : sortedStudents.filter(student => String(student.id) === activeStudentId);
+    const studentOptions = sortedStudents.map(student => {
+      const label = student.studentNumber && student.studentNumber !== '—'
+        ? `${student.name} (${student.studentNumber})`
+        : student.name;
+      return `<option value="${escHtml(student.id)}" ${String(student.id) === activeStudentId ? 'selected' : ''}>${escHtml(label)}</option>`;
+    }).join('');
+    const studentCards = visibleStudents.map(student => {
+      const subjectRows = student.records.map(row => {
         const termGrades = [
           row.first_term_grade,
           row.second_term_grade,
@@ -734,7 +759,27 @@ const TeacherView = {
           ${grades}
           ${finalGradeCell}
         </tr>`;
-      }).join('');
+      }).join('') || `<tr><td colspan="6" class="text-center text-muted" style="padding:32px">No enrolled subjects or report-card grades for this semester.</td></tr>`;
+      return `<section class="card adviser-report-student-card">
+        <div class="adviser-report-student-heading">
+          <h3>${escHtml(student.name || 'Student')}</h3>
+          ${student.studentNumber ? `<span>${escHtml(student.studentNumber)}</span>` : ''}
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" style="min-width:680px">
+            <thead><tr>
+              <th>Subject</th>
+              <th style="text-align:center">1st Term</th>
+              <th style="text-align:center">2nd Term</th>
+              <th style="text-align:center">3rd Term</th>
+              <th style="text-align:center">4th Term</th>
+              <th style="text-align:center">Final Grade</th>
+            </tr></thead>
+            <tbody>${subjectRows}</tbody>
+          </table>
+        </div>
+      </section>`;
+    }).join('');
     const schoolYear = rows[0]?.school_year || '—';
     const semesterOptions = ['1st', '2nd'].map(value =>
       `<option value="${value}" ${value === semester ? 'selected' : ''}>${value} Semester</option>`
@@ -755,27 +800,18 @@ const TeacherView = {
       </select>
       <label for="adviser-report-student" style="font-weight:600">Student</label>
       <select class="form-control" id="adviser-report-student" style="max-width:280px" onchange="GradebookController.onAdviserStudentChange()">
-        ${studentOptions || '<option value="">No enrolled students</option>'}
+        <option value="all" ${activeStudentId === 'all' ? 'selected' : ''}>All students</option>
+        ${studentOptions}
       </select>
+      <span class="badge badge-gray">${visibleStudents.length} student${visibleStudents.length === 1 ? '' : 's'}</span>
+      <button class="btn btn-outline btn-sm" onclick="GradebookController.exportAdviserReportCards()">${lmsIcon('download')} Export Excel</button>
     </div>
-    <section class="card">
-      <div style="padding:16px 18px 0">
-        <h3 style="margin:0;color:var(--maroon)">${escHtml(semester)} Semester Report Card${activeStudent ? ` · ${escHtml(activeStudent.name)}` : ''}</h3>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table" style="min-width:680px">
-          <thead><tr>
-            <th>Subject</th>
-            <th style="text-align:center">1st Term</th>
-            <th style="text-align:center">2nd Term</th>
-            <th style="text-align:center">3rd Term</th>
-            <th style="text-align:center">4th Term</th>
-            <th style="text-align:center">Final Grade</th>
-          </tr></thead>
-          <tbody>${subjectRows || `<tr><td colspan="6" class="text-center text-muted" style="padding:32px">No enrolled subjects or report-card grades for this semester.</td></tr>`}</tbody>
-        </table>
-      </div>
-    </section>`;
+    <div class="adviser-report-cards" aria-label="${escHtml(semester)} semester report cards">
+      ${studentCards || `<div class="empty-state">
+        <div class="empty-state-title">No students found</div>
+        <div class="empty-state-sub">No enrolled students or report-card grades are available for this semester.</div>
+      </div>`}
+    </div>`;
   },
 
   // ATTENDANCE VIEWS
